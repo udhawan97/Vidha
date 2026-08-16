@@ -19,6 +19,6 @@ This ledger prevents planned capability from appearing as shipped truth. Fable m
 | Native desktop apps | Explicit v1 non-goal | Unavailable | Roadmap only | No download claim until a separately approved implementation exists |
 | Screenshot or demo | No runnable app | Unavailable | Intentionally absent | Capture only from verified demo data in release candidate |
 | v1 download and updater | No release | Unavailable | Intentionally absent | Verify exact artifacts, signing, checksums, install, and update path |
-| Private vulnerability reporting | Canonical GitHub setting + repository security policy | Enabled on the canonical public remote; no-details fallback form staged | Security policy + no-details contact-request form | Reverify the reporter-facing route and issue chooser after push |
-| Public product/documentation questions | Canonical GitHub setting + support policy | Discussions enabled; question form staged | Question issue form + Discussions | Verify the issue chooser after push |
-| AGPL-3.0 license | LICENSE + ADR 0006 | Current | README license | Confirm repository license detection after GitHub publication |
+| Private vulnerability reporting | Canonical GitHub setting + repository security policy | Enabled and verified; no-details fallback form published | Security policy + no-details contact-request form | Reverify the setting and reporter-facing route after repository-security changes |
+| Public product/documentation questions | Canonical GitHub setting + support policy | Discussions and question form published | Question issue form + Discussions | Reverify after issue-template or repository-setting changes |
+| AGPL-3.0 license | LICENSE + ADR 0006 | Current; GitHub detection verified | README license | Reverify after license-file changes |
