@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.wrangler/
+.dev.vars
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.log
+*.local
+
+# Local planning and generated analysis
+work/
+graphify-out/

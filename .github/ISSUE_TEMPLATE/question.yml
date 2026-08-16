@@ -1,0 +1,22 @@
+name: Product or documentation question
+description: Ask a public question about the pre-alpha product model or repository documentation.
+title: "[Question]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Viraha has no runnable app or supportable release yet. Ask only public product or documentation questions and use synthetic examples. Do not include personal plans, contacts, Envelope contents, credentials, recovery material, or vulnerability details.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like clarified in the current public documentation?
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: This question contains no private content, personal information, credentials, or vulnerability details.
+          required: true

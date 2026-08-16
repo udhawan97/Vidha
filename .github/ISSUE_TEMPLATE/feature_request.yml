@@ -1,0 +1,32 @@
+name: Feature request
+description: Propose a focused user outcome without weakening Viraha's trust model.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What user problem needs solving?
+      description: Describe the situation without prescribing a component or dependency.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What becomes possible or safer for an Owner, Guardian, or Recipient?
+    validations:
+      required: true
+  - type: textarea
+    id: trust
+    attributes:
+      label: Trust and scope impact
+      description: Explain effects on privacy, recovery, roles, Check-in, Concern, Release, self-hosting, or provider costs.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Smaller alternatives considered
+      description: Could the outcome be achieved without adding a new mode, provider, or irreversible rule?

@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a reproducible Viraha defect using synthetic data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Viraha is pre-alpha. Never attach real Envelope contents, contacts, recovery material, credentials, or production logs. Use GitHub's private vulnerability flow only when its reporter-facing button is available; otherwise post no exploit details and request a private channel.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and why it is unsafe or incorrect.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Synthetic reproduction
+      description: Provide minimal steps using only disposable data.
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Revision
+      description: Commit SHA, branch, or release if one exists.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS, runtime, hosting mode, and relevant provider sandbox.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed all personal information, real content, tokens, and credentials.
+          required: true
+        - label: This report does not describe an exploitable vulnerability requiring private disclosure.
+          required: true
