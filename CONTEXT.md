@@ -1,6 +1,6 @@
-# Viraha
+# Vidha
 
-Viraha is a contingency relay in which an individual prepares private, recipient-specific material that may be released if they become persistently unreachable. Inactivity begins verification; it is never treated as proof of death.
+Vidha is a contingency relay in which an individual prepares private, recipient-specific material that may be released if they become persistently unreachable. Inactivity begins verification; it is never treated as proof of death.
 
 ## People
 
@@ -31,11 +31,11 @@ Private, recipient-specific material prepared by the Owner for possible Release.
 _Avoid_: Will, payload
 
 **Editable Document**:
-Owner-authored content held in Viraha's canonical rich-text and Markdown-compatible form so it can be imported, edited, and exported without depending on one proprietary editor.
+Owner-authored content held in Vidha's canonical rich-text and Markdown-compatible form so it can be imported, edited, and exported without depending on one proprietary editor.
 _Avoid_: Arbitrary file, Attachment
 
 **Attachment**:
-An original file preserved with an Envelope for preview or download without a promise that its native format can be edited in Viraha.
+An original file preserved with an Envelope for preview or download without a promise that its native format can be edited in Vidha.
 _Avoid_: Editable Document
 
 **Protection Mode**:

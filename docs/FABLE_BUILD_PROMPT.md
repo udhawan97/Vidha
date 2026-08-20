@@ -1,10 +1,10 @@
 # Fable implementation and v1 release prompt
 
-Copy the prompt below into Fable from the Viraha repository root.
+Copy the prompt below into Fable from the Vidha repository root.
 
 ---
 
-You are the implementation owner for Viraha. Build the complete version 1 application in this repository, verify the real hosted and self-hosted product, refresh its public surfaces from runtime evidence, and begin the ordered `v1.0.0` publication procedure only after every release-readiness gate passes.
+You are the implementation owner for Vidha. Build the complete version 1 application in this repository, verify the real hosted and self-hosted product, refresh its public surfaces from runtime evidence, and begin the ordered `v1.0.0` publication procedure only after every release-readiness gate passes.
 
 ## Authority and stopping rules
 
@@ -39,7 +39,7 @@ At minimum resolve every open decision listed in the product brief, plus any con
 
 ## Product outcome
 
-Viraha is a contingency relay for one adult Owner. It provides a focused document workspace and releases recipient-specific Envelopes through explicit, auditable policies if the Owner becomes persistently unreachable.
+Vidha is a contingency relay for one adult Owner. It provides a focused document workspace and releases recipient-specific Envelopes through explicit, auditable policies if the Owner becomes persistently unreachable.
 
 The product is not a death detector, legal will, estate platform, password manager, asset-transfer mechanism, emergency service, or AI decision-maker. It never says that inactivity proves death.
 
@@ -105,17 +105,17 @@ Version 1 is an installable responsive web app. Do not build native macOS or Win
 
 ## Design direction
 
-Make Viraha feel calm, humane, and precise—not gothic, funereal, legalistic, or like a generic SaaS dashboard. The product's visual language should express distance, continuity, and careful handoff without decorative grief imagery. Avoid fake security theater, gradient blobs, glass-card grids, excessive badges, and alarming red countdowns.
+Make Vidha feel calm, humane, and precise—not gothic, funereal, legalistic, or like a generic SaaS dashboard. The product's visual language should express distance, continuity, and careful handoff without decorative grief imagery. Avoid fake security theater, gradient blobs, glass-card grids, excessive badges, and alarming red countdowns.
 
 The app should make the current state, next date, who has authority, and what remains reversible understandable at a glance. Use progressive disclosure for technical and legal boundaries. Design and test light/dark behavior, keyboard use, screen readers, reduced motion, 200% zoom, touch targets, and the documented mobile/desktop viewport matrix.
 
-Treat Viraha as a provisional working name: the exact GitHub account and multiple recently active exact-name repositories already exist. Do not create a final logo or claim exclusive ownership until the full name gate passes; inspiration is not clearance.
+Treat Vidha as a provisional working name: the exact GitHub account, several exact-name repositories, and the `.com` and `.org` domains already exist. Do not create a final logo or claim exclusive ownership until the full name gate passes; inspiration is not clearance.
 
 ## Use other repositories responsibly
 
 Read the competitive landscape report and inspect relevant repositories directly. Borrow problem-solving patterns only after checking current source and license. Record attribution when code, fixtures, protocols, or substantial design ideas require it. Do not copy another product's brand, README structure, screenshots, proprietary text, or incompatible code.
 
-The strategic hypothesis to test is not “no other dead-man switch exists.” It is that Viraha can make the following combination unusually coherent:
+The strategic hypothesis to test is not “no other dead-man switch exists.” It is that Vidha can make the following combination unusually coherent:
 
 - Envelope-wide Standard versus Sealed confidentiality across editable and attached content;
 - a real editable/importable document workspace;

@@ -1,6 +1,6 @@
 # Security policy
 
-Viraha is pre-alpha and has no hosted production service or released version. Security design reports are still valuable; reports involving exploitable vulnerabilities must remain private.
+Vidha is pre-alpha and has no hosted production service or released version. Security design reports are still valuable; reports involving exploitable vulnerabilities must remain private.
 
 ## Reporting privately
 

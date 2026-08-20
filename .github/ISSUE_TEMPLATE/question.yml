@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Viraha has no runnable app or supportable release yet. Ask only public product or documentation questions and use synthetic examples. Do not include personal plans, contacts, Envelope contents, credentials, recovery material, or vulnerability details.
+        Vidha has no runnable app or supportable release yet. Ask only public product or documentation questions and use synthetic examples. Do not include personal plans, contacts, Envelope contents, credentials, recovery material, or vulnerability details.
   - type: textarea
     id: question
     attributes:

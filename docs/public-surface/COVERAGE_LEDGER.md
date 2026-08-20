@@ -5,7 +5,7 @@ This ledger prevents planned capability from appearing as shipped truth. Fable m
 | Surface or claim | Current source of truth | Status | Current public destination | Required verification |
 | --- | --- | --- | --- | --- |
 | Product job and intended Owner | Product brief + accepted interview | Approved direction | README opening | Confirm against implemented onboarding and primary journey |
-| Viraha product name | [Competitive landscape name-collision evidence](../research/GITHUB_COMPETITIVE_LANDSCAPE.md#working-name-collision-check-viraha) | Provisional; exact account and exact-name repositories already exist, broader clearance incomplete | README warning + title | Recheck repository/package/domain/app-store associations and appropriate trademark sources before launch |
+| Vidha product name | [Competitive landscape name-collision evidence](../research/GITHUB_COMPETITIVE_LANDSCAPE.md#working-name-collision-check-vidha) | Provisional; exact account, exact-name repositories, and occupied `.com`/`.org` domains exist; broader clearance incomplete | README warning + title | Recheck repository/package/domain/app-store associations and appropriate trademark sources before launch |
 | Installable web app | Roadmap + architecture proposal | Planned | README target capabilities | Install and update a production build on supported browsers |
 | Hosted service | ADR 0003 | Planned | README target capabilities | Verify deployed URL, region, providers, privacy, backups, and operations |
 | Self-hosting | ADR 0003 | Planned | README trust boundary | Complete clean-machine install and restore rehearsal |

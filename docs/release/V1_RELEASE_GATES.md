@@ -9,7 +9,7 @@ Sections 1–11 are **release-readiness gates**. Every checkbox in those section
 - [ ] Every unresolved decision in `docs/product/PRODUCT_BRIEF.md` has a user answer.
 - [ ] `CONTEXT.md`, ADRs, UI terminology, schemas, tests, and templates agree.
 - [ ] The v1 scope and explicit non-goals are visible in the app and public documentation.
-- [ ] The Viraha name has received repository, package, domain, app-store, and appropriate legal/trademark review; no uniqueness claim exceeds the evidence.
+- [ ] The Vidha name has received repository, package, domain, app-store, and appropriate legal/trademark review; no uniqueness claim exceeds the evidence.
 
 ## 2. Core journeys
 

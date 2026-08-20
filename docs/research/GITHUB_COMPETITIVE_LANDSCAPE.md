@@ -1,8 +1,8 @@
 # GitHub and official-product landscape: sensitive document release
 
-Snapshot: 2026-08-16 (America/Chicago)
+Competitive snapshot: 2026-08-16; Vidha naming addendum: 2026-08-20 (America/Chicago)
 
-> **Repository interpretation:** this is a research snapshot, not the current product contract. Where the report says “per document,” Viraha's canonical model now uses one recipient-specific **Envelope** with one Protection Mode and one Release Policy covering every contained Editable Document and Attachment. `CONTEXT.md` and accepted ADRs control implementation terminology.
+> **Repository interpretation:** this is a research snapshot, not the current product contract. Where the report says “per document,” Vidha's canonical model now uses one recipient-specific **Envelope** with one Protection Mode and one Release Policy covering every contained Editable Document and Attachment. `CONTEXT.md` and accepted ADRs control implementation terminology.
 
 ## Bottom line
 
@@ -28,7 +28,7 @@ This bounded review did **not** find one product that combines all of the propos
 
 That is a plausible product combination, not proof of novelty. Letter Vault means neither “rich posthumous letters” nor “M-of-N keyholder gating with a forced fallback at vault level” is a novelty claim. The honest position is a more rigorous **dual-privacy continuity document workspace**, not “the first dead-man switch.”
 
-`Viraha` is also **not a clean public launch name**: the exact GitHub account is occupied and several recently pushed repositories already use the exact basename. Retain it only as a provisional working title pending broader availability and legal clearance.
+`Vidha` is also **not globally unused or legally cleared**: the exact GitHub account, several exact-name repositories, an established software-services company, and the `.com` and `.org` domains already exist. The owner-qualified `udhawan97/Vidha` repository path was available before this repository moved, and four major package registries returned no exact package, but those narrower facts do not establish exclusivity. Treat Vidha as provisional pending broader availability and appropriate legal review.
 
 ## Method and evidence boundary
 
@@ -96,7 +96,22 @@ The confidentiality contract must be literal: **Standard** can support service-a
 
 The project should not market itself as a legal will, executor, or guaranteed proof of death. LastSignal itself explicitly disclaims being a substitute for a will or other legal instrument ([README](https://github.com/giovantenne/lastsignal#readme)); the safer niche is continuity instructions and personal communications, with clear legal boundaries. Delivering medical, credential, or estate instructions does not itself confer legal authority or satisfy jurisdiction-specific formalities.
 
-## Working-name collision check: `Viraha`
+## Working-name collision check: `Vidha`
+
+`Vidha` is available as this project's owner-qualified repository basename, but it is **not a clean or unused global name**. This bounded 2026-08-20 snapshot found an existing exact GitHub account, five repositories whose basename is exactly `vidha` (case-insensitive), occupied `.com` and `.org` domains, and an established software-services use:
+
+| Surface | Direct primary-source evidence | Practical implication |
+|---|---|---|
+| **Project repository path** | GitHub returned “not found” for `udhawan97/Vidha` immediately before this repository was renamed there on **2026-08-20**. | The selected owner-qualified repository path was available for this project. That says nothing about broader name rights or confusion. |
+| **GitHub account / organization slug** | [`github.com/vidha`](https://github.com/vidha) is an existing User account, created **2013-04-24**, with five public repositories in this snapshot ([GitHub API](https://api.github.com/users/vidha)). | The bare GitHub account or organization slug is unavailable. |
+| **Exact-name GitHub repositories** | A bounded [`vidha in:name` repository search](https://api.github.com/search/repositories?q=vidha%20in%3Aname&per_page=100) found five exact basenames: [`vidharshanashree/vidha`](https://github.com/vidharshanashree/vidha), [`dharshmrv/vidha`](https://github.com/dharshmrv/vidha), [`GANESHBHUSHANTN/VIDHA`](https://github.com/GANESHBHUSHANTN/VIDHA), [`durgamahicherla/VIDHA`](https://github.com/durgamahicherla/VIDHA), and [`chitrizz/vidha`](https://github.com/chitrizz/vidha). All had zero stars and no detected license; the most recently pushed was the “AI-powered Adaptive Learning System” repository on **2026-07-25**. | Exact-name software repositories already exist, including one with a current software-product description. Discoverability and repository ambiguity are plausible; this is not a trademark conclusion. |
+| **Software-services association** | [Vidha IT Solutions LLC](https://vidhait.com/) identifies itself as a software-development and consulting provider. | The word already has an established technology-sector association outside GitHub. |
+| **Domains** | Direct DNS and HTTP checks found [`vidha.com`](https://vidha.com/) registered and parked for resale, while [`vidha.org`](https://vidha.org/) resolves to an operating site. | Neither `.com` nor `.org` is available as an unoccupied primary domain. DNS non-results for `.io`, `.app`, and `.dev` were not treated as availability proof. |
+| **Exact package-name snapshot** | The official [npm](https://registry.npmjs.org/vidha), [PyPI](https://pypi.org/pypi/vidha/json), [RubyGems](https://rubygems.org/api/v1/gems/vidha.json), and [crates.io](https://crates.io/api/v1/crates/vidha) endpoints returned `404` for the exact package name on **2026-08-20**. | No exact package was returned from those four registries in this snapshot. This is not a reservation or permanence guarantee. |
+
+**Naming recommendation:** use `Vidha` as a provisional working product and repository name, without uniqueness language or a final brand investment. Recheck package, domain, app-store, corporate-name, common-law, and jurisdiction-specific trademark sources before launch. This review is **not exhaustive name-availability research or legal trademark clearance**.
+
+## Retired working-name collision check: `Viraha`
 
 `Viraha` is emotionally apt, but it is **not a clean or unused exact name on GitHub**. This bounded snapshot found an existing exact GitHub account and three software repositories with recent pushes whose basename is exactly `viraha` (case-insensitive):
 
@@ -107,7 +122,7 @@ The project should not market itself as a legal will, executor, or guaranteed pr
 | **Official non-software product association** | Japanese label Toy's Factory lists BRAHMAN's album **`viraha`**, released **2025-02-26** ([official discography](https://www.toysfactory.co.jp/artist/brahman/disco), [album page](https://www.toysfactory.co.jp/sp/artist/brahman/disco/2814)). | Search results for the bare word can also carry an established music meaning. That does not by itself establish a software conflict. |
 | **Exact package-name snapshot** | The official [npm](https://registry.npmjs.org/viraha), [PyPI](https://pypi.org/pypi/viraha/json), and [RubyGems](https://rubygems.org/api/v1/gems/viraha.json) registry endpoints returned “not found” for the exact package name on **2026-08-16**. The crates.io API check was inconclusive because the request was rejected. | No exact package was returned from those three registries in this snapshot. This is not a reservation, permanence guarantee, or evidence that the broader product name is available. |
 
-**Naming recommendation:** treat `Viraha` as a working title, not as a cleared launch name. If its meaning is central, use a qualified development slug temporarily and run separate domain, app-store, corporate-name, and jurisdiction-specific trademark checks before launch. This review is **not exhaustive name availability research or legal trademark clearance**.
+**Historical outcome:** this evidence supported retiring `Viraha` as the working product name. It remains here so the repository does not erase the basis for that decision. This review was **not exhaustive name-availability research or legal trademark clearance**.
 
 The adjacent official-product check was limited to exact-name web discovery and direct review of the surfaced first-party pages. It established the album association above; it did **not** establish that no exact-name official software product exists.
 
@@ -118,5 +133,5 @@ The adjacent official-product check was limited to exact-name web discovery and 
 - Letter Vault and Afterword are especially close in claimed features but had 0 stars, no test tree identified, and unavailable linked deployments in this snapshot; they are evidence that features were claimed and portions appear in source, not evidence of production reliability.
 - Commercial products can have undocumented features, experiments, regional differences, or recent changes not indexed in their help centers.
 - GitHub `pushed_at` can move because of maintenance unrelated to the compared feature.
-- The `Viraha` check was limited to exact/obvious GitHub and official-product associations plus three package registries; it did not cover every code forge, domain, app store, social handle, corporate registry, common-law use, or trademark office.
+- The `Vidha` and retired `Viraha` checks were bounded snapshots; they did not cover every code forge, domain, app store, social handle, corporate registry, common-law use, or trademark office.
 - A next pass should separately test live onboarding/editor/release UX for LastSignal and Everplans, and perform a threat-model comparison before choosing any cryptographic or automatic-release design.

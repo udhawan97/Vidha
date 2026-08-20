@@ -1,16 +1,16 @@
-# Viraha
+# Vidha
 
 **Prepare what matters. Release it carefully.**
 
-Viraha is an open-source contingency relay for an individual who wants selected people to receive private messages or documents if they become persistently unreachable. It is designed around explicit Check-ins, human verification by default, recipient-specific Envelopes, and clear recovery trade-offs.
+Vidha is an open-source contingency relay for an individual who wants selected people to receive private messages or documents if they become persistently unreachable. It is designed around explicit Check-ins, human verification by default, recipient-specific Envelopes, and clear recovery trade-offs.
 
 > **Pre-alpha:** this repository currently contains the approved product model, safety constraints, architecture proposal, and v1 execution handoff. There is no application code, runnable app, hosted service, deployment, download, updater, tag, or GitHub release yet.
 
-> **Working name:** “Viraha” is provisional. The exact GitHub account and several recently active exact-name repositories already exist; this project makes no availability or legal-clearance claim. See the [name-collision evidence](docs/research/GITHUB_COMPETITIVE_LANDSCAPE.md#working-name-collision-check-viraha).
+> **Working name:** “Vidha” is provisional. The exact GitHub account, several exact-name repositories, and the `.com` and `.org` domains are already occupied; this project makes no exclusivity or legal-clearance claim. See the [name-collision evidence](docs/research/GITHUB_COMPETITIVE_LANDSCAPE.md#working-name-collision-check-vidha).
 
 [Product brief](docs/product/PRODUCT_BRIEF.md) · [Threat model](docs/security/THREAT_MODEL.md) · [Proposed architecture](docs/architecture/ARCHITECTURE.md) · [Fable build handoff](docs/FABLE_BUILD_PROMPT.md)
 
-## What Viraha is designed to do
+## What Vidha is designed to do
 
 - Let one Owner create recipient-specific Envelopes in a focused writing workspace.
 - Convert supported text formats into Editable Documents and preserve other files as Attachments.
@@ -23,7 +23,7 @@ Viraha is an open-source contingency relay for an individual who wants selected 
 
 ## What makes the product narrow
 
-Viraha is not trying to manage an estate, transfer money, store passwords, predict death, or replace emergency services. Its job is smaller: help someone prepare meaningful material, keep control while they are reachable, and make an eventual handoff deliberate and auditable.
+Vidha is not trying to manage an estate, transfer money, store passwords, predict death, or replace emergency services. Its job is smaller: help someone prepare meaningful material, keep control while they are reachable, and make an eventual handoff deliberate and auditable.
 
 That focus produces four product boundaries:
 
@@ -36,7 +36,7 @@ That focus produces four product boundaries:
 
 1. The Owner creates a Contingency Plan, adds verified Guardians and Recipients, and writes or imports an Envelope.
 2. The Owner chooses a Release Policy for that Envelope and completes a safe rehearsal before arming it.
-3. Viraha requests authenticated Check-ins on the Owner's schedule.
+3. Vidha requests authenticated Check-ins on the Owner's schedule.
 4. A missed schedule moves through reminders, grace, Concern, verification, and a final Veto Window.
 5. Release makes the Envelope available only to its Recipient and records an audit trail.
 
@@ -44,7 +44,7 @@ The exact state machine, retries, provider failures, recovery paths, and abuse c
 
 ## Trust boundaries
 
-- Viraha never claims that an Owner has died.
+- Vidha never claims that an Owner has died.
 - No content is released solely because an email was opened or a link was fetched.
 - Standard Mode uses managed encryption and can support recovery; operator access must be restricted and audited.
 - If it passes its protocol, recovery, independent-review, and test-vector gates, Sealed Mode trades recovery and server-assisted features for stronger confidentiality across the entire Envelope; otherwise it does not ship as an armable v1 feature.
@@ -77,4 +77,4 @@ The safest contribution is one that preserves the domain language and makes a fa
 
 ## License
 
-Viraha is licensed under [AGPL-3.0](LICENSE). Anyone may use, modify, self-host, or commercially operate it; network-hosted modifications must remain available as source under the license terms.
+Vidha is licensed under [AGPL-3.0](LICENSE). Anyone may use, modify, self-host, or commercially operate it; network-hosted modifications must remain available as source under the license terms.

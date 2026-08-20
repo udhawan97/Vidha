@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the documentation-only Viraha foundation without third-party tools."""
+"""Validate the documentation-only Vidha foundation without third-party tools."""
 
 from __future__ import annotations
 

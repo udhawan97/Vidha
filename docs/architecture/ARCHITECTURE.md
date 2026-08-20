@@ -4,7 +4,7 @@
 
 ## Architectural objective
 
-Viraha must continue advancing a transparent contingency timeline when every Owner device is offline, while keeping irreversible Release logic deterministic, testable, and independent of a particular hosting or notification vendor.
+Vidha must continue advancing a transparent contingency timeline when every Owner device is offline, while keeping irreversible Release logic deterministic, testable, and independent of a particular hosting or notification vendor.
 
 ```mermaid
 flowchart LR

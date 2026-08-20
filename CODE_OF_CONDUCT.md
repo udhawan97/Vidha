@@ -1,13 +1,13 @@
 # Code of conduct
 
-Viraha contributors must make participation safe, respectful, and useful—especially because the product touches grief, illness, family relationships, privacy, and personal contingency planning.
+Vidha contributors must make participation safe, respectful, and useful—especially because the product touches grief, illness, family relationships, privacy, and personal contingency planning.
 
 ## Expected behavior
 
 - Be direct about risks without being cruel or sensational.
 - Respect names, identities, cultures, relationships, disabilities, and different approaches to mortality.
 - Challenge ideas and evidence rather than people.
-- Do not pressure anyone to disclose why they need Viraha or what their Documents contain.
+- Do not pressure anyone to disclose why they need Vidha or what their Documents contain.
 - Protect private information and use synthetic examples.
 - Accept correction, disclose conflicts, and prioritize repair over winning an argument.
 

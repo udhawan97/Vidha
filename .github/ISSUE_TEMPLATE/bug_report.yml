@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible Viraha defect using synthetic data.
+description: Report a reproducible Vidha defect using synthetic data.
 title: "[Bug]: "
 labels:
   - bug
@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Viraha is pre-alpha. Never attach real Envelope contents, contacts, recovery material, credentials, or production logs. Use GitHub's private vulnerability flow only when its reporter-facing button is available; otherwise post no exploit details and request a private channel.
+        Vidha is pre-alpha. Never attach real Envelope contents, contacts, recovery material, credentials, or production logs. Use GitHub's private vulnerability flow only when its reporter-facing button is available; otherwise post no exploit details and request a private channel.
   - type: textarea
     id: behavior
     attributes:

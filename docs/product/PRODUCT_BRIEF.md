@@ -1,10 +1,10 @@
-# Viraha product brief
+# Vidha product brief
 
 **Status:** Approved direction for a pre-alpha build. Everything described here is a requirement or target, not a shipped claim.
 
 ## Product job
 
-Viraha helps an individual prepare recipient-specific messages and documents, remain in control through simple authenticated Check-ins, and release selected material through a deliberate contingency process if they become persistently unreachable.
+Vidha helps an individual prepare recipient-specific messages and documents, remain in control through simple authenticated Check-ins, and release selected material through a deliberate contingency process if they become persistently unreachable.
 
 ## Intended Owner
 
@@ -12,7 +12,7 @@ Version 1 serves one adult Owner managing one personal Contingency Plan for a sm
 
 ## The narrow problem
 
-Existing approaches commonly separate the writing experience from the release mechanism: a basic dead-man switch sends a stored payload, while document vaults focus on storage and legacy products often make broad estate claims. Viraha's intended niche is the combination of:
+Existing approaches commonly separate the writing experience from the release mechanism: a basic dead-man switch sends a stored payload, while document vaults focus on storage and legacy products often make broad estate claims. Vidha's intended niche is the combination of:
 
 - a calm, focused place to write and import recipient-specific material;
 - a visible Standard or Sealed Protection Mode covering every item in an Envelope;
@@ -35,7 +35,7 @@ Each Envelope gets its own Protection Mode and Release Policy. Standard Mode fav
 
 ### Write here, leave clean files behind
 
-Viraha includes a focused rich-text and Markdown-compatible editor. Supported text imports become editable copies; unsupported originals remain downloadable Attachments. Export must remain possible without the hosted service.
+Vidha includes a focused rich-text and Markdown-compatible editor. Supported text imports become editable copies; unsupported originals remain downloadable Attachments. Export must remain possible without the hosted service.
 
 ### Notifications are not the vault
 
@@ -129,4 +129,4 @@ Fable must ask one decision at a time and recommend an answer. At minimum, resol
 - final hosting region, data-processing disclosures, and provider choices;
 - the exact v1 import/export fidelity contract;
 - whether Guardians can extend Concern and under what audit rules;
-- the final visual identity and name-clearance decision for Viraha.
+- the final visual identity and name-clearance decision for Vidha.

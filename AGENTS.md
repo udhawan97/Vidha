@@ -1,6 +1,6 @@
-# Viraha repository instructions
+# Vidha repository instructions
 
-Viraha is pre-alpha. There is no shipped application, hosted service, installer, updater, or v1 release yet. Never turn a target or plan into a shipped claim.
+Vidha is pre-alpha. There is no shipped application, hosted service, installer, updater, or v1 release yet. Never turn a target or plan into a shipped claim.
 
 ## Read first
 
@@ -16,7 +16,7 @@ Use the exact domain vocabulary in `CONTEXT.md`. Update it immediately when a te
 
 ## Product invariants
 
-- Viraha is a contingency relay, not a death detector, legal will, emergency service, password manager, or asset-transfer system.
+- Vidha is a contingency relay, not a death detector, legal will, emergency service, password manager, or asset-transfer system.
 - A missed Check-in may enter Concern; it never proves death.
 - A Guardian submits only a bounded Guardian Attestation; the product never asks them to declare death.
 - Email opens, link previews, and unauthenticated `GET` requests never count as Check-ins or authorize state changes.

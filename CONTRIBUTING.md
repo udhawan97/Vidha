@@ -1,6 +1,6 @@
-# Contributing to Viraha
+# Contributing to Vidha
 
-Viraha handles sensitive material and irreversible disclosure. Contributions are welcome, but safety and precise language take precedence over feature count.
+Vidha handles sensitive material and irreversible disclosure. Contributions are welcome, but safety and precise language take precedence over feature count.
 
 ## Before opening a change
 

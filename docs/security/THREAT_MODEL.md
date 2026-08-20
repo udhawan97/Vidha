@@ -2,7 +2,7 @@
 
 **Status:** Pre-implementation security contract. Controls are requirements until runtime evidence proves them.
 
-Viraha coordinates an irreversible disclosure under uncertainty. Its dominant risk is not only data theft; it is releasing the right content at the wrong time or to the wrong person.
+Vidha coordinates an irreversible disclosure under uncertainty. Its dominant risk is not only data theft; it is releasing the right content at the wrong time or to the wrong person.
 
 ## Assets
 
@@ -69,10 +69,10 @@ Before version 1 can ship, the implementation must demonstrate:
 ## Abuse controls
 
 - Guardians and Recipients affirmatively accept invitations before a plan can be armed.
-- Invitation, reminder, and Release templates clearly identify Viraha and offer a safe report/revoke path.
+- Invitation, reminder, and Release templates clearly identify Vidha and offer a safe report/revoke path.
 - Rate limits apply per account, destination, IP risk signal, and provider budget without blocking already-authorized safety work.
 - Uploaded content and filenames are not rendered as trusted HTML.
-- Viraha does not send claims that a person died and does not contact emergency services.
+- Vidha does not send claims that a person died and does not contact emergency services.
 - Administrative tools cannot fabricate Guardian Attestations or silently change an immutable Release Policy.
 
 ## Privacy and retention
