@@ -1279,6 +1279,12 @@ h2 {
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
+
+  .update-notice {
+    right: 16px;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    width: calc(100vw - 32px);
+  }
 }
 
 @media (prefers-color-scheme: dark) {
