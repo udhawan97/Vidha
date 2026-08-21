@@ -4,11 +4,32 @@
 
 Vidha is an open-source contingency relay for an individual who wants selected people to receive private messages or documents if they become persistently unreachable. It is designed around explicit Check-ins, human verification by default, recipient-specific Envelopes, and clear recovery trade-offs.
 
-> **Pre-alpha:** this repository currently contains the approved product model, safety constraints, architecture proposal, and v1 execution handoff. There is no application code, runnable app, hosted service, deployment, download, updater, tag, or GitHub release yet.
+> **Pre-alpha:** this repository now contains a runnable Phase 1 web prototype and a deterministic domain foundation. It uses synthetic, in-memory data only. There is no account system, durable storage, encryption, real notification delivery, Release implementation, hosted service, deployment, download, tag, or GitHub release yet.
 
 > **Working name:** “Vidha” is provisional. The exact GitHub account, several exact-name repositories, and the `.com` and `.org` domains are already occupied; this project makes no exclusivity or legal-clearance claim. See the [name-collision evidence](docs/research/GITHUB_COMPETITIVE_LANDSCAPE.md#working-name-collision-check-vidha).
 
 [Product brief](docs/product/PRODUCT_BRIEF.md) · [Threat model](docs/security/THREAT_MODEL.md) · [Proposed architecture](docs/architecture/ARCHITECTURE.md) · [Fable build handoff](docs/FABLE_BUILD_PROMPT.md)
+
+## Run the local Phase 1 prototype
+
+Prerequisites: Node.js 22.12 or newer and pnpm 11.17.0.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Open the local URL printed by Vite. The prototype lets you rehearse the Check-in timeline through Concern, explicitly confirm a synthetic Check-in, inspect an in-memory event record, and import, edit, preview, or export Markdown and plain text. Refresh clears the session. **Do not enter personal or sensitive information.**
+
+Run the complete local verification suite with:
+
+```sh
+pnpm check
+pnpm exec playwright install webkit
+pnpm test:e2e
+```
+
+The production build includes a web-app manifest, service worker, and prompted update flow. This is infrastructure evidence, not a claim that installation or updates have passed the v1 release gate.
 
 ## What Vidha is designed to do
 
@@ -55,21 +76,26 @@ Read the full [threat model](docs/security/THREAT_MODEL.md) before treating any 
 
 ## Repository map
 
-| Path | Purpose |
-| --- | --- |
-| [`CONTEXT.md`](CONTEXT.md) | Canonical product vocabulary |
-| [`docs/adr/`](docs/adr/) | Accepted, hard-to-reverse decisions |
-| [`docs/product/`](docs/product/) | Product brief and journeys |
-| [`docs/architecture/`](docs/architecture/) | Proposed system boundaries |
-| [`docs/security/`](docs/security/) | Threat model and security expectations |
-| [`docs/release/`](docs/release/) | Evidence required before v1 |
-| [`docs/public-surface/FACT_SHEET.md`](docs/public-surface/FACT_SHEET.md) | Verified facts and forbidden pre-alpha claims |
-| [`docs/research/`](docs/research/) | Primary-source inspiration and landscape research |
-| [`docs/FABLE_BUILD_PROMPT.md`](docs/FABLE_BUILD_PROMPT.md) | Copy-paste implementation and release handoff |
+| Path                                                                     | Purpose                                           |
+| ------------------------------------------------------------------------ | ------------------------------------------------- |
+| [`apps/web/`](apps/web/)                                                 | Responsive React/Vite PWA prototype               |
+| [`packages/domain/`](packages/domain/)                                   | Pure Check-in and Concern state machine           |
+| [`e2e/`](e2e/)                                                           | WebKit desktop and mobile acceptance checks       |
+| [`CONTEXT.md`](CONTEXT.md)                                               | Canonical product vocabulary                      |
+| [`docs/adr/`](docs/adr/)                                                 | Accepted, hard-to-reverse decisions               |
+| [`docs/product/`](docs/product/)                                         | Product brief and journeys                        |
+| [`docs/architecture/`](docs/architecture/)                               | Proposed system boundaries                        |
+| [`docs/security/`](docs/security/)                                       | Threat model and security expectations            |
+| [`docs/release/`](docs/release/)                                         | Evidence required before v1                       |
+| [`docs/public-surface/FACT_SHEET.md`](docs/public-surface/FACT_SHEET.md) | Verified facts and forbidden pre-alpha claims     |
+| [`docs/research/`](docs/research/)                                       | Primary-source inspiration and landscape research |
+| [`docs/FABLE_BUILD_PROMPT.md`](docs/FABLE_BUILD_PROMPT.md)               | Copy-paste implementation and release handoff     |
 
 ## Build status
 
-The next step is not installation; it is implementation. Fable should follow the repository handoff, interview the Owner where decisions remain open, build the verified release candidate, and run `refresh-docs` only after the real app can supply truthful screenshots, commands, downloads, and platform claims.
+Phase 1 proves the client direction and the first safe domain slice locally. It deliberately stops at Concern: Guardian authority, Veto Window, Automatic Fallback, Delivery Hold, and Release remain unresolved or unimplemented. Authentication, persistence, cryptography, provider delivery, hosted/self-hosted infrastructure, and production operations must be designed and verified before the prototype can handle real data.
+
+Fable can continue from the [bounded build handoff](docs/FABLE_BUILD_PROMPT.md), but must not treat this prototype as release authority. Run `refresh-docs` only after a real release candidate can supply truthful screenshots, commands, downloads, and platform claims.
 
 ## Contributing
 

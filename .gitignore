@@ -11,6 +11,7 @@ playwright-report/
 test-results/
 *.log
 *.local
+*.tsbuildinfo
 
 # Local planning and generated analysis
 work/

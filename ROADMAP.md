@@ -2,18 +2,24 @@
 
 This roadmap describes intent, not shipped capability or a delivery date.
 
-## Foundation — current
+## Foundation — in progress
 
 - Canonical domain language and accepted ADRs
 - Product and user-journey definition
 - Threat model and v1 release gates
 - Primary-source competitive research
 - Truthful pre-alpha README and GitHub community files
+- Pure deterministic Check-in timeline through Concern, with injected time and idempotent commands
+- Responsive local PWA prototype using synthetic, in-memory data
+- Temporary Markdown/plain-text import, editing, preview, and export
+- Unit, component, build, documentation, accessibility, PWA, desktop-WebKit, and mobile-WebKit checks
 - Fable implementation and release handoff
+
+The next foundation slice must decide authentication and persistence boundaries before accepting real data. Guardian authority, Veto Window, Delivery Hold, Automatic Fallback, and Release remain outside the implemented state machine.
 
 ## Version 1 candidate — planned
 
-- Installable, responsive web app
+- Installable, responsive web app with a verified update journey
 - Single-Owner Contingency Plans
 - Guardians, Recipients, and recipient-specific Envelopes
 - Focused rich-text and Markdown-compatible editor

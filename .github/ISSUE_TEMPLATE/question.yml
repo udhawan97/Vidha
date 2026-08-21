@@ -1,6 +1,6 @@
 name: Product or documentation question
 description: Ask a public question about the pre-alpha product model or repository documentation.
-title: "[Question]: "
+title: '[Question]: '
 body:
   - type: markdown
     attributes:

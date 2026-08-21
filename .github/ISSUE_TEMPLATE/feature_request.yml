@@ -1,6 +1,6 @@
 name: Feature request
 description: Propose a focused user outcome without weakening Vidha's trust model.
-title: "[Feature]: "
+title: '[Feature]: '
 labels:
   - enhancement
 body:

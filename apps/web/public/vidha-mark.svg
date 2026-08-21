@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Vidha continuity mark</title>
+  <rect width="512" height="512" rx="112" fill="#1f565b"/>
+  <path d="M118 166c58 0 71 180 138 180s80-180 138-180" fill="none" stroke="#f3e5bf" stroke-width="34" stroke-linecap="round"/>
+  <circle cx="118" cy="166" r="22" fill="#d9a84e"/>
+  <circle cx="394" cy="166" r="22" fill="#d9a84e"/>
+</svg>

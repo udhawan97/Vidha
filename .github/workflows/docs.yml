@@ -1,4 +1,4 @@
-name: Documentation foundation
+name: Foundation checks
 
 on:
   pull_request:
@@ -15,5 +15,18 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Check documentation and repository whitespace
-        run: ./scripts/check-docs.sh
+      - name: Install pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          cache: pnpm
+          node-version: 24
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check formatting, lint, types, tests, build, and documentation
+        run: pnpm check
+      - name: Install WebKit
+        run: pnpm exec playwright install --with-deps webkit
+      - name: Run desktop and mobile browser acceptance
+        run: pnpm test:e2e

@@ -1,6 +1,6 @@
 name: Request private security contact
 description: Ask the maintainer to establish a private channel without disclosing vulnerability details.
-title: "[Security contact request]: "
+title: '[Security contact request]: '
 body:
   - type: markdown
     attributes:

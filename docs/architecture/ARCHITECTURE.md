@@ -1,6 +1,6 @@
 # Proposed architecture
 
-**Status:** Proposed starting shape for Fable to verify and turn into accepted ADRs. No runtime exists yet.
+**Status:** Phase 1 implements only the pure domain foundation and local PWA described in ADR 0007. The server, persistence, cryptography, notification, Guardian-authority, and Release boundaries below remain proposals for Fable to verify and turn into accepted ADRs.
 
 ## Architectural objective
 
@@ -26,20 +26,20 @@ The scheduler and watchdog are deliberately separate: the watchdog may alert ope
 
 ## Recommended repository shape
 
-Fable should prefer a TypeScript monorepo unless the interview reveals a stronger constraint:
+The repository now starts as a TypeScript monorepo. Entries marked “implemented” exist in Phase 1; the remaining entries are proposed and should be added only when their contracts earn the split:
 
 ```text
 apps/
-  web/                 installable React/Vite PWA
-  worker/              Hono HTTP and scheduled entry points
+  web/                 implemented local React/Vite PWA foundation
+  worker/              proposed HTTP and scheduled entry points
 packages/
-  domain/              pure states, policies, commands, events, invariants
-  application/         use cases and authorization orchestration
-  persistence/         repository ports and hosted/self-hosted adapters
-  crypto/              reviewed Standard and Sealed Mode boundaries
-  documents/           editor schema, conversion, export, attachment rules
-  notifications/       provider-neutral outbox and templates
-  ui/                  accessible shared components and design tokens
+  domain/              implemented pure Check-in states, commands, events, invariants
+  application/         proposed use cases and authorization orchestration
+  persistence/         proposed repository ports and hosted/self-hosted adapters
+  crypto/              proposed reviewed Standard and Sealed Mode boundaries
+  documents/           proposed editor schema, conversion, export, attachment rules
+  notifications/       proposed provider-neutral outbox and templates
+  ui/                  proposed shared components if a second client requires them
 infra/
   hosted/              official deployment configuration
   self-hosted/         reproducible container and migration configuration
@@ -78,7 +78,7 @@ Cycle: OnTime -> Reminder -> Overdue -> Concern
        Concern | Verification | VetoWindow | DeliveryHold -> Cancelled
 ```
 
-The final names and transition table must be resolved through domain modeling. Every command takes an injected clock and an idempotency key. Tests advance time explicitly; production code never waits in real time. For every Release Policy, catch-up can discover overdue eligibility but cannot create a final notice, consume its full Veto Window, and authorize Release in the same historical-time pass. The window begins only after provider acceptance on at least one verified Owner channel. Before Release, later negative evidence is re-evaluated; if no accepted, non-failed channel remains, the Envelope enters Delivery Hold and clearing it starts a new full window.
+Phase 1 implements `OnTime -> Reminder -> Overdue -> Concern`, authenticated Owner Check-in cancellation, injected time, idempotency keys, monotonic commands, and at most one semantic transition per command. It intentionally has no path beyond Concern. The final downstream names and transition table must be resolved through domain modeling. Tests advance time explicitly; production code never waits in real time. For every Release Policy, catch-up can discover overdue eligibility but cannot create a final notice, consume its full Veto Window, and authorize Release in the same historical-time pass. The window begins only after provider acceptance on at least one verified Owner channel. Before Release, later negative evidence is re-evaluated; if no accepted, non-failed channel remains, the Envelope enters Delivery Hold and clearing it starts a new full window.
 
 ## Persistence model
 

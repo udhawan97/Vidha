@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the documentation-only Vidha foundation without third-party tools."""
+"""Validate Vidha's source documentation without third-party tools."""
 
 from __future__ import annotations
 
@@ -31,6 +31,18 @@ REQUIRED = (
 )
 LINK = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
+IGNORED_PATH_PARTS = frozenset(
+    {
+        ".git",
+        "coverage",
+        "dist",
+        "graphify-out",
+        "node_modules",
+        "playwright-report",
+        "test-results",
+        "work",
+    }
+)
 
 
 def fail(message: str, errors: list[str]) -> None:
@@ -52,6 +64,15 @@ def github_heading_anchors(text: str) -> set[str]:
     return anchors
 
 
+def repository_markdown_files() -> list[Path]:
+    """Return owned Markdown while excluding dependencies and generated output."""
+    return sorted(
+        path
+        for path in ROOT.rglob("*.md")
+        if not IGNORED_PATH_PARTS.intersection(path.relative_to(ROOT).parts)
+    )
+
+
 def main() -> int:
     errors: list[str] = []
 
@@ -59,7 +80,7 @@ def main() -> int:
         if not (ROOT / relative).is_file():
             fail(f"missing required file: {relative}", errors)
 
-    markdown_files = sorted(ROOT.rglob("*.md"))
+    markdown_files = repository_markdown_files()
     for path in markdown_files:
         relative = path.relative_to(ROOT)
         text = path.read_text(encoding="utf-8")
