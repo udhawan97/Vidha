@@ -1,0 +1,24 @@
+{
+  "name": "@vidha/persistence",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./memory": "./src/memory.ts",
+    "./pglite": "./src/pglite.ts",
+    "./sqlite": "./src/sqlite.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.5",
+    "@vidha/application": "workspace:*",
+    "@vidha/domain": "workspace:*"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

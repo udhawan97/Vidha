@@ -1,7 +1,7 @@
 export {
   DomainError,
   applyPlanCommand,
-  createArmedPlan,
+  createDraftPlan,
   type ConcernCycle,
   type CycleStage,
   type DomainErrorCode,

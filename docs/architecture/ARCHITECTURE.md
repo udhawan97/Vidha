@@ -1,6 +1,6 @@
 # Proposed architecture
 
-**Status:** Phase 1 implements only the pure domain foundation and local PWA described in ADR 0007. The server, persistence, cryptography, notification, Guardian-authority, and Release boundaries below remain proposals for Fable to verify and turn into accepted ADRs.
+**Status:** Phase 2 implements the pure domain, caller-supplied principal/session input and application-authorization seam, disposable Plan-store adapters, bounded text-import intake, and local PWA described in the foundation record. The server, real identity provider, production persistence selection, cryptography, notification, Guardian-authority, and Release boundaries below remain proposals for Fable to verify and turn into accepted ADRs where warranted.
 
 ## Architectural objective
 
@@ -26,7 +26,7 @@ The scheduler and watchdog are deliberately separate: the watchdog may alert ope
 
 ## Recommended repository shape
 
-The repository now starts as a TypeScript monorepo. Entries marked “implemented” exist in Phase 1; the remaining entries are proposed and should be added only when their contracts earn the split:
+The repository is a TypeScript monorepo. Entries marked “implemented” exist in the current synthetic foundation; the remaining entries are proposed and should be added only when their contracts earn the split:
 
 ```text
 apps/
@@ -34,10 +34,10 @@ apps/
   worker/              proposed HTTP and scheduled entry points
 packages/
   domain/              implemented pure Check-in states, commands, events, invariants
-  application/         proposed use cases and authorization orchestration
-  persistence/         proposed repository ports and hosted/self-hosted adapters
+  application/         implemented authenticated commands and authorization orchestration
+  persistence/         implemented disposable memory, SQLite, and PGlite Plan stores
   crypto/              proposed reviewed Standard and Sealed Mode boundaries
-  documents/           proposed editor schema, conversion, export, attachment rules
+  documents/           implemented bounded TXT/Markdown intake seam; broader conversion proposed
   notifications/       proposed provider-neutral outbox and templates
   ui/                  proposed shared components if a second client requires them
 infra/
@@ -78,7 +78,7 @@ Cycle: OnTime -> Reminder -> Overdue -> Concern
        Concern | Verification | VetoWindow | DeliveryHold -> Cancelled
 ```
 
-Phase 1 implements `OnTime -> Reminder -> Overdue -> Concern`, authenticated Owner Check-in cancellation, injected time, idempotency keys, monotonic commands, and at most one semantic transition per command. It intentionally has no path beyond Concern. The final downstream names and transition table must be resolved through domain modeling. Tests advance time explicitly; production code never waits in real time. For every Release Policy, catch-up can discover overdue eligibility but cannot create a final notice, consume its full Veto Window, and authorize Release in the same historical-time pass. The window begins only after provider acceptance on at least one verified Owner channel. Before Release, later negative evidence is re-evaluated; if no accepted, non-failed channel remains, the Envelope enters Delivery Hold and clearing it starts a new full window.
+Phase 2 implements `Draft -> Armed <-> Paused -> Disabled` with rehearsal-before-arm, recent-authentication and policy-revision checks, Paused timeline suspension, and a new full interval on resume. It also retains `OnTime -> Reminder -> Overdue -> Concern`, authenticated Owner Check-in cancellation, injected time, idempotency keys, monotonic commands, and at most one semantic transition per command. It intentionally has no path beyond Concern. Tests advance time explicitly; production code never waits in real time. For every future Release Policy, catch-up may discover overdue eligibility but cannot create a final notice, consume its full Veto Window, and authorize Release in the same historical-time pass. The window begins only after provider acceptance on at least one verified Owner channel. Before Release, later negative evidence must be re-evaluated; if no accepted, non-failed channel remains, the Envelope enters Delivery Hold and clearing it starts a new full window.
 
 ## Persistence model
 
@@ -97,7 +97,7 @@ Use unique constraints for semantic events such as one reminder per cycle/stage/
 
 ## Hosted and self-hosted persistence
 
-The initial technical recommendation is a Cloudflare Worker deployment with an indexed SQL store and encrypted object storage, plus a Node-compatible self-host adapter. Fable must compare D1/SQLite portability against one PostgreSQL model before locking the database ADR. The decision must account for:
+The current synthetic parity harness compares a Node SQLite adapter with a Postgres-compatible PGlite adapter behind one Plan transaction interface; see `PERSISTENCE_PORTABILITY.md`. It does not select a production database. The initial technical recommendation remains a Cloudflare Worker deployment with an indexed SQL store and encrypted object storage, plus a Node-compatible self-host adapter. A later database ADR must account for:
 
 - reliable scheduled execution when the application is otherwise idle;
 - transactions and uniqueness under concurrent jobs;

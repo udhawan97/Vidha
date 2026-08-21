@@ -26,6 +26,22 @@ _Avoid_: Beneficiary
 An Owner's chosen Check-in schedule, Guardians, Recipients, and Envelopes, with a Release Policy selected for each Envelope.
 _Avoid_: Will, death switch
 
+**Draft**:
+A Contingency Plan lifecycle state in which setup and rehearsal may occur but no Check-in timeline or Concern transition is active. A Draft must be rehearsed before it can become Armed.
+_Avoid_: Active plan, live schedule
+
+**Armed**:
+The Contingency Plan lifecycle state in which its Check-in timeline is active. Arming requires an authenticated, recent Owner action against the current policy revision after rehearsal.
+_Avoid_: Released, guaranteed
+
+**Paused**:
+An Owner-authorized Contingency Plan lifecycle state in which timeline advancement is suspended. Resuming requires recent authentication and starts a new full Check-in interval rather than consuming time that elapsed while Paused.
+_Avoid_: Concern, temporary Release
+
+**Disabled**:
+The terminal Contingency Plan lifecycle state. A Disabled plan cannot resume, Check in, enter Concern, or Release; the current synthetic prototype requires refresh to create a new disposable rehearsal.
+_Avoid_: Paused, deleted
+
 **Envelope**:
 Private, recipient-specific material prepared by the Owner for possible Release.
 _Avoid_: Will, payload

@@ -4,22 +4,22 @@
 
 Vidha is an open-source contingency relay for an individual who wants selected people to receive private messages or documents if they become persistently unreachable. It is designed around explicit Check-ins, human verification by default, recipient-specific Envelopes, and clear recovery trade-offs.
 
-> **Pre-alpha:** this repository now contains a runnable Phase 1 web prototype and a deterministic domain foundation. It uses synthetic, in-memory data only. There is no account system, durable storage, encryption, real notification delivery, Release implementation, hosted service, deployment, download, tag, or GitHub release yet.
+> **Pre-alpha:** this repository contains a runnable Phase 2 synthetic foundation: a deterministic domain lifecycle through Concern, a provider-neutral authenticated-principal/session input seam, disposable memory/SQLite/PGlite Plan stores, and a bounded text-import intake. There are no real accounts, production credentials, durable personal-content storage, encryption, malware scanning, notification delivery, Release implementation, hosted service, deployment, download, tag, or GitHub release yet.
 
 > **Working name:** “Vidha” is provisional. The exact GitHub account, several exact-name repositories, and the `.com` and `.org` domains are already occupied; this project makes no exclusivity or legal-clearance claim. See the [name-collision evidence](docs/research/GITHUB_COMPETITIVE_LANDSCAPE.md#working-name-collision-check-vidha).
 
-[Product brief](docs/product/PRODUCT_BRIEF.md) · [Threat model](docs/security/THREAT_MODEL.md) · [Proposed architecture](docs/architecture/ARCHITECTURE.md) · [Fable build handoff](docs/FABLE_BUILD_PROMPT.md)
+[Product brief](docs/product/PRODUCT_BRIEF.md) · [Threat model](docs/security/THREAT_MODEL.md) · [Current foundation](docs/architecture/FOUNDATION_PHASE_2.md) · [Proposed architecture](docs/architecture/ARCHITECTURE.md) · [Fable build handoff](docs/FABLE_BUILD_PROMPT.md)
 
-## Run the local Phase 1 prototype
+## Run the local synthetic prototype
 
-Prerequisites: Node.js 22.12 or newer and pnpm 11.17.0.
+Prerequisites: Node.js 24 or newer and pnpm 11.17.0.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the local URL printed by Vite. The prototype lets you rehearse the Check-in timeline through Concern, explicitly confirm a synthetic Check-in, inspect an in-memory event record, and work with two synthetic Envelopes. The temporary document workspace supports Recipient reassignment, undo and redo, restorable session checkpoints, a browser-decoded text snapshot for Markdown/plain-text imports, and Markdown, plain-text, or escaped standalone HTML copies. It does not preserve original file bytes or encoding. Refresh clears the session. **Do not enter personal or sensitive information.**
+Open the local URL printed by Vite. The prototype lets you rehearse Draft, Armed, Paused, and Disabled lifecycle controls; advance the Check-in timeline through Concern; explicitly confirm a synthetic Check-in; inspect an in-memory event record; and work with two synthetic Envelopes. A Markdown/plain-text import is first quarantined, classified, and shown for explicit approval. Approved text and its exact original bytes remain available only for the browser session; the fixture inspection is not a malware scan or sandbox. The workspace also supports Recipient reassignment, undo/redo, checkpoints, source restore/download, and Markdown, plain-text, or escaped standalone HTML copies. Refresh clears the session. **Do not enter personal or sensitive information.**
 
 Run the complete local verification suite with:
 
@@ -79,7 +79,10 @@ Read the full [threat model](docs/security/THREAT_MODEL.md) before treating any 
 | Path                                                                     | Purpose                                           |
 | ------------------------------------------------------------------------ | ------------------------------------------------- |
 | [`apps/web/`](apps/web/)                                                 | Responsive React/Vite PWA prototype               |
-| [`packages/domain/`](packages/domain/)                                   | Pure Check-in and Concern state machine           |
+| [`packages/domain/`](packages/domain/)                                   | Pure lifecycle, Check-in, and Concern decisions   |
+| [`packages/application/`](packages/application/)                         | Principal/session input and authorization seam    |
+| [`packages/persistence/`](packages/persistence/)                         | Disposable Plan-store adapters and contract tests |
+| [`packages/documents/`](packages/documents/)                             | Bounded untrusted text-import intake              |
 | [`e2e/`](e2e/)                                                           | WebKit desktop and mobile acceptance checks       |
 | [`CONTEXT.md`](CONTEXT.md)                                               | Canonical product vocabulary                      |
 | [`docs/adr/`](docs/adr/)                                                 | Accepted, hard-to-reverse decisions               |
@@ -93,9 +96,9 @@ Read the full [threat model](docs/security/THREAT_MODEL.md) before treating any 
 
 ## Build status
 
-Phase 1 proves the client direction and the first safe domain slice locally. It deliberately stops at Concern: Guardian authority, Veto Window, Automatic Fallback, Delivery Hold, and Release remain unresolved or unimplemented. Authentication, persistence, cryptography, provider delivery, hosted/self-hosted infrastructure, and production operations must be designed and verified before the prototype can handle real data.
+Phase 2 locally exercises six foundation slices with disposable synthetic state. It consumes and validates a caller-supplied authenticated-principal/session contract without authenticating a person or issuing a session, adds an application authorization seam, a portable transactional store contract with local adapters, content-free audit records and idempotency, an explicit Plan lifecycle, and a bounded import intake. It deliberately stops at Concern: Guardian authority, Veto Window, Automatic Fallback, Delivery Hold, Release, cryptography, providers, hosted/self-hosted infrastructure, real credentials, and production operations remain unresolved or unimplemented.
 
-The [next six foundation slices](docs/product/NEXT_FOUNDATION_SIX.md) are decision-first work around authentication, persistence, authorization, audit storage, plan lifecycle, and safe import boundaries. They are a plan, not implemented capability.
+The [Phase 2 six-slice foundation record](docs/product/NEXT_FOUNDATION_SIX.md), [authorization and lifecycle evidence](docs/architecture/FOUNDATION_PHASE_2.md), and [persistence comparison](docs/architecture/PERSISTENCE_PORTABILITY.md) describe exactly what is implemented. The separate [Phase 3 next-six plan](docs/product/NEXT_PHASE_3_SIX.md) is planning only and keeps real data, external delivery, Guardian authority, and Release behind later gates.
 
 Fable can continue from the [bounded build handoff](docs/FABLE_BUILD_PROMPT.md), but must not treat this prototype as release authority. Run `refresh-docs` only after a real release candidate can supply truthful screenshots, commands, downloads, and platform claims.
 

@@ -6,6 +6,13 @@ import {
   useRef,
   useState,
 } from 'react';
+import {
+  ImportIntakeError,
+  createImportIntake,
+  utf8TextConverter,
+  type ImportScanner,
+  type InspectedImport,
+} from '@vidha/documents';
 
 import {
   demoRecipients,
@@ -40,8 +47,24 @@ interface SessionCheckpoint {
 }
 
 const MAX_IMPORT_BYTES = 256 * 1024;
+const MAX_IMPORT_LINES = 10_000;
 const MAX_UNDO_STEPS = 50;
 const MAX_CHECKPOINTS = 6;
+
+const syntheticFixtureScanner: ImportScanner = {
+  async scan() {
+    return {
+      scannerId: 'synthetic-fixture-inspection-no-malware-scan',
+      verdict: 'clean',
+    };
+  },
+};
+
+const importIntake = createImportIntake({
+  converter: utf8TextConverter,
+  limits: { maxBytes: MAX_IMPORT_BYTES, maxLines: MAX_IMPORT_LINES },
+  scanner: syntheticFixtureScanner,
+});
 
 function filenameToTitle(filename: string): string {
   const withoutExtension = filename.replace(/\.[^.]+$/, '');
@@ -76,6 +99,9 @@ export function DocumentWorkspace({
   const [editorMode, setEditorMode] = useState<EditorMode>('write');
   const [sessionStatus, setSessionStatus] = useState('Synthetic session draft');
   const [importError, setImportError] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<InspectedImport | null>(
+    null,
+  );
   const [historyByEnvelope, setHistoryByEnvelope] = useState<
     Record<string, DraftHistory>
   >({});
@@ -230,41 +256,67 @@ export function DocumentWorkspace({
     }
 
     setImportError(null);
-    const supportedExtension = /\.(md|markdown|txt)$/i.test(file.name);
-    if (!supportedExtension) {
-      setImportError('This build imports only Markdown and plain-text files.');
-      return;
-    }
-    if (file.size > MAX_IMPORT_BYTES) {
-      setImportError('The demo import limit is 256 KB.');
-      return;
-    }
-
-    const body = await file.text();
-    updateActiveEnvelope({
-      title: filenameToTitle(file.name),
-      body,
-      importSource: {
+    try {
+      const prepared = await importIntake.prepare({
+        bytes: new Uint8Array(await file.arrayBuffer()),
+        declaredMediaType: file.type,
         filename: file.name,
-        mediaType: file.type || 'text/plain',
-        sizeBytes: file.size,
-        text: body,
-      },
-    });
-    setSessionStatus('Imported into this temporary session');
+      });
+      const inspected = await importIntake.inspect(prepared);
+      setPendingImport(inspected);
+      setSessionStatus('Import quarantined for explicit approval');
+    } catch (error) {
+      setPendingImport(null);
+      setImportError(
+        error instanceof ImportIntakeError
+          ? error.message
+          : 'The import could not be inspected.',
+      );
+    }
+  }
+
+  async function approvePendingImport() {
+    if (pendingImport === null) {
+      return;
+    }
+    try {
+      const approved = await importIntake.approve(pendingImport);
+      updateActiveEnvelope({
+        title: filenameToTitle(approved.filename),
+        body: approved.text,
+        importSource: {
+          filename: approved.filename,
+          mediaType: approved.declaredMediaType || approved.detectedMediaType,
+          detectedMediaType: approved.detectedMediaType,
+          sizeBytes: approved.sizeBytes,
+          sourceId: approved.sourceId,
+          scannerId: approved.scan.scannerId,
+          originalBytes: Uint8Array.from(approved.originalBytes),
+          text: approved.text,
+        },
+      });
+      setPendingImport(null);
+      setSessionStatus('Approved decoded text imported into this session');
+    } catch (error) {
+      setImportError(
+        error instanceof ImportIntakeError
+          ? error.message
+          : 'The inspected import could not be approved.',
+      );
+    }
   }
 
   function downloadDocument(
-    content: string,
+    content: BlobPart,
     mediaType: string,
-    extension: 'html' | 'md' | 'txt',
+    filename: string,
     status: string,
   ) {
     const blob = new Blob([content], { type: `${mediaType};charset=utf-8` });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = exportFilename(selectedEnvelope.title, extension);
+    link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
     setSessionStatus(status);
@@ -282,11 +334,26 @@ export function DocumentWorkspace({
     setSessionStatus('Imported text snapshot restored');
   }
 
+  function downloadImportedOriginal() {
+    const source = selectedEnvelope.importSource;
+    if (source === null) {
+      return;
+    }
+    const originalBytes = new Uint8Array(source.originalBytes.byteLength);
+    originalBytes.set(source.originalBytes);
+    downloadDocument(
+      originalBytes.buffer,
+      source.mediaType,
+      source.filename,
+      'Original session bytes prepared for download',
+    );
+  }
+
   return (
     <div className="workspace-view">
       <header className="workspace-heading">
         <div>
-          <p className="eyebrow">Document workspace · Phase 1</p>
+          <p className="eyebrow">Document workspace · Phase 2 foundation</p>
           <h1>Write the handoff, not the ceremony.</h1>
           <p>
             These synthetic drafts live only in memory. Do not enter personal or
@@ -315,7 +382,7 @@ export function DocumentWorkspace({
               downloadDocument(
                 selectedEnvelope.body,
                 'text/markdown',
-                'md',
+                exportFilename(selectedEnvelope.title, 'md'),
                 'Markdown export prepared',
               )
             }
@@ -329,7 +396,7 @@ export function DocumentWorkspace({
               downloadDocument(
                 selectedEnvelope.body,
                 'text/plain',
-                'txt',
+                exportFilename(selectedEnvelope.title, 'txt'),
                 'Plain-text export prepared',
               )
             }
@@ -343,7 +410,7 @@ export function DocumentWorkspace({
               downloadDocument(
                 buildPortableHtml(selectedEnvelope),
                 'text/html',
-                'html',
+                exportFilename(selectedEnvelope.title, 'html'),
                 'Escaped standalone HTML export prepared',
               )
             }
@@ -358,6 +425,48 @@ export function DocumentWorkspace({
         <p className="import-error" role="alert">
           {importError}
         </p>
+      )}
+
+      {pendingImport === null ? null : (
+        <section
+          className="pending-import"
+          aria-labelledby="pending-import-title"
+        >
+          <div>
+            <p className="eyebrow">Quarantined session intake</p>
+            <h2 id="pending-import-title">Review {pendingImport.filename}</h2>
+            <p>
+              {formatBytes(pendingImport.sizeBytes)} ·{' '}
+              {pendingImport.detectedMediaType}. Original bytes are held only
+              for this browser session.
+            </p>
+            <p className="intake-warning">
+              Synthetic fixture inspection only · no malware scanner or
+              sandboxed converter is active.
+            </p>
+            {pendingImport.warnings.map((warning) => (
+              <p className="intake-warning" key={warning}>
+                {warning}
+              </p>
+            ))}
+          </div>
+          <div className="pending-import-actions">
+            <button
+              className="button button-quiet"
+              onClick={() => setPendingImport(null)}
+              type="button"
+            >
+              Discard
+            </button>
+            <button
+              className="button button-primary"
+              onClick={() => void approvePendingImport()}
+              type="button"
+            >
+              Approve decoded text
+            </button>
+          </div>
+        </section>
       )}
 
       <div className="workspace-shell">
@@ -523,14 +632,22 @@ export function DocumentWorkspace({
                 <strong>{selectedEnvelope.importSource.filename}</strong>
                 <span>
                   {formatBytes(selectedEnvelope.importSource.sizeBytes)} ·{' '}
-                  {selectedEnvelope.importSource.mediaType}
+                  {selectedEnvelope.importSource.detectedMediaType}
                 </span>
+                <span>Exact original bytes held until refresh</span>
                 <button
                   className="text-action"
                   onClick={restoreImportedSource}
                   type="button"
                 >
                   Restore imported text
+                </button>
+                <button
+                  className="text-action"
+                  onClick={downloadImportedOriginal}
+                  type="button"
+                >
+                  Download original
                 </button>
               </>
             )}

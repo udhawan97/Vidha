@@ -7,12 +7,22 @@ import { ContinuityLine } from './ContinuityLine';
 interface OverviewProps {
   readonly plan: PlanState;
   readonly envelopes: readonly DemoEnvelope[];
+  readonly onArm: () => void;
   readonly onAdvance: () => void;
   readonly onCheckIn: () => void;
+  readonly onDisable: () => void;
+  readonly onPause: () => void;
+  readonly onRehearse: () => void;
+  readonly onResume: () => void;
 }
 
 const eventLabels: Record<DomainEvent['type'], string> = {
+  PLAN_DRAFTED: 'Synthetic Plan drafted',
+  PLAN_REHEARSED: 'Synthetic Plan rehearsed',
   PLAN_ARMED: 'Rehearsal plan armed',
+  PLAN_PAUSED: 'Rehearsal plan paused',
+  PLAN_RESUMED: 'Rehearsal plan resumed',
+  PLAN_DISABLED: 'Rehearsal plan disabled',
   REMINDER_ENTERED: 'Reminder stage entered',
   OVERDUE_ENTERED: 'Check-in became overdue',
   CONCERN_ENTERED: 'Concern began — no release authorized',
@@ -43,6 +53,24 @@ const stageCopy = {
   },
 } as const;
 
+const lifecycleCopy = {
+  draft: {
+    eyebrow: 'Plan is a Draft',
+    title: 'Rehearse before the timeline begins.',
+    body: 'No Check-in timeline or Concern transition is active while this synthetic Plan is a Draft.',
+  },
+  paused: {
+    eyebrow: 'Plan is paused',
+    title: 'The timeline is safely suspended.',
+    body: 'Time cannot advance this synthetic Plan until the Owner resumes with a fresh full interval.',
+  },
+  disabled: {
+    eyebrow: 'Plan is disabled',
+    title: 'This rehearsal has ended.',
+    body: 'Disabled is terminal. No Check-in timeline, Concern transition, or Release path is active.',
+  },
+} as const;
+
 function formatLongDate(timestamp: number): string {
   return new Intl.DateTimeFormat('en', {
     day: 'numeric',
@@ -63,16 +91,30 @@ function formatEventTime(timestamp: number): string {
 export function Overview({
   plan,
   envelopes,
+  onArm,
   onAdvance,
   onCheckIn,
+  onDisable,
+  onPause,
+  onRehearse,
+  onResume,
 }: OverviewProps) {
   const [confirming, setConfirming] = useState(false);
-  const copy = stageCopy[plan.cycle.stage];
-  const canAdvance = plan.cycle.stage !== 'concern';
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
+  const isArmed = plan.lifecycle === 'armed';
+  const copy = isArmed
+    ? stageCopy[plan.cycle.stage]
+    : lifecycleCopy[plan.lifecycle];
+  const canAdvance = isArmed && plan.cycle.stage !== 'concern';
 
   function confirmCheckIn() {
     onCheckIn();
     setConfirming(false);
+  }
+
+  function confirmDisable() {
+    onDisable();
+    setConfirmingDisable(false);
   }
 
   return (
@@ -84,17 +126,35 @@ export function Overview({
             <h1>{copy.title}</h1>
             <p className="status-explanation">{copy.body}</p>
           </div>
-          <div className="next-date" aria-label="Next Check-in due date">
-            <span>Next Check-in</span>
-            <strong>{formatLongDate(plan.cycle.dueAt)}</strong>
-          </div>
+          {isArmed ? (
+            <div className="next-date" aria-label="Next Check-in due date">
+              <span>Next Check-in</span>
+              <strong>{formatLongDate(plan.cycle.dueAt)}</strong>
+            </div>
+          ) : (
+            <div className="next-date" aria-label="Timeline inactive">
+              <span>Timeline</span>
+              <strong>Inactive</strong>
+            </div>
+          )}
         </div>
 
-        <ContinuityLine cycle={plan.cycle} />
+        {isArmed ? (
+          <ContinuityLine cycle={plan.cycle} />
+        ) : (
+          <div className="inactive-timeline-note">
+            <p>No active Check-in due date is being counted down.</p>
+            <p>Release logic is not active in this build.</p>
+          </div>
+        )}
 
         <div className="status-actions">
+          <span className={`lifecycle-badge lifecycle-${plan.lifecycle}`}>
+            Lifecycle: {plan.lifecycle}
+          </span>
           <button
             className="button button-primary"
+            disabled={!isArmed}
             onClick={() => setConfirming(true)}
             type="button"
           >
@@ -106,11 +166,68 @@ export function Overview({
             onClick={onAdvance}
             type="button"
           >
-            {canAdvance ? 'Advance one stage' : 'Simulation stops at Concern'}
+            {canAdvance
+              ? 'Advance one stage'
+              : isArmed
+                ? 'Simulation stops at Concern'
+                : 'Timeline is not armed'}
           </button>
           <p className="action-note">
             Synthetic rehearsal · no messages are sent
           </p>
+        </div>
+        <div
+          className="lifecycle-controls"
+          aria-label="Plan lifecycle controls"
+        >
+          <span>Plan controls</span>
+          {plan.lifecycle === 'draft' ? (
+            plan.hasRehearsed ? (
+              <button
+                className="button button-primary"
+                onClick={onArm}
+                type="button"
+              >
+                Arm rehearsal
+              </button>
+            ) : (
+              <button
+                className="button button-primary"
+                onClick={onRehearse}
+                type="button"
+              >
+                Rehearse Draft
+              </button>
+            )
+          ) : plan.lifecycle === 'armed' ? (
+            <button
+              className="button button-quiet"
+              onClick={onPause}
+              type="button"
+            >
+              Pause rehearsal
+            </button>
+          ) : plan.lifecycle === 'paused' ? (
+            <button
+              className="button button-quiet"
+              onClick={onResume}
+              type="button"
+            >
+              Resume with fresh interval
+            </button>
+          ) : null}
+          {plan.lifecycle === 'disabled' ? null : (
+            <button
+              className="button button-text-danger"
+              onClick={() => setConfirmingDisable(true)}
+              type="button"
+            >
+              Disable rehearsal
+            </button>
+          )}
+          {plan.lifecycle === 'disabled' ? (
+            <p>Disabled is terminal in this synthetic foundation.</p>
+          ) : null}
         </div>
       </section>
 
@@ -237,6 +354,42 @@ export function Overview({
                 type="button"
               >
                 Confirm Check-in
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {confirmingDisable ? (
+        <div className="dialog-backdrop" role="presentation">
+          <div
+            aria-describedby="disable-description"
+            aria-labelledby="disable-title"
+            aria-modal="true"
+            className="confirmation-dialog"
+            role="dialog"
+          >
+            <p className="eyebrow">Terminal synthetic state</p>
+            <h2 id="disable-title">Disable this rehearsal Plan?</h2>
+            <p id="disable-description">
+              Disabled is terminal in this foundation model. Refresh the page to
+              load a new disposable rehearsal.
+            </p>
+            <div className="dialog-actions">
+              <button
+                className="button button-quiet"
+                onClick={() => setConfirmingDisable(false)}
+                type="button"
+              >
+                Keep rehearsal
+              </button>
+              <button
+                autoFocus
+                className="button button-text-danger"
+                onClick={confirmDisable}
+                type="button"
+              >
+                Confirm disable
               </button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { createArmedPlan, type PlanState } from '@vidha/domain';
+import { createDraftPlan, type PlanState } from '@vidha/domain';
 
 const DAY = 24 * 60 * 60 * 1_000;
 
@@ -15,7 +15,11 @@ export interface DemoEnvelope {
 export interface DemoImportSource {
   readonly filename: string;
   readonly mediaType: string;
+  readonly detectedMediaType: 'text/markdown' | 'text/plain';
   readonly sizeBytes: number;
+  readonly sourceId: string;
+  readonly scannerId: string;
+  readonly originalBytes: Uint8Array;
   readonly text: string;
 }
 
@@ -57,10 +61,11 @@ Morning walks are short. The evening walk is the one she waits for.`,
 ];
 
 export function createDemoPlan(referenceTime = Date.now()): PlanState {
-  return createArmedPlan({
+  const startedAt = referenceTime - 18 * DAY;
+  return createDraftPlan({
     planId: 'synthetic-plan',
     ownerId: 'synthetic-owner',
-    at: referenceTime - 18 * DAY,
+    at: startedAt,
     policy: {
       checkInIntervalMs: 30 * DAY,
       reminderLeadMs: 5 * DAY,

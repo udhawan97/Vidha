@@ -1,0 +1,3 @@
+# Rehearse before arming and restart the interval after pause
+
+Draft, Armed, Paused, and Disabled are explicit Contingency Plan lifecycle states. A Draft cannot become Armed until the Owner has rehearsed it, and arming, pausing, resuming, or disabling requires recent authentication against the expected immutable policy revision. Pausing freezes timeline advancement; resuming starts a new full Check-in interval, which deliberately lengthens the safety window instead of treating time spent Paused as active inactivity. Disabled is terminal. This trades faster catch-up for a simpler fail-safe rule: lifecycle control can never silently shorten the Owner's remaining time.

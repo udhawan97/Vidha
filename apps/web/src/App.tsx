@@ -1,4 +1,12 @@
-import { applyPlanCommand, type PlanState } from '@vidha/domain';
+import {
+  createPlanApplication,
+  type AuthenticationSession,
+  type Clock,
+  type InteractivePlanRequest,
+  type PlanApplication,
+} from '@vidha/application';
+import type { PlanLifecycle, PlanState } from '@vidha/domain';
+import { MemoryPlanStore } from '@vidha/persistence/memory';
 import { useRef, useState } from 'react';
 
 import { DocumentWorkspace } from './components/DocumentWorkspace';
@@ -7,6 +15,50 @@ import { UpdateNotice } from './components/UpdateNotice';
 import { createDemoPlan, demoEnvelopes } from './demo';
 
 type View = 'overview' | 'workspace';
+
+interface DemoClock extends Clock {
+  set(at: number): void;
+}
+
+interface DemoRuntime {
+  readonly application: PlanApplication;
+  readonly clock: DemoClock;
+  readonly initialPlan: PlanState;
+  readonly ready: Promise<void>;
+}
+
+function createDemoRuntime(): DemoRuntime {
+  const initialPlan = createDemoPlan();
+  let currentTime = initialPlan.lastCommandAt;
+  const clock: DemoClock = {
+    now() {
+      return currentTime;
+    },
+    set(at) {
+      currentTime = at;
+    },
+  };
+  const store = new MemoryPlanStore();
+  return {
+    application: createPlanApplication({
+      clock,
+      recentAuthenticationWindowMs: 5 * 60 * 1_000,
+      store,
+    }),
+    clock,
+    initialPlan,
+    ready: store.initialize(initialPlan),
+  };
+}
+
+function syntheticOwnerSession(at: number): AuthenticationSession {
+  return {
+    sessionId: `synthetic-session-${at}`,
+    principal: { principalId: 'synthetic-owner', role: 'owner' },
+    authenticatedAt: at,
+    expiresAt: at + 5 * 60 * 1_000,
+  };
+}
 
 function nextStageTime(plan: PlanState): number | null {
   switch (plan.cycle.stage) {
@@ -22,8 +74,9 @@ function nextStageTime(plan: PlanState): number | null {
 }
 
 export function App() {
+  const [runtime] = useState(createDemoRuntime);
   const [view, setView] = useState<View>('overview');
-  const [plan, setPlan] = useState(createDemoPlan);
+  const [plan, setPlan] = useState(runtime.initialPlan);
   const [envelopes, setEnvelopes] = useState(() =>
     demoEnvelopes.map((envelope) => ({ ...envelope })),
   );
@@ -37,31 +90,82 @@ export function App() {
     return `demo-${label}-${commandSequence.current}`;
   }
 
-  function advanceStage() {
+  async function advanceStage() {
     const at = nextStageTime(plan);
     if (at === null) {
       return;
     }
-    const next = applyPlanCommand(plan, {
-      type: 'ADVANCE_TIME',
-      at: Math.max(at, plan.lastCommandAt),
-      idempotencyKey: commandKey('advance'),
-    });
+    await runtime.ready;
+    runtime.clock.set(Math.max(at, plan.lastCommandAt));
+    const result = await runtime.application.advanceScheduled(
+      plan.planId,
+      commandKey('advance'),
+    );
+    const next = result.state;
     setPlan(next);
     setAnnouncement(
       `Rehearsal advanced to ${next.cycle.stage.replace('_', ' ')}.`,
     );
   }
 
-  function checkIn() {
-    const next = applyPlanCommand(plan, {
-      type: 'OWNER_CHECK_IN',
-      at: Math.max(Date.now(), plan.lastCommandAt),
-      authenticated: true,
-      idempotencyKey: commandKey('check-in'),
-    });
-    setPlan(next);
+  async function checkIn() {
+    await executeOwnerAction(
+      { type: 'OWNER_CHECK_IN' },
+      commandKey('check-in'),
+    );
     setAnnouncement('Synthetic authenticated Check-in recorded.');
+  }
+
+  async function changeLifecycle(
+    lifecycle: Extract<PlanLifecycle, 'armed' | 'paused' | 'disabled'>,
+  ) {
+    const actionType =
+      lifecycle === 'armed'
+        ? 'RESUME_PLAN'
+        : lifecycle === 'paused'
+          ? 'PAUSE_PLAN'
+          : 'DISABLE_PLAN';
+    await executeOwnerAction(
+      { type: actionType, expectedPolicyRevision: plan.policyRevision },
+      commandKey(lifecycle),
+    );
+    setAnnouncement(`Synthetic Plan lifecycle changed to ${lifecycle}.`);
+  }
+
+  async function rehearsePlan() {
+    await executeOwnerAction(
+      { type: 'REHEARSE_PLAN', expectedPolicyRevision: plan.policyRevision },
+      commandKey('rehearse'),
+    );
+    setAnnouncement('Synthetic Draft rehearsal completed.');
+  }
+
+  async function armPlan() {
+    await executeOwnerAction(
+      { type: 'ARM_PLAN', expectedPolicyRevision: plan.policyRevision },
+      commandKey('arm'),
+    );
+    setAnnouncement('Synthetic Plan lifecycle changed to armed.');
+  }
+
+  async function executeOwnerAction(
+    action: InteractivePlanRequest['action'],
+    idempotencyKey: string,
+  ) {
+    await runtime.ready;
+    const at = Math.max(Date.now(), plan.lastCommandAt);
+    runtime.clock.set(at);
+    const result = await runtime.application.execute(
+      syntheticOwnerSession(at),
+      {
+        action,
+        idempotencyKey,
+        method: 'POST',
+        planId: plan.planId,
+        userPresence: true,
+      },
+    );
+    setPlan(result.state);
   }
 
   return (
@@ -112,7 +216,9 @@ export function App() {
       <div className="app-surface">
         <header className="topbar">
           <div>
-            <span className="build-label">Phase 1 · synthetic data</span>
+            <span className="build-label">
+              Phase 2 foundations · synthetic data
+            </span>
           </div>
           <div className="owner-chip" aria-label="Synthetic Owner profile">
             <span>DO</span>
@@ -127,8 +233,13 @@ export function App() {
           <div hidden={view !== 'overview'}>
             <Overview
               envelopes={envelopes}
+              onArm={armPlan}
               onAdvance={advanceStage}
               onCheckIn={checkIn}
+              onDisable={() => changeLifecycle('disabled')}
+              onPause={() => changeLifecycle('paused')}
+              onRehearse={rehearsePlan}
+              onResume={() => changeLifecycle('armed')}
               plan={plan}
             />
           </div>

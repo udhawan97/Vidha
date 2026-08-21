@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Download } from '@playwright/test';
+import { expect, test, type Download, type Page } from '@playwright/test';
 
 async function readDownload(download: Download): Promise<string> {
   const stream = await download.createReadStream();
@@ -8,6 +8,13 @@ async function readDownload(download: Download): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString('utf8');
+}
+
+async function armDemo(page: Page): Promise<void> {
+  await expect(page.getByText('Lifecycle: draft')).toBeVisible();
+  await page.getByRole('button', { name: 'Rehearse Draft' }).click();
+  await page.getByRole('button', { name: 'Arm rehearsal' }).click();
+  await expect(page.getByText('Lifecycle: armed')).toBeVisible();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -20,6 +27,7 @@ test('keeps the release boundary visible while rehearsing the timeline', async (
   await expect(
     page.getByText('Release logic is not active in this build.'),
   ).toBeVisible();
+  await armDemo(page);
 
   await page.getByRole('button', { name: 'Advance one stage' }).click();
 
@@ -39,6 +47,14 @@ test('imports and edits Markdown only inside the temporary session', async ({
     name: 'browser-rehearsal.md',
   });
 
+  await expect(
+    page.getByRole('heading', { name: 'Review browser-rehearsal.md' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Synthetic fixture inspection only', { exact: false }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Approve decoded text' }).click();
+
   await expect(page.getByLabel('Envelope Markdown content')).toHaveValue(
     '# Browser rehearsal\n\nNothing was sent.',
   );
@@ -46,6 +62,40 @@ test('imports and edits Markdown only inside the temporary session', async ({
     page.getByRole('textbox', { name: 'Document title' }),
   ).toHaveValue('browser rehearsal');
   await expect(page.getByText('Not executable in this build')).toBeVisible();
+});
+
+test('rehearses explicit Plan pause, fresh resume, and terminal disable', async ({
+  page,
+}) => {
+  await armDemo(page);
+  await page.getByRole('button', { name: 'Pause rehearsal' }).click();
+  await expect(page.getByText('Lifecycle: paused')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Timeline is not armed' }),
+  ).toBeDisabled();
+
+  await page
+    .getByRole('button', { name: 'Resume with fresh interval' })
+    .click();
+  await expect(page.getByText('Lifecycle: armed')).toBeVisible();
+
+  for (let stage = 0; stage < 3; stage += 1) {
+    await page.getByRole('button', { name: 'Advance one stage' }).click();
+  }
+  await expect(page.getByText('Concern is active')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Disable rehearsal' }).click();
+  await expect(
+    page.getByRole('dialog', { name: 'Disable this rehearsal Plan?' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm disable' }).click();
+  await expect(page.getByText('Lifecycle: disabled')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'This rehearsal has ended.' }),
+  ).toBeVisible();
+  await expect(page.getByLabel('Next Check-in due date')).toHaveCount(0);
+  await expect(page.getByLabel('Timeline inactive')).toBeVisible();
+  await expect(page.getByText('Concern is active')).toHaveCount(0);
 });
 
 test('keeps Recipient history and checkpoints for the page session', async ({
@@ -81,16 +131,17 @@ test('restores decoded imported text and offers text and HTML copies', async ({
 }) => {
   await page.getByRole('button', { name: 'Envelopes' }).click();
   await page.getByLabel('Import Markdown or plain text').setInputFiles({
-    buffer: Buffer.from('# Source copy\n\n<script>remains text</script>'),
+    buffer: Buffer.from('# Source copy\n\nHarmless imported text.'),
     mimeType: 'text/markdown',
     name: 'source-copy.md',
   });
+  await page.getByRole('button', { name: 'Approve decoded text' }).click();
   await expect(page.getByText('source-copy.md')).toBeVisible();
 
   await page.getByLabel('Envelope Markdown content').fill('Changed later');
   await page.getByRole('button', { name: 'Restore imported text' }).click();
   await expect(page.getByLabel('Envelope Markdown content')).toHaveValue(
-    '# Source copy\n\n<script>remains text</script>',
+    '# Source copy\n\nHarmless imported text.',
   );
 
   const textDownload = page.waitForEvent('download');
@@ -98,8 +149,12 @@ test('restores decoded imported text and offers text and HTML copies', async ({
   const textCopy = await textDownload;
   await expect(textCopy.suggestedFilename()).toBe('source-copy.txt');
   await expect(await readDownload(textCopy)).toBe(
-    '# Source copy\n\n<script>remains text</script>',
+    '# Source copy\n\nHarmless imported text.',
   );
+
+  await page
+    .getByLabel('Envelope Markdown content')
+    .fill('# Source copy\n\n<script>remains text</script>');
 
   const htmlDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export HTML' }).click();
@@ -108,6 +163,14 @@ test('restores decoded imported text and offers text and HTML copies', async ({
   await expect(htmlCopy.suggestedFilename()).toBe('source-copy.html');
   await expect(html).toContain('&lt;script&gt;remains text&lt;/script&gt;');
   await expect(html).not.toContain('<script>remains text</script>');
+
+  const originalDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download original' }).click();
+  const original = await originalDownload;
+  await expect(original.suggestedFilename()).toBe('source-copy.md');
+  await expect(await readDownload(original)).toBe(
+    '# Source copy\n\nHarmless imported text.',
+  );
 });
 
 test('has no serious or critical automated accessibility violations', async ({

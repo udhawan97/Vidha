@@ -1,9 +1,14 @@
-export type PlanLifecycle = 'armed' | 'paused' | 'disabled';
+export type PlanLifecycle = 'draft' | 'armed' | 'paused' | 'disabled';
 
 export type CycleStage = 'on_time' | 'reminder' | 'overdue' | 'concern';
 
 export type DomainEventType =
+  | 'PLAN_DRAFTED'
+  | 'PLAN_REHEARSED'
   | 'PLAN_ARMED'
+  | 'PLAN_PAUSED'
+  | 'PLAN_RESUMED'
+  | 'PLAN_DISABLED'
   | 'REMINDER_ENTERED'
   | 'OVERDUE_ENTERED'
   | 'CONCERN_ENTERED'
@@ -35,6 +40,8 @@ export interface PlanState {
   readonly planId: string;
   readonly ownerId: string;
   readonly lifecycle: PlanLifecycle;
+  readonly policyRevision: number;
+  readonly hasRehearsed: boolean;
   readonly lastCommandAt: number;
   readonly policy: TimelinePolicy;
   readonly cycle: ConcernCycle;
@@ -53,6 +60,21 @@ export type PlanCommand =
       readonly at: number;
       readonly idempotencyKey: string;
       readonly authenticated: boolean;
+    }
+  | {
+      readonly type: 'REHEARSE_PLAN';
+      readonly at: number;
+      readonly idempotencyKey: string;
+      readonly authenticated: boolean;
+      readonly expectedPolicyRevision: number;
+    }
+  | {
+      readonly type: 'ARM_PLAN' | 'PAUSE_PLAN' | 'RESUME_PLAN' | 'DISABLE_PLAN';
+      readonly at: number;
+      readonly idempotencyKey: string;
+      readonly authenticated: boolean;
+      readonly recentlyAuthenticated: boolean;
+      readonly expectedPolicyRevision: number;
     };
 
 export type DomainErrorCode =
@@ -60,7 +82,11 @@ export type DomainErrorCode =
   | 'INVALID_COMMAND'
   | 'INVALID_POLICY'
   | 'INVALID_TIME'
-  | 'PLAN_NOT_ARMED';
+  | 'INVALID_LIFECYCLE_TRANSITION'
+  | 'PLAN_NOT_ARMED'
+  | 'POLICY_REVISION_MISMATCH'
+  | 'RECENT_AUTHENTICATION_REQUIRED'
+  | 'REHEARSAL_REQUIRED';
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;
@@ -72,26 +98,32 @@ export class DomainError extends Error {
   }
 }
 
-interface CreateArmedPlanInput {
+interface CreateDraftPlanInput {
   readonly planId: string;
   readonly ownerId: string;
   readonly at: number;
   readonly policy: TimelinePolicy;
 }
 
-export function createArmedPlan(input: CreateArmedPlanInput): PlanState {
+export function createDraftPlan(input: CreateDraftPlanInput): PlanState {
   validateTimestamp(input.at);
   validatePolicy(input.policy);
+  validateOpaqueIdentifier(input.planId, 'Plan');
+  validateOpaqueIdentifier(input.ownerId, 'Owner');
 
   return {
     planId: input.planId,
     ownerId: input.ownerId,
-    lifecycle: 'armed',
+    lifecycle: 'draft',
+    policyRevision: 1,
+    hasRehearsed: false,
     lastCommandAt: input.at,
     policy: { ...input.policy },
     cycle: createCycle(input.at, input.policy),
     processedCommandKeys: [],
-    events: [createEvent('PLAN_ARMED', input.at, `initial:${input.planId}`)],
+    events: [
+      createEvent('PLAN_DRAFTED', input.at, `initial:${input.planId}`, 0),
+    ],
   };
 }
 
@@ -116,7 +148,151 @@ export function applyPlanCommand(
     return applyOwnerCheckIn(state, command);
   }
 
+  if (command.type !== 'ADVANCE_TIME') {
+    return applyLifecycleCommand(state, command);
+  }
+
   return applyTimeAdvance(state, command);
+}
+
+function applyLifecycleCommand(
+  state: PlanState,
+  command: Exclude<PlanCommand, { type: 'ADVANCE_TIME' | 'OWNER_CHECK_IN' }>,
+): PlanState {
+  if (!command.authenticated) {
+    throw new DomainError(
+      'AUTHENTICATION_REQUIRED',
+      'Plan lifecycle changes require an authenticated Owner action.',
+    );
+  }
+  if (command.expectedPolicyRevision !== state.policyRevision) {
+    throw new DomainError(
+      'POLICY_REVISION_MISMATCH',
+      'The Plan policy changed before this lifecycle command was accepted.',
+    );
+  }
+
+  if (command.type === 'REHEARSE_PLAN') {
+    requireLifecycle(state, 'draft', command.type);
+    return acceptLifecycleCommand(state, command, {
+      eventTypes: ['PLAN_REHEARSED'],
+      hasRehearsed: true,
+    });
+  }
+
+  if (!command.recentlyAuthenticated) {
+    throw new DomainError(
+      'RECENT_AUTHENTICATION_REQUIRED',
+      'This Plan lifecycle change requires recent authentication.',
+    );
+  }
+
+  switch (command.type) {
+    case 'ARM_PLAN':
+      requireLifecycle(state, 'draft', command.type);
+      if (!state.hasRehearsed) {
+        throw new DomainError(
+          'REHEARSAL_REQUIRED',
+          'A Plan must be rehearsed before it can be armed.',
+        );
+      }
+      return acceptLifecycleCommand(state, command, {
+        cycle: createCycle(command.at, state.policy),
+        eventTypes: ['PLAN_ARMED'],
+        lifecycle: 'armed',
+      });
+    case 'PAUSE_PLAN':
+      requireLifecycle(state, 'armed', command.type);
+      return acceptLifecycleCommand(state, command, {
+        eventTypes: ['PLAN_PAUSED'],
+        lifecycle: 'paused',
+      });
+    case 'RESUME_PLAN': {
+      requireLifecycle(state, 'paused', command.type);
+      const eventTypes: DomainEventType[] = [];
+      if (state.cycle.stage === 'concern') {
+        eventTypes.push('CONCERN_CANCELLED');
+      }
+      eventTypes.push('PLAN_RESUMED');
+      return acceptLifecycleCommand(state, command, {
+        cycle: createCycle(command.at, state.policy),
+        eventTypes,
+        lifecycle: 'armed',
+      });
+    }
+    case 'DISABLE_PLAN': {
+      if (state.lifecycle === 'disabled') {
+        throw new DomainError(
+          'INVALID_LIFECYCLE_TRANSITION',
+          'A disabled Plan is a terminal state.',
+        );
+      }
+      const eventTypes: DomainEventType[] = [];
+      if (state.cycle.stage === 'concern') {
+        eventTypes.push('CONCERN_CANCELLED');
+      }
+      eventTypes.push('PLAN_DISABLED');
+      return acceptLifecycleCommand(state, command, {
+        cycle:
+          state.cycle.stage === 'concern'
+            ? createCycle(command.at, state.policy)
+            : state.cycle,
+        eventTypes,
+        lifecycle: 'disabled',
+      });
+    }
+  }
+}
+
+interface LifecycleUpdate {
+  readonly lifecycle?: PlanLifecycle;
+  readonly hasRehearsed?: boolean;
+  readonly cycle?: ConcernCycle;
+  readonly eventTypes: readonly DomainEventType[];
+}
+
+function acceptLifecycleCommand(
+  state: PlanState,
+  command: PlanCommand,
+  update: LifecycleUpdate,
+): PlanState {
+  return {
+    ...state,
+    ...(update.lifecycle === undefined ? {} : { lifecycle: update.lifecycle }),
+    ...(update.hasRehearsed === undefined
+      ? {}
+      : { hasRehearsed: update.hasRehearsed }),
+    ...(update.cycle === undefined ? {} : { cycle: update.cycle }),
+    lastCommandAt: command.at,
+    processedCommandKeys: [
+      ...state.processedCommandKeys,
+      command.idempotencyKey,
+    ],
+    events: [
+      ...state.events,
+      ...update.eventTypes.map((eventType, index) =>
+        createEvent(
+          eventType,
+          command.at,
+          command.idempotencyKey,
+          state.events.length + index,
+        ),
+      ),
+    ],
+  };
+}
+
+function requireLifecycle(
+  state: PlanState,
+  expected: PlanLifecycle,
+  commandType: PlanCommand['type'],
+): void {
+  if (state.lifecycle !== expected) {
+    throw new DomainError(
+      'INVALID_LIFECYCLE_TRANSITION',
+      `${commandType} requires a ${expected} Plan.`,
+    );
+  }
 }
 
 function applyOwnerCheckIn(
@@ -140,11 +316,21 @@ function applyOwnerCheckIn(
   const events = [...state.events];
   if (state.cycle.stage === 'concern') {
     events.push(
-      createEvent('CONCERN_CANCELLED', command.at, command.idempotencyKey),
+      createEvent(
+        'CONCERN_CANCELLED',
+        command.at,
+        command.idempotencyKey,
+        events.length,
+      ),
     );
   }
   events.push(
-    createEvent('OWNER_CHECKED_IN', command.at, command.idempotencyKey),
+    createEvent(
+      'OWNER_CHECKED_IN',
+      command.at,
+      command.idempotencyKey,
+      events.length,
+    ),
   );
 
   return {
@@ -184,7 +370,12 @@ function applyTimeAdvance(
     processedCommandKeys,
     events: [
       ...state.events,
-      createEvent(transition.eventType, command.at, command.idempotencyKey),
+      createEvent(
+        transition.eventType,
+        command.at,
+        command.idempotencyKey,
+        state.events.length,
+      ),
     ],
   };
 }
@@ -227,9 +418,10 @@ function createEvent(
   type: DomainEventType,
   at: number,
   commandKey: string,
+  ordinal: number,
 ): DomainEvent {
   return {
-    id: `${commandKey}:${type.toLowerCase()}`,
+    id: `event:${ordinal}:${type.toLowerCase()}`,
     type,
     at,
     commandKey,
@@ -270,6 +462,15 @@ function validatePolicy(policy: TimelinePolicy): void {
     throw new DomainError(
       'INVALID_POLICY',
       'The reminder must occur after the cycle begins and before Check-in is due.',
+    );
+  }
+}
+
+function validateOpaqueIdentifier(value: string, label: string): void {
+  if (!/^[a-z][a-z0-9_-]{7,63}$/.test(value)) {
+    throw new DomainError(
+      'INVALID_COMMAND',
+      `${label} identifiers must be opaque lowercase identifiers between 8 and 64 characters.`,
     );
   }
 }

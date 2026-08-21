@@ -12,7 +12,15 @@ vi.mock('virtual:pwa-register/react', () => ({
   }),
 }));
 
-describe('Vidha Phase 1 app', () => {
+async function armDemo(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Rehearse Draft' }));
+  await user.click(
+    await screen.findByRole('button', { name: 'Arm rehearsal' }),
+  );
+  expect(await screen.findByText('Lifecycle: armed')).toBeVisible();
+}
+
+describe('Vidha Phase 2 foundation app', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -26,7 +34,11 @@ describe('Vidha Phase 1 app', () => {
     expect(screen.getByText('Local demo')).toBeVisible();
     expect(
       screen.getByRole('button', { name: 'Rehearse Check-in' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Rehearse Draft' }),
     ).toBeEnabled();
+    expect(screen.getByText('Lifecycle: draft')).toBeVisible();
     expect(
       screen.getByText('Sam Rivera', { selector: 'strong' }),
     ).toBeVisible();
@@ -36,6 +48,7 @@ describe('Vidha Phase 1 app', () => {
   it('advances the rehearsal by exactly one stage', async () => {
     const user = userEvent.setup();
     render(<App />);
+    await armDemo(user);
 
     await user.click(screen.getByRole('button', { name: 'Advance one stage' }));
 
@@ -48,6 +61,7 @@ describe('Vidha Phase 1 app', () => {
   it('requires an explicit confirmation before recording a Check-in', async () => {
     const user = userEvent.setup();
     render(<App />);
+    await armDemo(user);
 
     await user.click(screen.getByRole('button', { name: 'Rehearse Check-in' }));
     expect(
@@ -72,6 +86,16 @@ describe('Vidha Phase 1 app', () => {
       type: 'text/markdown',
     });
     await user.upload(input, file);
+
+    expect(
+      screen.getByRole('heading', { name: 'Review sample-note.md' }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/no malware scanner or sandboxed converter is active/i),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'Approve decoded text' }),
+    );
 
     await waitFor(() => {
       expect(screen.getByLabelText('Envelope Markdown content')).toHaveValue(
@@ -99,6 +123,48 @@ describe('Vidha Phase 1 app', () => {
 
     await user.click(screen.getByRole('button', { name: 'Redo session edit' }));
     expect(recipient).toHaveValue('Sam Rivera');
+  });
+
+  it('pauses, resumes with a fresh interval, and confirms terminal disable', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await armDemo(user);
+
+    await user.click(screen.getByRole('button', { name: 'Pause rehearsal' }));
+    expect(await screen.findByText('Lifecycle: paused')).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Timeline is not armed' }),
+    ).toBeDisabled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Resume with fresh interval' }),
+    );
+    expect(await screen.findByText('Lifecycle: armed')).toBeVisible();
+
+    for (let stage = 0; stage < 3; stage += 1) {
+      await user.click(
+        screen.getByRole('button', { name: 'Advance one stage' }),
+      );
+    }
+    expect(await screen.findByText('Concern is active')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Disable rehearsal' }));
+    expect(
+      screen.getByRole('dialog', { name: 'Disable this rehearsal Plan?' }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Confirm disable' }));
+    expect(await screen.findByText('Lifecycle: disabled')).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: 'This rehearsal has ended.' }),
+    ).toBeVisible();
+    expect(
+      screen.queryByLabelText('Next Check-in due date'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Timeline inactive')).toBeVisible();
+    expect(screen.queryByText('Concern is active')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Disable rehearsal' }),
+    ).not.toBeInTheDocument();
   });
 
   it('keeps undo history and checkpoints across workspace navigation', async () => {
@@ -142,6 +208,9 @@ describe('Vidha Phase 1 app', () => {
     await user.upload(
       screen.getByLabelText('Import Markdown or plain text'),
       new File([source], 'source.md', { type: 'text/markdown' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Approve decoded text' }),
     );
     const editor = screen.getByLabelText('Envelope Markdown content');
     await user.clear(editor);

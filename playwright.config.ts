@@ -7,7 +7,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: 'http://127.0.0.1:4178',
     trace: 'retain-on-failure',
   },
   projects: [
@@ -22,9 +22,9 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      'pnpm --filter @vidha/web build && pnpm --filter @vidha/web preview --host 127.0.0.1 --port 4173',
+      'pnpm --filter @vidha/web build && pnpm --filter @vidha/web preview --host 127.0.0.1 --port 4178',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    url: 'http://127.0.0.1:4173',
+    url: 'http://127.0.0.1:4178',
   },
 });
