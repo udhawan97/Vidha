@@ -1,17 +1,18 @@
 {
-  "name": "@vidha/application",
+  "name": "@vidha/operations",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./memory": "./src/memory.ts",
+    "./pglite": "./src/pglite.ts"
   },
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vidha/domain": "workspace:*",
-    "@vidha/identity": "workspace:*"
+    "@electric-sql/pglite": "0.5.5"
   }
 }

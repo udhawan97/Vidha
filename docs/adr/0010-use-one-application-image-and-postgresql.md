@@ -1,0 +1,7 @@
+# Use one application image with API and worker roles plus PostgreSQL
+
+The accepted hosted and self-hosted topology uses one versioned Vidha application image started in separate `api` and `worker` roles, with one PostgreSQL service. The worker owns durable schedule polling and synthetic outbox dispatch as separate modules; PostgreSQL is the authority for metadata transactions, semantic uniqueness, leases, fencing generations, and restore state. Identity, notification, object storage, key custody, malware scanning, and conversion remain replaceable adapters. An external watchdog is read-only and cannot mutate Contingency Plan state.
+
+This is the smallest topology that supports separate request and background-work failure domains without adding Redis, a broker, workflow engine, hosted identity tenant, or provider scheduler. It is operationally heavier than SQLite, but it preserves multi-process transaction and locking semantics. PGlite and memory remain local contract adapters; neither is production PostgreSQL evidence.
+
+A restored installation starts in restore-safe mode with mutations, job claims, scanner updates, and provider adapters disabled. Promotion requires explicit inspection. The Phase 3 manifest validator and PGlite tests are synthetic topology evidence only; no container image, public endpoint, production secret, PostgreSQL deployment, high availability, or self-hosting support claim exists yet.

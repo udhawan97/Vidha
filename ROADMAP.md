@@ -13,16 +13,18 @@ This roadmap describes intent, not shipped capability or a delivery date.
 - Responsive local PWA prototype using synthetic, in-memory data
 - Temporary Markdown/plain-text import, editing, preview, and export
 - Synthetic Recipient reassignment, undo/redo, restorable session checkpoints, browser-decoded import snapshots, and Markdown/plain-text/escaped-HTML copies
-- Provider-neutral authenticated-principal/session input and application-authorization seams using synthetic identities only
+- Canonical-session application boundary plus synthetic Owner Credential, session revocation, two-proof recovery, and Verified Owner Channel contracts
 - Disposable in-memory, SQLite, and Postgres-compatible PGlite Plan stores under one atomic audit/idempotency contract
 - Explicit Draft, Armed, Paused, and Disabled lifecycle with rehearsal-before-arm, recent authentication, policy revision, and fresh-interval resume rules
-- Quarantined TXT/Markdown intake with byte/type/resource checks, injected scanner/converter seams, explicit approval, and exact session-byte preservation
+- Quarantined TXT/Markdown intake with byte/type/resource checks, digest-bound scanner version/duration/isolation evidence, explicit approval, and exact session-byte preservation
+- Accepted one-image API/worker plus PostgreSQL topology contract with replaceable adapters and a read-only watchdog
+- Disposable encrypted operational-metadata, retention, restore-safe, atomic synthetic-outbox, retry/dead-letter, lease, and stale-worker fencing evidence across memory and PGlite
 - Unit, component, build, documentation, accessibility, PWA, desktop-WebKit, and mobile-WebKit checks
 - Fable implementation and release handoff
 
-The planned [Phase 3 next six](docs/product/NEXT_PHASE_3_SIX.md) must select and exercise identity, credential recovery, deployment, encrypted persistence, production scanning, and a synthetic scheduler/outbox before accepting real data or sending a message. Guardian authority, Veto Window, Delivery Hold, Automatic Fallback, and Release remain outside the implemented state machine.
+The partial [Phase 3 six-slice record](docs/product/NEXT_PHASE_3_SIX.md) selects identity, credential recovery, deployment, encrypted metadata, isolated scanning, and durable scheduler/outbox directions and exercises only their provider-free contracts. The planned [Phase 3B next six](docs/product/NEXT_PHASE_3B_SIX.md) must complete disposable PostgreSQL, wrapped-key backup, WebAuthn, durable identity, integrated worker, and scanner/sandbox evidence before accepting real data or sending a message. Guardian authority, Veto Window, Delivery Hold, Automatic Fallback, and Release remain outside the implemented state machine.
 
-The completed synthetic foundation record is in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md). The sequence remains intentional: provider and operational decisions still precede any durable personal data, and none of this work authorizes Guardian Attestation or Release behavior.
+The earlier foundation record is in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md), and current boundaries are in [`docs/architecture/FOUNDATION_PHASE_3.md`](docs/architecture/FOUNDATION_PHASE_3.md). The sequence remains intentional: executable provider and operational evidence still precedes any durable personal data, and none of this work authorizes Guardian Attestation or Release behavior.
 
 ## Version 1 candidate — planned
 

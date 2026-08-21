@@ -1,6 +1,6 @@
 # Proposed architecture
 
-**Status:** Phase 2 implements the pure domain, caller-supplied principal/session input and application-authorization seam, disposable Plan-store adapters, bounded text-import intake, and local PWA described in the foundation record. The server, real identity provider, production persistence selection, cryptography, notification, Guardian-authority, and Release boundaries below remain proposals for Fable to verify and turn into accepted ADRs where warranted.
+**Status:** Phase 3 implements the pure domain, canonical-session application boundary, synthetic identity/recovery coordinator, disposable Plan and operations stores, encrypted operational-metadata fixture, fenced durable-work fixture, bounded inspection evidence, and local PWA described in the foundation record. WebAuthn, a PostgreSQL server, production key custody and backup, scanner/sandbox processes, notifications, Guardian authority, and Release remain unimplemented.
 
 ## Architectural objective
 
@@ -31,11 +31,14 @@ The repository is a TypeScript monorepo. Entries marked “implemented” exist 
 ```text
 apps/
   web/                 implemented local React/Vite PWA foundation
-  worker/              proposed HTTP and scheduled entry points
+  api/                 planned Phase 3B HTTP entry point
+  worker/              planned Phase 3B scheduled entry point
 packages/
   domain/              implemented pure Check-in states, commands, events, invariants
   application/         implemented authenticated commands and authorization orchestration
+  identity/            implemented synthetic Owner identity, recovery, and session contract
   persistence/         implemented disposable memory, SQLite, and PGlite Plan stores
+  operations/          implemented encrypted-metadata and durable-work fixture contracts
   crypto/              proposed reviewed Standard and Sealed Mode boundaries
   documents/           implemented bounded TXT/Markdown intake seam; broader conversion proposed
   notifications/       proposed provider-neutral outbox and templates
@@ -78,7 +81,7 @@ Cycle: OnTime -> Reminder -> Overdue -> Concern
        Concern | Verification | VetoWindow | DeliveryHold -> Cancelled
 ```
 
-Phase 2 implements `Draft -> Armed <-> Paused -> Disabled` with rehearsal-before-arm, recent-authentication and policy-revision checks, Paused timeline suspension, and a new full interval on resume. It also retains `OnTime -> Reminder -> Overdue -> Concern`, authenticated Owner Check-in cancellation, injected time, idempotency keys, monotonic commands, and at most one semantic transition per command. It intentionally has no path beyond Concern. Tests advance time explicitly; production code never waits in real time. For every future Release Policy, catch-up may discover overdue eligibility but cannot create a final notice, consume its full Veto Window, and authorize Release in the same historical-time pass. The window begins only after provider acceptance on at least one verified Owner channel. Before Release, later negative evidence must be re-evaluated; if no accepted, non-failed channel remains, the Envelope enters Delivery Hold and clearing it starts a new full window.
+The implemented domain provides `Draft -> Armed <-> Paused -> Disabled` with rehearsal-before-arm, recent-authentication and policy-revision checks, Paused timeline suspension, and a new full interval on resume. It also retains `OnTime -> Reminder -> Overdue -> Concern`, authenticated Owner Check-in cancellation, injected time, idempotency keys, monotonic commands, and at most one semantic transition per command. It intentionally has no path beyond Concern. Tests advance time explicitly; production code never waits in real time. For every future Release Policy, catch-up may discover overdue eligibility but cannot create a final notice, consume its full Veto Window, and authorize Release in the same historical-time pass. The window begins only after provider acceptance on at least one Verified Owner Channel. Before Release, later negative evidence must be re-evaluated; if no accepted, non-failed channel remains, the Envelope enters Delivery Hold and clearing it starts a new full window.
 
 ## Persistence model
 
@@ -97,7 +100,7 @@ Use unique constraints for semantic events such as one reminder per cycle/stage/
 
 ## Hosted and self-hosted persistence
 
-The current synthetic parity harness compares a Node SQLite adapter with a Postgres-compatible PGlite adapter behind one Plan transaction interface; see `PERSISTENCE_PORTABILITY.md`. It does not select a production database. The initial technical recommendation remains a Cloudflare Worker deployment with an indexed SQL store and encrypted object storage, plus a Node-compatible self-host adapter. A later database ADR must account for:
+The current synthetic parity harness compares a Node SQLite adapter with a PGlite adapter behind one Plan transaction interface; see `PERSISTENCE_PORTABILITY.md`. Phase 3 selected one Node application image with API and worker roles plus PostgreSQL as the hosted and self-hosted metadata topology. PGlite is contract evidence only, not PostgreSQL operations evidence. Phase 3B must account for:
 
 - reliable scheduled execution when the application is otherwise idle;
 - transactions and uniqueness under concurrent jobs;
@@ -108,9 +111,9 @@ The current synthetic parity harness compares a Node SQLite adapter with a Postg
 
 ## Authentication and authorization
 
-- Prefer passkeys for Owner, Guardian, and Recipient authentication.
+- Use passkeys and revocable opaque server sessions for Owner authentication. Guardian and Recipient authentication remain unresolved until their authority contracts exist.
 - A reminder URL may establish navigation context but cannot authenticate a state change.
-- Sensitive changes require recent strong authentication and notify existing verified contacts.
+- Sensitive changes require recent strong authentication and notify existing Verified Owner Channels.
 - Contact, policy, encryption-mode, and deadline changes receive a cooling-off period before they can affect an active cycle.
 - Authorization is role- and Envelope-specific. A Guardian does not gain content access by being a Guardian.
 - Role overlap and conflict-of-interest rules remain an explicit interview decision.

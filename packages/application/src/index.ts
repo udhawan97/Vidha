@@ -11,6 +11,7 @@ export {
   type PlanTransactionResult,
   type PlanTransactionStore,
   type PrincipalRole,
+  type SessionVerifier,
   type ReminderChallenge,
   type ReminderInspection,
 } from './application';

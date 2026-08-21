@@ -20,10 +20,10 @@ These completed synthetic slices establish safer foundations for later durable w
 ## Current evidence
 
 - [`packages/application`](../../packages/application/) implements the reminder navigation and authenticated Owner-command interface with role, method, user-presence, expiry, recent-authentication, injected-clock, and replay tests.
-- [`docs/architecture/PERSISTENCE_PORTABILITY.md`](../architecture/PERSISTENCE_PORTABILITY.md) records the official-source SQLite/PostgreSQL comparison and why the production decision remains open.
+- [`docs/architecture/PERSISTENCE_PORTABILITY.md`](../architecture/PERSISTENCE_PORTABILITY.md) records the official-source SQLite/PostgreSQL comparison that preceded ADR 0010; PostgreSQL is now the accepted production target, while executable server and operational evidence remain absent.
 - [`packages/persistence`](../../packages/persistence/) runs one transaction/audit/idempotency/restore-safe contract against memory, SQLite, and Postgres-compatible PGlite adapters using disposable state.
 - [`packages/domain`](../../packages/domain/) implements the reviewed Draft, Armed, Paused, and Disabled transition table while the concern cycle still stops at Concern.
 - [`packages/documents`](../../packages/documents/) implements bounded UTF-8 TXT/Markdown preparation, quarantine, exact byte preservation, scanner/converter seams, and explicit approval; HTML, DOCX, archives, and active content remain unconvertible.
 - [`docs/architecture/FOUNDATION_PHASE_2.md`](../architecture/FOUNDATION_PHASE_2.md) records the authorization matrix, lifecycle table, module seams, verification map, and stop conditions.
 
-The next six proposed slices are recorded separately in [`NEXT_PHASE_3_SIX.md`](NEXT_PHASE_3_SIX.md); they are not implemented claims.
+The follow-on six slices are now recorded in the partial [`NEXT_PHASE_3_SIX.md`](NEXT_PHASE_3_SIX.md) implementation record. Their production-shaped evidence remains absent and moves to the separate Phase 3B completion plan.

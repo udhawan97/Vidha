@@ -1,5 +1,5 @@
 {
-  "name": "@vidha/application",
+  "name": "@vidha/identity",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,9 +9,5 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@vidha/domain": "workspace:*",
-    "@vidha/identity": "workspace:*"
   }
 }

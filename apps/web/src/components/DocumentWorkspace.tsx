@@ -52,9 +52,17 @@ const MAX_UNDO_STEPS = 50;
 const MAX_CHECKPOINTS = 6;
 
 const syntheticFixtureScanner: ImportScanner = {
-  async scan() {
+  async scan(source) {
+    const startedAt = Date.now();
     return {
       scannerId: 'synthetic-fixture-inspection-no-malware-scan',
+      engineVersion: 'fixture-v1',
+      signatureSetVersion: 'not-applicable',
+      sourceId: source.sourceId,
+      scannedBytes: source.sizeBytes,
+      startedAt,
+      completedAt: startedAt,
+      isolationProfile: 'synthetic_fixture',
       verdict: 'clean',
     };
   },
@@ -62,6 +70,10 @@ const syntheticFixtureScanner: ImportScanner = {
 
 const importIntake = createImportIntake({
   converter: utf8TextConverter,
+  inspectionPolicy: {
+    acceptedIsolationProfiles: ['synthetic_fixture'],
+    maxScanDurationMs: 5_000,
+  },
   limits: { maxBytes: MAX_IMPORT_BYTES, maxLines: MAX_IMPORT_LINES },
   scanner: syntheticFixtureScanner,
 });

@@ -1,5 +1,7 @@
 export type SupportedTextMediaType = 'text/markdown' | 'text/plain';
 export type ScanVerdict = 'clean' | 'malicious' | 'unavailable';
+export type ScanIsolationProfile =
+  'isolated_process_no_network' | 'synthetic_fixture';
 
 export interface UntrustedUpload {
   readonly bytes: Uint8Array;
@@ -25,7 +27,19 @@ export interface QuarantinedImport {
 
 export interface ImportScanResult {
   readonly scannerId: string;
+  readonly engineVersion: string;
+  readonly signatureSetVersion: string;
+  readonly sourceId: string;
+  readonly scannedBytes: number;
+  readonly startedAt: number;
+  readonly completedAt: number;
+  readonly isolationProfile: ScanIsolationProfile;
   readonly verdict: ScanVerdict;
+}
+
+export interface ImportInspectionPolicy {
+  readonly acceptedIsolationProfiles: readonly ScanIsolationProfile[];
+  readonly maxScanDurationMs: number;
 }
 
 export interface InspectedImport extends Omit<QuarantinedImport, 'state'> {
@@ -55,6 +69,7 @@ export type ImportIntakeErrorCode =
   | 'ACTIVE_CONTENT'
   | 'INVALID_LIMITS'
   | 'INVALID_UTF8'
+  | 'INSPECTION_EVIDENCE_INVALID'
   | 'INSPECTION_MISMATCH'
   | 'LINE_LIMIT_EXCEEDED'
   | 'SCAN_BLOCKED'
@@ -79,16 +94,19 @@ export interface ImportIntake {
 
 interface CreateImportIntakeInput {
   readonly converter: TextImportConverter;
+  readonly inspectionPolicy: ImportInspectionPolicy;
   readonly limits: ImportLimits;
   readonly scanner: ImportScanner;
 }
 
 export function createImportIntake({
   converter,
+  inspectionPolicy,
   limits,
   scanner,
 }: CreateImportIntakeInput): ImportIntake {
   validateLimits(limits);
+  validateInspectionPolicy(inspectionPolicy);
   const preparedSources = new Map<string, QuarantinedImport>();
   const inspections = new Map<
     string,
@@ -157,6 +175,7 @@ export function createImportIntake({
       const scan = {
         ...(await scanner.scan(cloneQuarantined(ownedSource))),
       };
+      validateScanEvidence(scan, ownedSource, inspectionPolicy);
       inspections.set(ownedSource.sourceId, {
         source: cloneQuarantined(ownedSource),
         scan,
@@ -173,8 +192,7 @@ export function createImportIntake({
       const inspection = inspections.get(submitted.sourceId);
       if (
         inspection === undefined ||
-        inspection.scan.scannerId !== submitted.scan.scannerId ||
-        inspection.scan.verdict !== submitted.scan.verdict
+        !sameScanEvidence(inspection.scan, submitted.scan)
       ) {
         throw new ImportIntakeError(
           'INSPECTION_MISMATCH',
@@ -225,6 +243,69 @@ function validateLimits(limits: ImportLimits): void {
       'Import byte and line limits must be positive safe integers.',
     );
   }
+}
+
+function validateInspectionPolicy(policy: ImportInspectionPolicy): void {
+  if (
+    !Number.isSafeInteger(policy.maxScanDurationMs) ||
+    policy.maxScanDurationMs <= 0 ||
+    policy.acceptedIsolationProfiles.length === 0 ||
+    policy.acceptedIsolationProfiles.some(
+      (profile) =>
+        profile !== 'isolated_process_no_network' &&
+        profile !== 'synthetic_fixture',
+    )
+  ) {
+    throw new ImportIntakeError(
+      'INVALID_LIMITS',
+      'Inspection policy requires a positive duration and explicit isolation profiles.',
+    );
+  }
+}
+
+function validateScanEvidence(
+  scan: ImportScanResult,
+  source: QuarantinedImport,
+  policy: ImportInspectionPolicy,
+): void {
+  const boundedIdentifier = /^[a-z0-9][a-z0-9._-]{0,95}$/u;
+  if (
+    !boundedIdentifier.test(scan.scannerId) ||
+    !boundedIdentifier.test(scan.engineVersion) ||
+    !boundedIdentifier.test(scan.signatureSetVersion) ||
+    scan.sourceId !== source.sourceId ||
+    scan.scannedBytes !== source.sizeBytes ||
+    !Number.isSafeInteger(scan.startedAt) ||
+    !Number.isSafeInteger(scan.completedAt) ||
+    scan.completedAt < scan.startedAt ||
+    scan.completedAt - scan.startedAt > policy.maxScanDurationMs ||
+    !policy.acceptedIsolationProfiles.includes(scan.isolationProfile) ||
+    (scan.verdict !== 'clean' &&
+      scan.verdict !== 'malicious' &&
+      scan.verdict !== 'unavailable')
+  ) {
+    throw new ImportIntakeError(
+      'INSPECTION_EVIDENCE_INVALID',
+      'Scanner evidence must bind the exact bytes, bounded versions, duration, and accepted isolation profile.',
+    );
+  }
+}
+
+function sameScanEvidence(
+  left: ImportScanResult,
+  right: ImportScanResult,
+): boolean {
+  return (
+    left.scannerId === right.scannerId &&
+    left.engineVersion === right.engineVersion &&
+    left.signatureSetVersion === right.signatureSetVersion &&
+    left.sourceId === right.sourceId &&
+    left.scannedBytes === right.scannedBytes &&
+    left.startedAt === right.startedAt &&
+    left.completedAt === right.completedAt &&
+    left.isolationProfile === right.isolationProfile &&
+    left.verdict === right.verdict
+  );
 }
 
 function detectSupportedTextType(filename: string): SupportedTextMediaType {

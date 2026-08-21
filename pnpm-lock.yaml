@@ -105,10 +105,21 @@ importers:
       '@vidha/domain':
         specifier: workspace:*
         version: link:../domain
+      '@vidha/identity':
+        specifier: workspace:*
+        version: link:../identity
 
   packages/documents: {}
 
   packages/domain: {}
+
+  packages/identity: {}
+
+  packages/operations:
+    dependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.5
+        version: 0.5.5
 
   packages/persistence:
     dependencies:

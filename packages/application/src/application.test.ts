@@ -11,6 +11,7 @@ import {
   type InteractivePlanRequest,
   type PlanTransactionStore,
   type PrincipalRole,
+  type SessionVerifier,
 } from './application';
 
 const DAY = 24 * 60 * 60 * 1_000;
@@ -112,15 +113,50 @@ function session(role: PrincipalRole = 'owner'): AuthenticationSession {
   };
 }
 
+function otherOwnerSession(): AuthenticationSession {
+  return {
+    ...session(),
+    sessionId: 'session_other_owner',
+    principal: { principalId: 'other_owner', role: 'owner' },
+  };
+}
+
+class TestSessionVerifier implements SessionVerifier {
+  private readonly sessions = new Map<string, AuthenticationSession>();
+
+  constructor() {
+    for (const role of [
+      'owner',
+      'guardian',
+      'recipient',
+      'operator',
+    ] as const) {
+      this.register(session(role));
+    }
+    this.register(otherOwnerSession());
+  }
+
+  register(value: AuthenticationSession): void {
+    this.sessions.set(value.sessionId, structuredClone(value));
+  }
+
+  async verify(sessionId: string): Promise<AuthenticationSession | null> {
+    const value = this.sessions.get(sessionId);
+    return value === undefined ? null : structuredClone(value);
+  }
+}
+
 function setup(now = START + 1_000, state = armedPlan()) {
   const store = new TestStore(state);
+  const sessionVerifier = new TestSessionVerifier();
   const clock = { now: () => now };
   const application = createPlanApplication({
     clock,
     recentAuthenticationWindowMs: 5 * 60 * 1_000,
+    sessionVerifier,
     store,
   });
-  return { application, store };
+  return { application, sessionVerifier, store };
 }
 
 describe('authentication command boundary', () => {
@@ -131,6 +167,7 @@ describe('authentication command boundary', () => {
         createPlanApplication({
           clock: { now: () => START },
           recentAuthenticationWindowMs,
+          sessionVerifier: new TestSessionVerifier(),
           store: new TestStore(),
         }),
       ).toThrow(RangeError);
@@ -253,8 +290,7 @@ describe('authentication command boundary', () => {
       await expect(
         application.execute(
           {
-            ...session(),
-            principal: { principalId: 'other_owner', role: 'owner' },
+            ...otherOwnerSession(),
           },
           {
             action,
@@ -274,8 +310,7 @@ describe('authentication command boundary', () => {
     session('recipient'),
     session('operator'),
     {
-      ...session(),
-      principal: { principalId: 'other_owner', role: 'owner' as const },
+      ...otherOwnerSession(),
     },
   ])(
     'authorizes before duplicate detection for $principal.role replay',
@@ -303,8 +338,7 @@ describe('authentication command boundary', () => {
     await expect(
       application.execute(
         {
-          ...session(),
-          principal: { principalId: 'other_owner', role: 'owner' },
+          ...otherOwnerSession(),
         },
         {
           action: { type: 'OWNER_CHECK_IN' },
@@ -344,6 +378,43 @@ describe('authentication command boundary', () => {
     ).rejects.toMatchObject({ code: 'USER_PRESENCE_REQUIRED' });
   });
 
+  it('uses only the session identifier and ignores forged caller principal or time fields', async () => {
+    const { application } = setup();
+    const forgedReference = {
+      ...session('guardian'),
+      sessionId: session('owner').sessionId,
+      authenticatedAt: Number.NEGATIVE_INFINITY,
+      expiresAt: Number.POSITIVE_INFINITY,
+    };
+
+    await expect(
+      application.execute(forgedReference, {
+        action: { type: 'OWNER_CHECK_IN' },
+        idempotencyKey: 'canonical-session-only',
+        method: 'POST',
+        planId: 'plan_demo',
+        userPresence: true,
+      }),
+    ).resolves.toMatchObject({ state: { lifecycle: 'armed' } });
+  });
+
+  it('rejects an unknown session identifier before opening a transaction', async () => {
+    const { application, store } = setup();
+    await expect(
+      application.execute(
+        { sessionId: 'session_unknown' },
+        {
+          action: { type: 'OWNER_CHECK_IN' },
+          idempotencyKey: 'unknown-session',
+          method: 'POST',
+          planId: 'plan_demo',
+          userPresence: true,
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_EXPIRED' });
+    expect(store.transactionCount).toBe(0);
+  });
+
   it.each([
     { authenticatedAt: Number.NaN, expiresAt: START + DAY },
     { authenticatedAt: START, expiresAt: Number.POSITIVE_INFINITY },
@@ -354,18 +425,17 @@ describe('authentication command boundary', () => {
   ])(
     'rejects malformed session bounds %#',
     async ({ authenticatedAt, expiresAt }) => {
-      const { application, store } = setup();
+      const { application, sessionVerifier, store } = setup();
+      const malformed = { ...session(), authenticatedAt, expiresAt };
+      sessionVerifier.register(malformed);
       await expect(
-        application.execute(
-          { ...session(), authenticatedAt, expiresAt },
-          {
-            action: { type: 'OWNER_CHECK_IN' },
-            idempotencyKey: 'malformed-session',
-            method: 'POST',
-            planId: 'plan_demo',
-            userPresence: true,
-          },
-        ),
+        application.execute(malformed, {
+          action: { type: 'OWNER_CHECK_IN' },
+          idempotencyKey: 'malformed-session',
+          method: 'POST',
+          planId: 'plan_demo',
+          userPresence: true,
+        }),
       ).rejects.toMatchObject({ code: 'AUTHENTICATION_EXPIRED' });
       expect(store.transactionCount).toBe(0);
     },
@@ -465,6 +535,7 @@ describe('authentication command boundary', () => {
     const application = createPlanApplication({
       clock: { now: () => now },
       recentAuthenticationWindowMs: 5 * 60 * 1_000,
+      sessionVerifier: new TestSessionVerifier(),
       store,
     });
     const request = {

@@ -3,20 +3,18 @@ import {
   type PlanCommand,
   type PlanState,
 } from '@vidha/domain';
+import type {
+  AuthenticatedPrincipal,
+  AuthenticationSession,
+  SessionVerifier,
+} from '@vidha/identity';
 
-export type PrincipalRole = 'owner' | 'guardian' | 'recipient' | 'operator';
-
-export interface AuthenticatedPrincipal {
-  readonly principalId: string;
-  readonly role: PrincipalRole;
-}
-
-export interface AuthenticationSession {
-  readonly sessionId: string;
-  readonly principal: AuthenticatedPrincipal;
-  readonly authenticatedAt: number;
-  readonly expiresAt: number;
-}
+export type {
+  AuthenticatedPrincipal,
+  AuthenticationSession,
+  PrincipalRole,
+  SessionVerifier,
+} from '@vidha/identity';
 
 export interface Clock {
   now(): number;
@@ -95,7 +93,7 @@ export interface PlanApplication {
     idempotencyKey: string,
   ): Promise<PlanTransactionResult>;
   execute(
-    session: AuthenticationSession,
+    session: Pick<AuthenticationSession, 'sessionId'>,
     request: InteractivePlanRequest,
   ): Promise<PlanTransactionResult>;
   inspectReminder(
@@ -107,12 +105,14 @@ export interface PlanApplication {
 interface CreatePlanApplicationInput {
   readonly clock: Clock;
   readonly recentAuthenticationWindowMs: number;
+  readonly sessionVerifier: SessionVerifier;
   readonly store: PlanTransactionStore;
 }
 
 export function createPlanApplication({
   clock,
   recentAuthenticationWindowMs,
+  sessionVerifier,
   store,
 }: CreatePlanApplicationInput): PlanApplication {
   if (
@@ -139,9 +139,20 @@ export function createPlanApplication({
           }),
       );
     },
-    async execute(session, request) {
+    async execute(sessionReference, request) {
       const at = clock.now();
-      requireInteractiveAuthentication(session, request, at);
+      requireInteractiveRequest(request);
+      const session = await sessionVerifier.verify(
+        sessionReference.sessionId,
+        at,
+      );
+      if (session === null) {
+        throw new ApplicationError(
+          'AUTHENTICATION_EXPIRED',
+          'The authenticated session is unavailable or inactive.',
+        );
+      }
+      requireInteractiveAuthentication(session, at);
       const recentlyAuthenticated =
         at - session.authenticatedAt <= recentAuthenticationWindowMs;
       const commandKey = await deriveOpaqueCommandKey(request.idempotencyKey);
@@ -185,7 +196,6 @@ export function createPlanApplication({
 
 function requireInteractiveAuthentication(
   session: AuthenticationSession,
-  request: InteractivePlanRequest,
   at: number,
 ): void {
   if (
@@ -199,6 +209,10 @@ function requireInteractiveAuthentication(
       'The authenticated session has invalid time bounds.',
     );
   }
+  requireActiveSession(session, at);
+}
+
+function requireInteractiveRequest(request: InteractivePlanRequest): void {
   if (request.method !== 'POST') {
     throw new ApplicationError(
       'METHOD_NOT_ALLOWED',
@@ -211,6 +225,12 @@ function requireInteractiveAuthentication(
       'An explicit user-presence action is required.',
     );
   }
+}
+
+function requireActiveSession(
+  session: AuthenticationSession,
+  at: number,
+): void {
   if (session.authenticatedAt > at || session.expiresAt < at) {
     throw new ApplicationError(
       'AUTHENTICATION_EXPIRED',

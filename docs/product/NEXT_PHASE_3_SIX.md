@@ -1,8 +1,8 @@
-# Phase 3 next six plan
+# Phase 3 six-slice record
 
-**Status:** Planned only. None of these slices is an implemented, deployed, or release-ready claim.
+**Status:** Partial. The six bounded decisions, deep-module seams, and provider-free contract tests are implemented locally. The production-shaped evidence listed below is not complete and moves to the Phase 3B completion tranche; nothing here is deployed, production-ready, or release authority.
 
-Phase 3 should turn the synthetic seams into evidence-backed production decisions while continuing to use disposable fixtures. It must not accept personal content, contact real people, grant Guardian authority, or add any path beyond Concern until the relevant security and release gates pass.
+Phase 3 turned the earlier synthetic seams into evidence-backed target decisions while continuing to use disposable fixtures. It did not accept personal content, contact real people, grant Guardian authority, or add any path beyond Concern.
 
 | Order | Bounded slice                               | Intended outcome                                                                                                                                                      | Required evidence and stop condition                                                                                                                                                                                                      |
 | ----- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -13,6 +13,8 @@ Phase 3 should turn the synthetic seams into evidence-backed production decision
 | 5     | Import scanner and sandbox decision         | Select a scanner and isolated conversion boundary for untrusted files while preserving unsupported originals as Attachments.                                          | Benign and standard anti-malware test fixtures, resource-limit and archive-bomb tests, detected-type mismatch tests, isolation/failure review, retention contract, and an ADR if a provider is selected. Stop before a real upload.       |
 | 6     | Durable scheduler and transactional outbox  | Persist synthetic scheduling intent and delivery tasks without embedding lifecycle rules in workers or sending a real notification.                                   | Controllable-clock catch-up, lease/duplicate/crash tests, semantic uniqueness, privacy-redacted observability, retry/dead-letter inspection, and a synthetic sink. Stop before a provider adapter, Guardian Attestation, or Release task. |
 
-## Gate after Phase 3
+## Implemented boundary
 
-Completing these slices would establish production-oriented decisions and disposable operational evidence. It would not establish real account recovery, personal-data acceptance, Standard Mode or Sealed Mode cryptography, notification delivery, Guardian quorum, Veto Window, Delivery Hold, Automatic Fallback, Release, deployment, or v1 readiness. Those remain separately gated by the threat model, accepted ADRs, and `docs/release/V1_RELEASE_GATES.md`.
+The [Phase 3 synthetic operations foundation](../architecture/FOUNDATION_PHASE_3.md) maps code and tests to each slice. ADRs 0009–0012 record the accepted target trade-offs. The executable WebAuthn, PostgreSQL, wrapped-key backup, scanner/sandbox, and integrated scheduler adapters remain [Phase 3B completion planning](NEXT_PHASE_3B_SIX.md).
+
+Phase 3 does not establish real account recovery, personal-data acceptance, Standard Mode or Sealed Mode cryptography, notification delivery, Guardian quorum, Veto Window, Delivery Hold, Automatic Fallback, Release, deployment, or v1 readiness. Those remain separately gated by the threat model and `docs/release/V1_RELEASE_GATES.md`.

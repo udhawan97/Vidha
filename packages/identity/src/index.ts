@@ -1,0 +1,16 @@
+export {
+  IdentityError,
+  createOwnerIdentityCoordinator,
+  type AuthenticatedPrincipal,
+  type AuthenticationSession,
+  type CredentialProofVerifier,
+  type IdentityCommand,
+  type IdentityErrorCode,
+  type IdentityNoticeIntent,
+  type IdentityPolicy,
+  type IdentityResult,
+  type OwnerIdentityCoordinator,
+  type OwnerIdentityState,
+  type PrincipalRole,
+  type SessionVerifier,
+} from './identity';

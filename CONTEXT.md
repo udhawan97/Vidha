@@ -8,6 +8,14 @@ Vidha is a contingency relay in which an individual prepares private, recipient-
 The individual adult who creates and controls their Contingency Plan and completes authenticated Check-ins. A Contingency Plan has one Owner.
 _Avoid_: User, deceased person, subject
 
+**Owner Credential**:
+An authenticator bound to one Owner identity. The accepted target is a passkey verified by Vidha as its own WebAuthn relying party; an Owner may have multiple Owner Credentials, and revocation is server-authoritative.
+_Avoid_: Password, email login, identity proof
+
+**Verified Owner Channel**:
+An opaque reference to a previously verified destination for content-free Owner security notices. Control of a channel alone never authenticates a Check-in, authorizes a lifecycle mutation, or completes recovery.
+_Avoid_: Login, recovery authority, proof of life
+
 **Guardian**:
 A trusted person authorized to submit a bounded Guardian Attestation during Concern. A Guardian never declares the Owner dead and does not gain Envelope access.
 _Avoid_: Emergency contact, executor

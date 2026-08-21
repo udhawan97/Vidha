@@ -1,6 +1,6 @@
 # Phase 2 synthetic foundation
 
-**Status:** Implemented and locally verifiable with disposable synthetic state. This foundation has no real accounts, production credential enrollment, personal-content persistence, production malware scanner, hosted database, Guardian authority, cryptography, notification provider, or Release path.
+**Status:** Historical Phase 2 record. Its disposable synthetic foundation remains locally verifiable, but the authentication and inspection seams are superseded by the [Phase 3 synthetic operations foundation](FOUNDATION_PHASE_3.md). There are still no real accounts, production credential enrollment, personal-content persistence, production malware scanner, hosted database, Guardian authority, notification provider, or Release path.
 
 ## Deep modules and seams
 

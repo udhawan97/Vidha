@@ -13,8 +13,18 @@ const encoder = new TextEncoder();
 
 function scanner(verdict: ScanVerdict = 'clean'): ImportScanner {
   return {
-    async scan() {
-      return { scannerId: 'synthetic-scanner', verdict };
+    async scan(source) {
+      return {
+        scannerId: 'synthetic-scanner',
+        engineVersion: 'fixture-v1',
+        signatureSetVersion: 'fixture-signatures-v1',
+        sourceId: source.sourceId,
+        scannedBytes: source.sizeBytes,
+        startedAt: 100,
+        completedAt: 101,
+        isolationProfile: 'synthetic_fixture',
+        verdict,
+      };
     },
   };
 }
@@ -22,6 +32,10 @@ function scanner(verdict: ScanVerdict = 'clean'): ImportScanner {
 function intake(verdict: ScanVerdict = 'clean') {
   return createImportIntake({
     converter: utf8TextConverter,
+    inspectionPolicy: {
+      acceptedIsolationProfiles: ['synthetic_fixture'],
+      maxScanDurationMs: 1_000,
+    },
     limits: { maxBytes: 128, maxLines: 4 },
     scanner: scanner(verdict),
   });
@@ -67,11 +81,25 @@ describe('untrusted import intake', () => {
     });
     const workflow = createImportIntake({
       converter: utf8TextConverter,
+      inspectionPolicy: {
+        acceptedIsolationProfiles: ['synthetic_fixture'],
+        maxScanDurationMs: 1_000,
+      },
       limits: { maxBytes: 128, maxLines: 4 },
       scanner: {
-        async scan() {
+        async scan(source) {
           await scanGate;
-          return { scannerId: 'deferred-scanner', verdict: 'clean' };
+          return {
+            scannerId: 'deferred-scanner',
+            engineVersion: 'fixture-v1',
+            signatureSetVersion: 'fixture-signatures-v1',
+            sourceId: source.sourceId,
+            scannedBytes: source.sizeBytes,
+            startedAt: 100,
+            completedAt: 101,
+            isolationProfile: 'synthetic_fixture',
+            verdict: 'clean',
+          };
         },
       },
     });
@@ -110,6 +138,10 @@ describe('untrusted import intake', () => {
   it('rejects a forged quarantine that skipped bounded preparation', async () => {
     const workflow = createImportIntake({
       converter: utf8TextConverter,
+      inspectionPolicy: {
+        acceptedIsolationProfiles: ['synthetic_fixture'],
+        maxScanDurationMs: 1_000,
+      },
       limits: { maxBytes: 1, maxLines: 1 },
       scanner: scanner(),
     });
@@ -207,6 +239,50 @@ describe('untrusted import intake', () => {
       const inspected = await workflow.inspect(prepared);
       await expect(workflow.approve(inspected)).rejects.toMatchObject({
         code: 'SCAN_BLOCKED',
+      });
+    },
+  );
+
+  it.each(['source', 'duration', 'profile'] as const)(
+    'rejects scan evidence with an invalid %s binding',
+    async (invalidField) => {
+      const workflow = createImportIntake({
+        converter: utf8TextConverter,
+        inspectionPolicy: {
+          acceptedIsolationProfiles: ['synthetic_fixture'],
+          maxScanDurationMs: 50,
+        },
+        limits: { maxBytes: 128, maxLines: 4 },
+        scanner: {
+          async scan(source) {
+            return {
+              scannerId: 'fixture-scanner',
+              engineVersion: 'fixture-v1',
+              signatureSetVersion: 'fixture-signatures-v1',
+              sourceId:
+                invalidField === 'source'
+                  ? `sha256:${'0'.repeat(64)}`
+                  : source.sourceId,
+              scannedBytes: source.sizeBytes,
+              startedAt: 100,
+              completedAt: invalidField === 'duration' ? 151 : 101,
+              isolationProfile:
+                invalidField === 'profile'
+                  ? ('isolated_process_no_network' as const)
+                  : ('synthetic_fixture' as const),
+              verdict: 'clean' as const,
+            };
+          },
+        },
+      });
+      const prepared = await workflow.prepare({
+        bytes: encoder.encode('bounded text'),
+        declaredMediaType: 'text/plain',
+        filename: 'bounded.txt',
+      });
+
+      await expect(workflow.inspect(prepared)).rejects.toMatchObject({
+        code: 'INSPECTION_EVIDENCE_INVALID',
       });
     },
   );

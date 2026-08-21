@@ -1,6 +1,6 @@
 # Persistence portability comparison
 
-**Status:** The common Plan-store interface and disposable parity harness are implemented. A production adapter is deliberately not selected; no database ADR has been accepted.
+**Status:** The common Plan-store interface and disposable parity harness are implemented. ADR 0010 selects PostgreSQL as the production metadata and durable-work target, but no PostgreSQL server adapter, migration deployment, backup, or operations evidence exists yet.
 
 ## Evidence used
 
@@ -35,6 +35,6 @@ Both SQL adapters and the browser's in-memory adapter support:
 
 The shared pre-alpha schema baseline is migration version 1, Plan state JSON, unique processed commands with semantic fingerprints, and append-only ordered audit events. SQL syntax is adapter-specific; behavioral parity is the contract. This remains a disposable-data baseline, not evidence of an upgrade path from a deployed schema.
 
-## Decision withheld
+## Target accepted; production evidence withheld
 
-Choosing SQLite-compatible hosted storage now would assume the future concurrency and platform model. Choosing PostgreSQL now would assume operational complexity and a hosting profile that have not been exercised. The adapter decision remains open until Vidha has an approved deployment target, migration/rollback procedure, encrypted backup rehearsal, multi-process contention evidence, capacity model, and real restore drill. The current logical snapshot contains disposable synthetic metadata and is not an encrypted v1 backup format.
+ADR 0010 accepts PostgreSQL as Vidha's production database target; the earlier adapter decision is no longer open. The target is not implementation evidence: Vidha still lacks an executable server topology, migration and rollback rehearsal, encrypted backup rehearsal, multi-process contention evidence, capacity model, and real restore drill. The current logical snapshot contains disposable synthetic metadata and is not an encrypted v1 backup format.

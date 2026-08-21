@@ -1,0 +1,28 @@
+# Owner identity, recovery, and revocation contract
+
+**Status:** Accepted target with synthetic in-memory contract evidence only. No real Owner Credential, recovery proof, Verified Owner Channel, session cookie, notification, or identity proofing exists.
+
+| Event                                  | Required proof                                                                                         | Identity effect                                                              | Session effect                                                | Notice intent                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------- |
+| Authenticate                           | Active Owner Credential plus adapter-verified assertion, user presence, and user verification          | No credential change                                                         | Issue one expiring opaque session; persist only its digest    | None                            |
+| Add Owner Credential                   | Recently authenticated Owner session plus verified registration proof                                  | Add a never-reused active credential                                         | Existing session remains active                               | Existing Verified Owner Channel |
+| Revoke session                         | Recently authenticated Owner session                                                                   | No credential change                                                         | Revoke exact session digest                                   | None in Phase 3                 |
+| Revoke Owner Credential                | Recently authenticated Owner session and at least one other active credential                          | Mark exact credential revoked                                                | Invalidate sessions issued through that credential            | Existing Verified Owner Channel |
+| Begin recovery                         | Accepted saved-code proof and separately modeled issued-channel proof                                  | Enter recovery pending until the full cooling-off boundary                   | Existing sessions can cancel but cannot complete recovery     | Existing Verified Owner Channel |
+| Cancel recovery                        | Recently authenticated still-controlled Owner Credential                                               | Clear pending recovery                                                       | Current cancelling session remains valid                      | Existing Verified Owner Channel |
+| Complete recovery                      | Same pending attempt, both proofs still accepted, full cooling-off elapsed, and new registration proof | Revoke prior active credentials, add new credential, consume pending attempt | Revoke every prior session and issue no automatic replacement | Existing Verified Owner Channel |
+| Begin Verified Owner Channel change    | Recently authenticated Owner session plus verification proof for the new channel                       | Record old/new opaque references and full cooling-off boundary               | Existing session remains active until completion              | Old and new channels            |
+| Cancel Verified Owner Channel change   | Recently authenticated still-controlled Owner Credential and exact pending change                      | Retain the old authoritative reference and clear the pending change          | Current cancelling session remains valid                      | Old and new channels            |
+| Complete Verified Owner Channel change | Same pending change, full cooling-off elapsed, and recent authentication                               | Make the new reference authoritative                                         | Invalidate every prior session                                | Old and new channels            |
+
+## Fail-closed rules
+
+- A channel reference is notice routing metadata, never a Check-in, login, recovery completion, or lifecycle authorization.
+- Raw session secrets, recovery proofs, contact destinations, and notification bodies do not enter identity state or notice intent.
+- Credential, session, attempt, Owner, and channel identifiers are bounded and opaque. Credential identifiers are never reusable after revocation.
+- The coordinator generates session secrets; callers cannot choose them. A digest collision across the entire coordinator fails closed rather than ambiguously resolving an Owner.
+- Every identity command carries an expected security revision and external idempotency value. Only SHA-256 command and semantic digests enter state; matching retries return `duplicate` with no repeated notice intent, cross-intent key reuse fails, and serialized concurrent mutations cannot overwrite a newer revision.
+- Identity time uses safe integers and an injected clock. Cooling-off expires only at the exact stored boundary; no wall-clock catch-up compresses it.
+- Completing recovery replaces authority but issues no session. A new assertion is required afterward.
+- The production WebAuthn adapter must verify the exact challenge purpose, origin, RP ID, signature, user presence, and user verification. An application `userPresence: true` field does not substitute for cryptographic UP/UV.
+- Real recovery stays disabled until factor independence, cancellation, rate limits, storage, one-time consumption, content-free notifications, and abuse review pass with disposable accounts.

@@ -1,6 +1,6 @@
 # Threat model
 
-**Status:** Pre-implementation security contract. Controls are requirements until runtime evidence proves them.
+**Status:** Pre-v1 security contract. Phase 3 supplies disposable contract evidence for selected identity, encrypted-metadata, inspection, restore-safe, and durable-work properties; controls remain requirements until the exact runnable release candidate proves them.
 
 Vidha coordinates an irreversible disclosure under uncertainty. Its dominant risk is not only data theft; it is releasing the right content at the wrong time or to the wrong person.
 
@@ -65,6 +65,16 @@ Before version 1 can ship, the implementation must demonstrate:
 | Backup restore sends real notices                                        | mass false alert or Release                                    | restore-safe mode, provider adapters disabled by default, environment identity, explicit promotion                                                                           | restore rehearsal with canary providers                                                  |
 | Supply-chain compromise                                                  | credential or plaintext theft                                  | lockfile, dependency review, provenance/SBOM, least-privilege CI, secret scanning, reproducible builds                                                                       | CI evidence and artifact inspection                                                      |
 | Logs leak sensitive data                                                 | secondary privacy breach                                       | structured redaction, no content logging, short retention, restricted access                                                                                                 | log corpus inspection                                                                    |
+
+## Current Phase 3 evidence boundary
+
+- Canonical session facts come from `SessionVerifier`; caller-supplied principal and time fields are ignored, and an unknown or inactive session fails before a Plan transaction.
+- The synthetic identity coordinator requires verified user presence and user verification from its injected proof adapter, retains only session digests, supports exact credential/session revocation, requires two independently modeled recovery proofs and cooling-off, and verifies a new channel reference before its cooling-off begins.
+- The AES-256-GCM operational-metadata fixture binds record/schema context, detects injected IV reuse, keeps plaintext out of snapshots, exercises retention, and restores into writer-disabled safe mode. It is not production key custody, Standard Mode, Sealed Mode, or encrypted-backup evidence.
+- Durable-work fixtures commit encrypted synthetic state and content-free outbox intent atomically, enforce positive task kinds, deduplicate semantic intent, bound retries, dead-letter exhausted work, and reject expired or superseded leases in memory and PGlite.
+- Import intake owns exact bytes and rejects scanner evidence that does not match source digest, byte count, bounded version identifiers, duration, verdict, and the configured isolation profile. The runnable browser uses `synthetic_fixture`, not a malware scanner or sandbox.
+
+No item above checks a v1 release gate. Executable WebAuthn, PostgreSQL, key-provider and authenticated-backup, scanner/sandbox, provider, and full outage evidence remain Phase 3B work or later.
 
 ## Abuse controls
 

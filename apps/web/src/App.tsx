@@ -43,6 +43,18 @@ function createDemoRuntime(): DemoRuntime {
     application: createPlanApplication({
       clock,
       recentAuthenticationWindowMs: 5 * 60 * 1_000,
+      sessionVerifier: {
+        async verify(sessionId) {
+          const match = /^synthetic-session-([0-9]+)$/u.exec(sessionId);
+          if (match?.[1] === undefined) {
+            return null;
+          }
+          const authenticatedAt = Number(match[1]);
+          return Number.isSafeInteger(authenticatedAt)
+            ? syntheticOwnerSession(authenticatedAt)
+            : null;
+        },
+      },
       store,
     }),
     clock,
