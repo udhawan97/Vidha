@@ -41,6 +41,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   color: inherit;
   font: inherit;
@@ -52,6 +53,7 @@ button {
 
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
 textarea:focus-visible,
 a:focus-visible,
 .continuity-line:focus-visible {
@@ -752,6 +754,8 @@ h2 {
 .workspace-actions {
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 9px;
 }
 
@@ -933,6 +937,11 @@ h2 {
   background: var(--mist-soft);
 }
 
+.editor-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
 .toolbar-divider {
   width: 1px;
   height: 20px;
@@ -998,6 +1007,17 @@ h2 {
   line-height: 1.4;
 }
 
+.setting-block select {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 28px 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper-strong);
+  color: var(--ink);
+  font-size: 0.7rem;
+}
+
 .setting-block span {
   color: var(--ink-faint);
   font-size: 0.62rem;
@@ -1006,6 +1026,50 @@ h2 {
 
 .setting-block.is-disabled {
   opacity: 0.62;
+}
+
+.text-action {
+  width: max-content;
+  min-height: 32px;
+  cursor: pointer;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--tide-deep);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.text-action:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.checkpoint-block ol {
+  display: grid;
+  gap: 9px;
+  margin: 3px 0 0 4px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--thread);
+  list-style: none;
+}
+
+.checkpoint-block li {
+  position: relative;
+  display: grid;
+  gap: 1px;
+}
+
+.checkpoint-block li::before {
+  position: absolute;
+  top: 7px;
+  left: -16px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--thread);
+  content: '';
 }
 
 .update-notice {
@@ -1075,7 +1139,7 @@ h2 {
     border-top: 1px solid var(--line);
     border-left: 0;
     grid-column: 1 / -1;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .setting-block {

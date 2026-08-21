@@ -123,20 +123,21 @@ export function App() {
           </div>
         </header>
 
-        <main>
-          {view === 'overview' ? (
+        <main id="main-content">
+          <div hidden={view !== 'overview'}>
             <Overview
               envelopes={envelopes}
               onAdvance={advanceStage}
               onCheckIn={checkIn}
               plan={plan}
             />
-          ) : (
+          </div>
+          <div hidden={view !== 'workspace'}>
             <DocumentWorkspace
               envelopes={envelopes}
               setEnvelopes={setEnvelopes}
             />
-          )}
+          </div>
         </main>
       </div>
 

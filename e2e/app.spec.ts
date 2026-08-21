@@ -1,5 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Download } from '@playwright/test';
+
+async function readDownload(download: Download): Promise<string> {
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -37,6 +46,68 @@ test('imports and edits Markdown only inside the temporary session', async ({
     page.getByRole('textbox', { name: 'Document title' }),
   ).toHaveValue('browser rehearsal');
   await expect(page.getByText('Not executable in this build')).toBeVisible();
+});
+
+test('keeps Recipient history and checkpoints for the page session', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  await page.getByRole('button', { name: 'Save checkpoint' }).click();
+  await page.getByLabel('Recipient').selectOption('Sam Rivera');
+  await expect(page.getByLabel('Recipient')).toHaveValue('Sam Rivera');
+
+  await page.getByRole('button', { name: 'Overview', exact: true }).click();
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+
+  await page.getByRole('button', { name: 'Undo session edit' }).click();
+  await expect(page.getByLabel('Recipient')).toHaveValue('Mira Chen');
+  await page.getByRole('button', { name: 'Redo session edit' }).click();
+  await expect(page.getByLabel('Recipient')).toHaveValue('Sam Rivera');
+
+  await page.getByRole('button', { name: 'Save checkpoint' }).click();
+  const checkpointButtons = page.locator('[data-checkpoint-id]');
+  await expect(checkpointButtons).toHaveCount(2);
+  const checkpointIds = await checkpointButtons.evaluateAll((buttons) =>
+    buttons.map((button) => button.getAttribute('data-checkpoint-id')),
+  );
+  expect(new Set(checkpointIds).size).toBe(2);
+
+  await page.getByRole('button', { name: 'Restore checkpoint 2' }).click();
+  await expect(page.getByLabel('Recipient')).toHaveValue('Mira Chen');
+});
+
+test('restores decoded imported text and offers text and HTML copies', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  await page.getByLabel('Import Markdown or plain text').setInputFiles({
+    buffer: Buffer.from('# Source copy\n\n<script>remains text</script>'),
+    mimeType: 'text/markdown',
+    name: 'source-copy.md',
+  });
+  await expect(page.getByText('source-copy.md')).toBeVisible();
+
+  await page.getByLabel('Envelope Markdown content').fill('Changed later');
+  await page.getByRole('button', { name: 'Restore imported text' }).click();
+  await expect(page.getByLabel('Envelope Markdown content')).toHaveValue(
+    '# Source copy\n\n<script>remains text</script>',
+  );
+
+  const textDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export text' }).click();
+  const textCopy = await textDownload;
+  await expect(textCopy.suggestedFilename()).toBe('source-copy.txt');
+  await expect(await readDownload(textCopy)).toBe(
+    '# Source copy\n\n<script>remains text</script>',
+  );
+
+  const htmlDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export HTML' }).click();
+  const htmlCopy = await htmlDownload;
+  const html = await readDownload(htmlCopy);
+  await expect(htmlCopy.suggestedFilename()).toBe('source-copy.html');
+  await expect(html).toContain('&lt;script&gt;remains text&lt;/script&gt;');
+  await expect(html).not.toContain('<script>remains text</script>');
 });
 
 test('has no serious or critical automated accessibility violations', async ({

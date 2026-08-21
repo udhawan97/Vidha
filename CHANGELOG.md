@@ -11,5 +11,7 @@ All notable changes are documented here. Vidha has not published an application 
 - Added a TypeScript monorepo with a pure, deterministic Check-in timeline that deliberately stops at Concern.
 - Added a responsive React/Vite PWA prototype with synthetic data, temporary text editing and import/export, and a prompted update flow.
 - Added domain, component, WebKit desktop/mobile, accessibility, PWA, build, lint, formatting, and documentation checks.
+- Expanded the synthetic document rehearsal with Recipient reassignment, undo and redo, restorable session checkpoints, browser-decoded text snapshots for import restore, and Markdown, plain-text, and escaped standalone HTML copies.
+- Planned the next six decision-first foundation slices without treating authentication, persistence, Guardian authority, or Release as implemented.
 
 No application version has been released.

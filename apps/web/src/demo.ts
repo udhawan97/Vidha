@@ -7,9 +7,19 @@ export interface DemoEnvelope {
   title: string;
   body: string;
   recipient: string;
+  importSource: DemoImportSource | null;
   protectionMode: 'Standard';
   releasePolicy: 'Guardian attestation first';
 }
+
+export interface DemoImportSource {
+  readonly filename: string;
+  readonly mediaType: string;
+  readonly sizeBytes: number;
+  readonly text: string;
+}
+
+export const demoRecipients = ['Mira Chen', 'Sam Rivera'] as const;
 
 export const demoEnvelopes: DemoEnvelope[] = [
   {
@@ -27,6 +37,7 @@ This is a synthetic draft for the Vidha demonstration.
 
 Nothing in this demo is stored after the session ends.`,
     recipient: 'Mira Chen',
+    importSource: null,
     protectionMode: 'Standard',
     releasePolicy: 'Guardian attestation first',
   },
@@ -38,7 +49,8 @@ Nothing in this demo is stored after the session ends.`,
 This synthetic note demonstrates a practical handoff.
 
 Morning walks are short. The evening walk is the one she waits for.`,
-    recipient: 'Noah Williams',
+    recipient: 'Sam Rivera',
+    importSource: null,
     protectionMode: 'Standard',
     releasePolicy: 'Guardian attestation first',
   },

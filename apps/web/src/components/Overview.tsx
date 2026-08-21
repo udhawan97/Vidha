@@ -76,7 +76,7 @@ export function Overview({
   }
 
   return (
-    <div className="overview-view" id="main-content">
+    <div className="overview-view">
       <section className={`status-field stage-${plan.cycle.stage}`}>
         <div className="status-heading">
           <div>
@@ -159,6 +159,14 @@ export function Overview({
               <span>
                 <strong>Noah Williams</strong>
                 <small>Guardian · synthetic</small>
+              </span>
+              <span className="verified-word">Verified</span>
+            </li>
+            <li>
+              <span className="person-monogram">SR</span>
+              <span>
+                <strong>Sam Rivera</strong>
+                <small>Recipient · synthetic</small>
               </span>
               <span className="verified-word">Verified</span>
             </li>

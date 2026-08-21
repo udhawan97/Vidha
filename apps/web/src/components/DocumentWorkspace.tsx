@@ -7,7 +7,12 @@ import {
   useState,
 } from 'react';
 
-import type { DemoEnvelope } from '../demo';
+import {
+  demoRecipients,
+  type DemoEnvelope,
+  type DemoImportSource,
+} from '../demo';
+import { buildPortableHtml, exportFilename } from '../documentExport';
 
 interface DocumentWorkspaceProps {
   readonly envelopes: DemoEnvelope[];
@@ -16,19 +21,51 @@ interface DocumentWorkspaceProps {
 
 type EditorMode = 'write' | 'preview';
 
+interface DraftSnapshot {
+  readonly title: string;
+  readonly body: string;
+  readonly recipient: string;
+  readonly importSource: DemoImportSource | null;
+}
+
+interface DraftHistory {
+  readonly past: readonly DraftSnapshot[];
+  readonly future: readonly DraftSnapshot[];
+}
+
+interface SessionCheckpoint {
+  readonly id: string;
+  readonly createdAt: number;
+  readonly snapshot: DraftSnapshot;
+}
+
 const MAX_IMPORT_BYTES = 256 * 1024;
+const MAX_UNDO_STEPS = 50;
+const MAX_CHECKPOINTS = 6;
 
 function filenameToTitle(filename: string): string {
   const withoutExtension = filename.replace(/\.[^.]+$/, '');
   return withoutExtension.replace(/[-_]+/g, ' ').trim() || 'Imported draft';
 }
 
-function safeFilename(title: string): string {
-  const slug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  return `${slug || 'vidha-draft'}.md`;
+function snapshotEnvelope(envelope: DemoEnvelope): DraftSnapshot {
+  return {
+    title: envelope.title,
+    body: envelope.body,
+    recipient: envelope.recipient,
+    importSource: envelope.importSource,
+  };
+}
+
+function formatBytes(bytes: number): string {
+  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function formatCheckpointTime(timestamp: number): string {
+  return new Intl.DateTimeFormat('en', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(timestamp);
 }
 
 export function DocumentWorkspace({
@@ -39,8 +76,15 @@ export function DocumentWorkspace({
   const [editorMode, setEditorMode] = useState<EditorMode>('write');
   const [sessionStatus, setSessionStatus] = useState('Synthetic session draft');
   const [importError, setImportError] = useState<string | null>(null);
+  const [historyByEnvelope, setHistoryByEnvelope] = useState<
+    Record<string, DraftHistory>
+  >({});
+  const [checkpointsByEnvelope, setCheckpointsByEnvelope] = useState<
+    Record<string, readonly SessionCheckpoint[]>
+  >({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  const checkpointSequence = useRef(0);
   const activeEnvelope =
     envelopes.find((envelope) => envelope.id === selectedId) ?? envelopes[0];
 
@@ -58,9 +102,29 @@ export function DocumentWorkspace({
     return null;
   }
   const selectedEnvelope = activeEnvelope;
+  const activeHistory = historyByEnvelope[selectedEnvelope.id] ?? {
+    past: [],
+    future: [],
+  };
+  const activeCheckpoints = checkpointsByEnvelope[selectedEnvelope.id] ?? [];
 
   function updateActiveEnvelope(patch: Partial<DemoEnvelope>) {
     setSessionStatus('Editing in this session…');
+    setHistoryByEnvelope((current) => {
+      const history = current[selectedEnvelope.id] ?? {
+        past: [],
+        future: [],
+      };
+      return {
+        ...current,
+        [selectedEnvelope.id]: {
+          past: [...history.past, snapshotEnvelope(selectedEnvelope)].slice(
+            -MAX_UNDO_STEPS,
+          ),
+          future: [],
+        },
+      };
+    });
     setEnvelopes((current) =>
       current.map((envelope) =>
         envelope.id === selectedEnvelope.id
@@ -68,6 +132,73 @@ export function DocumentWorkspace({
           : envelope,
       ),
     );
+  }
+
+  function replaceActiveEnvelope(snapshot: DraftSnapshot) {
+    setEnvelopes((current) =>
+      current.map((envelope) =>
+        envelope.id === selectedEnvelope.id
+          ? { ...envelope, ...snapshot }
+          : envelope,
+      ),
+    );
+  }
+
+  function undoEdit() {
+    const previous = activeHistory.past.at(-1);
+    if (previous === undefined) {
+      return;
+    }
+    const currentSnapshot = snapshotEnvelope(selectedEnvelope);
+    setHistoryByEnvelope((current) => ({
+      ...current,
+      [selectedEnvelope.id]: {
+        past: activeHistory.past.slice(0, -1),
+        future: [currentSnapshot, ...activeHistory.future],
+      },
+    }));
+    replaceActiveEnvelope(previous);
+    setSessionStatus('Undid the latest session edit');
+  }
+
+  function redoEdit() {
+    const next = activeHistory.future[0];
+    if (next === undefined) {
+      return;
+    }
+    const currentSnapshot = snapshotEnvelope(selectedEnvelope);
+    setHistoryByEnvelope((current) => ({
+      ...current,
+      [selectedEnvelope.id]: {
+        past: [...activeHistory.past, currentSnapshot],
+        future: activeHistory.future.slice(1),
+      },
+    }));
+    replaceActiveEnvelope(next);
+    setSessionStatus('Redid the latest session edit');
+  }
+
+  function saveCheckpoint() {
+    checkpointSequence.current += 1;
+    const createdAt = Date.now();
+    const checkpoint: SessionCheckpoint = {
+      id: `${selectedEnvelope.id}-${checkpointSequence.current}`,
+      createdAt,
+      snapshot: snapshotEnvelope(selectedEnvelope),
+    };
+    setCheckpointsByEnvelope((current) => ({
+      ...current,
+      [selectedEnvelope.id]: [
+        checkpoint,
+        ...(current[selectedEnvelope.id] ?? []),
+      ].slice(0, MAX_CHECKPOINTS),
+    }));
+    setSessionStatus('Session checkpoint saved');
+  }
+
+  function restoreCheckpoint(checkpoint: SessionCheckpoint) {
+    updateActiveEnvelope(checkpoint.snapshot);
+    setSessionStatus('Session checkpoint restored');
   }
 
   function insertMarkdown(prefix: string, suffix = prefix) {
@@ -113,25 +244,46 @@ export function DocumentWorkspace({
     updateActiveEnvelope({
       title: filenameToTitle(file.name),
       body,
+      importSource: {
+        filename: file.name,
+        mediaType: file.type || 'text/plain',
+        sizeBytes: file.size,
+        text: body,
+      },
     });
     setSessionStatus('Imported into this temporary session');
   }
 
-  function exportMarkdown() {
-    const blob = new Blob([selectedEnvelope.body], {
-      type: 'text/markdown;charset=utf-8',
-    });
+  function downloadDocument(
+    content: string,
+    mediaType: string,
+    extension: 'html' | 'md' | 'txt',
+    status: string,
+  ) {
+    const blob = new Blob([content], { type: `${mediaType};charset=utf-8` });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = safeFilename(selectedEnvelope.title);
+    link.download = exportFilename(selectedEnvelope.title, extension);
     link.click();
     URL.revokeObjectURL(url);
-    setSessionStatus('Markdown export prepared');
+    setSessionStatus(status);
+  }
+
+  function restoreImportedSource() {
+    const source = selectedEnvelope.importSource;
+    if (source === null) {
+      return;
+    }
+    updateActiveEnvelope({
+      title: filenameToTitle(source.filename),
+      body: source.text,
+    });
+    setSessionStatus('Imported text snapshot restored');
   }
 
   return (
-    <div className="workspace-view" id="main-content">
+    <div className="workspace-view">
       <header className="workspace-heading">
         <div>
           <p className="eyebrow">Document workspace · Phase 1</p>
@@ -159,10 +311,45 @@ export function DocumentWorkspace({
           </button>
           <button
             className="button button-primary"
-            onClick={exportMarkdown}
+            onClick={() =>
+              downloadDocument(
+                selectedEnvelope.body,
+                'text/markdown',
+                'md',
+                'Markdown export prepared',
+              )
+            }
             type="button"
           >
             Export Markdown
+          </button>
+          <button
+            className="button button-quiet"
+            onClick={() =>
+              downloadDocument(
+                selectedEnvelope.body,
+                'text/plain',
+                'txt',
+                'Plain-text export prepared',
+              )
+            }
+            type="button"
+          >
+            Export text
+          </button>
+          <button
+            className="button button-quiet"
+            onClick={() =>
+              downloadDocument(
+                buildPortableHtml(selectedEnvelope),
+                'text/html',
+                'html',
+                'Escaped standalone HTML export prepared',
+              )
+            }
+            type="button"
+          >
+            Export HTML
           </button>
         </div>
       </header>
@@ -237,6 +424,23 @@ export function DocumentWorkspace({
 
           <div className="editor-toolbar" aria-label="Markdown formatting">
             <button
+              aria-label="Undo session edit"
+              disabled={activeHistory.past.length === 0}
+              onClick={undoEdit}
+              type="button"
+            >
+              Undo
+            </button>
+            <button
+              aria-label="Redo session edit"
+              disabled={activeHistory.future.length === 0}
+              onClick={redoEdit}
+              type="button"
+            >
+              Redo
+            </button>
+            <span className="toolbar-divider" />
+            <button
               aria-label="Bold selected text"
               onClick={() => insertMarkdown('**')}
               type="button"
@@ -265,6 +469,9 @@ export function DocumentWorkspace({
               List
             </button>
             <span className="toolbar-divider" />
+            <button onClick={saveCheckpoint} type="button">
+              Save checkpoint
+            </button>
             <span className="editor-status">{sessionStatus}</span>
           </div>
 
@@ -291,9 +498,72 @@ export function DocumentWorkspace({
 
         <aside className="document-settings" aria-label="Envelope settings">
           <div className="setting-block">
-            <p className="setting-label">Recipient</p>
-            <strong>{selectedEnvelope.recipient}</strong>
+            <label className="setting-label" htmlFor="demo-recipient">
+              Recipient
+            </label>
+            <select
+              id="demo-recipient"
+              onChange={(event) =>
+                updateActiveEnvelope({ recipient: event.target.value })
+              }
+              value={selectedEnvelope.recipient}
+            >
+              {demoRecipients.map((recipient) => (
+                <option key={recipient}>{recipient}</option>
+              ))}
+            </select>
             <span>Synthetic verified contact</span>
+          </div>
+          <div className="setting-block">
+            <p className="setting-label">Imported text snapshot</p>
+            {selectedEnvelope.importSource === null ? (
+              <span>No source file in this session</span>
+            ) : (
+              <>
+                <strong>{selectedEnvelope.importSource.filename}</strong>
+                <span>
+                  {formatBytes(selectedEnvelope.importSource.sizeBytes)} ·{' '}
+                  {selectedEnvelope.importSource.mediaType}
+                </span>
+                <button
+                  className="text-action"
+                  onClick={restoreImportedSource}
+                  type="button"
+                >
+                  Restore imported text
+                </button>
+              </>
+            )}
+          </div>
+          <div className="setting-block checkpoint-block">
+            <p className="setting-label">Session checkpoints</p>
+            {activeCheckpoints.length === 0 ? (
+              <span>Save a checkpoint before a larger edit.</span>
+            ) : (
+              <ol>
+                {activeCheckpoints.map((checkpoint, index) => (
+                  <li key={checkpoint.id}>
+                    <span>
+                      {index === 0 ? 'Latest' : `Checkpoint ${index + 1}`} ·{' '}
+                      {formatCheckpointTime(checkpoint.createdAt)}
+                    </span>
+                    <button
+                      aria-label={`Restore ${
+                        index === 0
+                          ? 'latest checkpoint'
+                          : `checkpoint ${index + 1}`
+                      }`}
+                      className="text-action"
+                      data-checkpoint-id={checkpoint.id}
+                      onClick={() => restoreCheckpoint(checkpoint)}
+                      type="button"
+                    >
+                      Restore
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
           <div className="setting-block">
             <p className="setting-label">Protection</p>

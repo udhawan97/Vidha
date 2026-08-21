@@ -12,10 +12,13 @@ This roadmap describes intent, not shipped capability or a delivery date.
 - Pure deterministic Check-in timeline through Concern, with injected time and idempotent commands
 - Responsive local PWA prototype using synthetic, in-memory data
 - Temporary Markdown/plain-text import, editing, preview, and export
+- Synthetic Recipient reassignment, undo/redo, restorable session checkpoints, browser-decoded import snapshots, and Markdown/plain-text/escaped-HTML copies
 - Unit, component, build, documentation, accessibility, PWA, desktop-WebKit, and mobile-WebKit checks
 - Fable implementation and release handoff
 
 The next foundation slice must decide authentication and persistence boundaries before accepting real data. Guardian authority, Veto Window, Delivery Hold, Automatic Fallback, and Release remain outside the implemented state machine.
+
+The next six bounded slices are planned in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md). Their order is intentional: authentication and persistence contracts precede any durable personal data, and none authorizes Guardian Attestation or Release behavior.
 
 ## Version 1 candidate — planned
 

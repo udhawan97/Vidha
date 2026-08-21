@@ -19,7 +19,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the local URL printed by Vite. The prototype lets you rehearse the Check-in timeline through Concern, explicitly confirm a synthetic Check-in, inspect an in-memory event record, and import, edit, preview, or export Markdown and plain text. Refresh clears the session. **Do not enter personal or sensitive information.**
+Open the local URL printed by Vite. The prototype lets you rehearse the Check-in timeline through Concern, explicitly confirm a synthetic Check-in, inspect an in-memory event record, and work with two synthetic Envelopes. The temporary document workspace supports Recipient reassignment, undo and redo, restorable session checkpoints, a browser-decoded text snapshot for Markdown/plain-text imports, and Markdown, plain-text, or escaped standalone HTML copies. It does not preserve original file bytes or encoding. Refresh clears the session. **Do not enter personal or sensitive information.**
 
 Run the complete local verification suite with:
 
@@ -94,6 +94,8 @@ Read the full [threat model](docs/security/THREAT_MODEL.md) before treating any 
 ## Build status
 
 Phase 1 proves the client direction and the first safe domain slice locally. It deliberately stops at Concern: Guardian authority, Veto Window, Automatic Fallback, Delivery Hold, and Release remain unresolved or unimplemented. Authentication, persistence, cryptography, provider delivery, hosted/self-hosted infrastructure, and production operations must be designed and verified before the prototype can handle real data.
+
+The [next six foundation slices](docs/product/NEXT_FOUNDATION_SIX.md) are decision-first work around authentication, persistence, authorization, audit storage, plan lifecycle, and safe import boundaries. They are a plan, not implemented capability.
 
 Fable can continue from the [bounded build handoff](docs/FABLE_BUILD_PROMPT.md), but must not treat this prototype as release authority. Run `refresh-docs` only after a real release candidate can supply truthful screenshots, commands, downloads, and platform claims.
 
