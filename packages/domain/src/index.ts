@@ -2,6 +2,7 @@ export {
   DomainError,
   applyPlanCommand,
   createDraftPlan,
+  planCommandFingerprint,
   type ConcernCycle,
   type CycleStage,
   type DomainErrorCode,

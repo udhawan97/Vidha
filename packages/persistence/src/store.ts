@@ -16,6 +16,7 @@ export interface AuditRecord {
 export interface ProcessedCommandRecord {
   readonly planId: string;
   readonly commandKey: string;
+  readonly commandFingerprint: string;
   readonly processedAt: number;
 }
 
@@ -35,7 +36,12 @@ export interface PortablePlanStore extends PlanTransactionStore {
 }
 
 export type PlanStoreErrorCode =
-  'ALREADY_EXISTS' | 'INVALID_SNAPSHOT' | 'NOT_FOUND' | 'RESTORE_SAFE_MODE';
+  | 'ALREADY_EXISTS'
+  | 'IDEMPOTENCY_CONFLICT'
+  | 'INVALID_SNAPSHOT'
+  | 'INVALID_TRANSITION'
+  | 'NOT_FOUND'
+  | 'RESTORE_SAFE_MODE';
 
 export class PlanStoreError extends Error {
   readonly code: PlanStoreErrorCode;
@@ -78,9 +84,23 @@ export function assertSnapshot(snapshot: PlanStoreSnapshot): void {
       invalidSnapshot('A snapshot contains a duplicate processed command.');
     }
     commandKeys.add(key);
+    if (!Number.isSafeInteger(command.processedAt)) {
+      invalidSnapshot('Processed command timestamps must be safe integers.');
+    }
+    if (
+      planIds.has(command.planId) &&
+      snapshot.plans.find((plan) => plan.planId === command.planId)
+        ?.processedCommandFingerprints[command.commandKey] !==
+        command.commandFingerprint
+    ) {
+      invalidSnapshot(
+        'Plan state and processed command fingerprints do not match.',
+      );
+    }
   }
 
   for (const plan of snapshot.plans) {
+    assertPortablePlanState(plan);
     const auditEvents = snapshot.auditEvents
       .filter((event) => event.planId === plan.planId)
       .sort((left, right) => left.ordinal - right.ordinal);
@@ -109,7 +129,9 @@ export function assertSnapshot(snapshot: PlanStoreSnapshot): void {
     );
     if (
       persistedKeys.size !== plan.processedCommandKeys.length ||
-      plan.processedCommandKeys.some((key) => !persistedKeys.has(key))
+      plan.processedCommandKeys.some((key) => !persistedKeys.has(key)) ||
+      Object.keys(plan.processedCommandFingerprints).length !==
+        plan.processedCommandKeys.length
     ) {
       invalidSnapshot('Plan state and processed command keys do not match.');
     }
@@ -120,8 +142,122 @@ export function assertSnapshot(snapshot: PlanStoreSnapshot): void {
   }
 }
 
+export function assertPortablePlanState(state: PlanState): void {
+  const numericValues = [
+    state.policyRevision,
+    state.lastCommandAt,
+    state.policy.checkInIntervalMs,
+    state.policy.reminderLeadMs,
+    state.policy.gracePeriodMs,
+    state.cycle.startedAt,
+    state.cycle.reminderAt,
+    state.cycle.dueAt,
+    state.cycle.concernAt,
+    ...state.events.map((event) => event.at),
+  ];
+  if (numericValues.some((value) => !Number.isSafeInteger(value))) {
+    invalidSnapshot('Plan timestamps and durations must be safe integers.');
+  }
+  if (state.policyRevision <= 0) {
+    invalidSnapshot(
+      'The Plan policy revision must be a positive safe integer.',
+    );
+  }
+  if (
+    new Set(state.processedCommandKeys).size !==
+    state.processedCommandKeys.length
+  ) {
+    invalidSnapshot('Plan command identifiers must be unique.');
+  }
+  if (
+    state.processedCommandKeys.some(
+      (key) =>
+        !/^cmd_[a-f0-9]{64}$/u.test(key) ||
+        !isCommandFingerprint(state.processedCommandFingerprints[key]),
+    )
+  ) {
+    invalidSnapshot(
+      'Plan command identifiers must be opaque and fingerprinted.',
+    );
+  }
+  if (
+    Object.keys(state.processedCommandFingerprints).length !==
+    state.processedCommandKeys.length
+  ) {
+    invalidSnapshot(
+      'Plan command identifiers and fingerprints must have exact parity.',
+    );
+  }
+}
+
+export function assertPlanTransition(
+  previous: PlanState,
+  next: PlanState,
+  commandKey: string,
+  commandFingerprint: string,
+): void {
+  assertPortablePlanState(next);
+  if (next.planId !== previous.planId || next.ownerId !== previous.ownerId) {
+    invalidTransition('A transaction cannot replace Plan identity.');
+  }
+  if (
+    next.processedCommandKeys.length !==
+      previous.processedCommandKeys.length + 1 ||
+    previous.processedCommandKeys.some(
+      (key, index) => next.processedCommandKeys[index] !== key,
+    ) ||
+    next.processedCommandKeys.at(-1) !== commandKey ||
+    next.processedCommandFingerprints[commandKey] !== commandFingerprint
+  ) {
+    invalidTransition(
+      'The decided state must append exactly the persisted command identifier and fingerprint.',
+    );
+  }
+  if (
+    previous.processedCommandKeys.some(
+      (key) =>
+        !next.processedCommandKeys.includes(key) ||
+        next.processedCommandFingerprints[key] !==
+          previous.processedCommandFingerprints[key],
+    )
+  ) {
+    invalidTransition(
+      'A transaction cannot rewrite processed command history.',
+    );
+  }
+  if (
+    next.events.length < previous.events.length ||
+    previous.events.some((event, index) => {
+      const persisted = next.events[index];
+      return (
+        persisted === undefined ||
+        persisted.id !== event.id ||
+        persisted.type !== event.type ||
+        persisted.at !== event.at
+      );
+    })
+  ) {
+    invalidTransition(
+      'A transaction cannot rewrite append-only audit history.',
+    );
+  }
+}
+
+function isCommandFingerprint(value: string | undefined): boolean {
+  return (
+    value !== undefined &&
+    /^(?:ADVANCE_TIME|OWNER_CHECK_IN|(?:REHEARSE_PLAN|ARM_PLAN|PAUSE_PLAN|RESUME_PLAN|DISABLE_PLAN):policy:[1-9][0-9]*)$/u.test(
+      value,
+    )
+  );
+}
+
 function invalidSnapshot(message: string): never {
   throw new PlanStoreError('INVALID_SNAPSHOT', message);
+}
+
+function invalidTransition(message: string): never {
+  throw new PlanStoreError('INVALID_TRANSITION', message);
 }
 
 export function auditRecord(

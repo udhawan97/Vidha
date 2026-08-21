@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   createImportIntake,
   utf8TextConverter,
+  type InspectedImport,
   type ImportScanner,
+  type QuarantinedImport,
   type ScanVerdict,
 } from './importIntake';
 
@@ -27,8 +29,9 @@ function intake(verdict: ScanVerdict = 'clean') {
 
 describe('untrusted import intake', () => {
   it('preserves exact source bytes through quarantine, inspection, and approval', async () => {
+    const workflow = intake();
     const bytes = encoder.encode('# Synthetic note\n\nNothing was sent.');
-    const prepared = await intake().prepare({
+    const prepared = await workflow.prepare({
       bytes,
       declaredMediaType: 'text/markdown; charset=utf-8',
       filename: '../synthetic-note.md',
@@ -38,8 +41,8 @@ describe('untrusted import intake', () => {
     expect(prepared.sourceId).toMatch(/^sha256:[a-f0-9]{64}$/u);
     expect(prepared.originalBytes).toEqual(bytes);
 
-    const inspected = await intake().inspect(prepared);
-    const approved = await intake().approve(inspected);
+    const inspected = await workflow.inspect(prepared);
+    const approved = await workflow.approve(inspected);
     expect(approved.state).toBe('approved');
     expect(approved.text).toBe('# Synthetic note\n\nNothing was sent.');
     expect(approved.originalBytes).toEqual(bytes);
@@ -55,6 +58,82 @@ describe('untrusted import intake', () => {
     expect(prepared.warnings).toEqual([
       'Declared type application/octet-stream does not match supported classification text/plain.',
     ]);
+  });
+
+  it('binds inspection to an intake-owned clone when caller bytes mutate', async () => {
+    let releaseScan: (() => void) | undefined;
+    const scanGate = new Promise<void>((resolve) => {
+      releaseScan = resolve;
+    });
+    const workflow = createImportIntake({
+      converter: utf8TextConverter,
+      limits: { maxBytes: 128, maxLines: 4 },
+      scanner: {
+        async scan() {
+          await scanGate;
+          return { scannerId: 'deferred-scanner', verdict: 'clean' };
+        },
+      },
+    });
+    const prepared = await workflow.prepare({
+      bytes: encoder.encode('original bytes'),
+      declaredMediaType: 'text/plain',
+      filename: 'original.txt',
+    });
+
+    const inspection = workflow.inspect(prepared);
+    prepared.originalBytes.fill(0x78);
+    releaseScan?.();
+    const approved = await workflow.approve(await inspection);
+
+    expect(approved.text).toBe('original bytes');
+  });
+
+  it('rejects a structurally forged inspection result', async () => {
+    const workflow = intake();
+    const prepared = await workflow.prepare({
+      bytes: encoder.encode('bounded text'),
+      declaredMediaType: 'text/plain',
+      filename: 'bounded.txt',
+    });
+    const forged = {
+      ...prepared,
+      state: 'inspected',
+      scan: { scannerId: 'forged-scanner', verdict: 'clean' },
+    } as InspectedImport;
+
+    await expect(workflow.approve(forged)).rejects.toMatchObject({
+      code: 'INSPECTION_MISMATCH',
+    });
+  });
+
+  it('rejects a forged quarantine that skipped bounded preparation', async () => {
+    const workflow = createImportIntake({
+      converter: utf8TextConverter,
+      limits: { maxBytes: 1, maxLines: 1 },
+      scanner: scanner(),
+    });
+    const originalBytes = encoder.encode('<script>forged()</script>');
+    const digest = await globalThis.crypto.subtle.digest(
+      'SHA-256',
+      originalBytes,
+    );
+    const forged = {
+      state: 'quarantined',
+      sourceId: `sha256:${[...new Uint8Array(digest)]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('')}`,
+      filename: 'forged.txt',
+      declaredMediaType: 'text/plain',
+      detectedMediaType: 'text/plain',
+      sizeBytes: originalBytes.byteLength,
+      originalBytes,
+      warnings: [],
+    } satisfies QuarantinedImport;
+
+    await expect(workflow.inspect(forged)).rejects.toMatchObject({
+      code: 'INSPECTION_MISMATCH',
+    });
   });
 
   it.each([

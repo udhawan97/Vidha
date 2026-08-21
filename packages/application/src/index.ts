@@ -1,6 +1,7 @@
 export {
   ApplicationError,
   createPlanApplication,
+  deriveOpaqueCommandKey,
   type ApplicationErrorCode,
   type AuthenticatedPrincipal,
   type AuthenticationSession,

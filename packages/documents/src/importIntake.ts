@@ -55,6 +55,7 @@ export type ImportIntakeErrorCode =
   | 'ACTIVE_CONTENT'
   | 'INVALID_LIMITS'
   | 'INVALID_UTF8'
+  | 'INSPECTION_MISMATCH'
   | 'LINE_LIMIT_EXCEEDED'
   | 'SCAN_BLOCKED'
   | 'SIZE_LIMIT_EXCEEDED'
@@ -88,6 +89,11 @@ export function createImportIntake({
   scanner,
 }: CreateImportIntakeInput): ImportIntake {
   validateLimits(limits);
+  const preparedSources = new Map<string, QuarantinedImport>();
+  const inspections = new Map<
+    string,
+    { readonly source: QuarantinedImport; readonly scan: ImportScanResult }
+  >();
 
   return {
     async prepare(upload) {
@@ -124,7 +130,7 @@ export function createImportIntake({
           : [
               `Declared type ${normalizedDeclaredType || 'missing'} does not match supported classification ${detectedMediaType}.`,
             ];
-      return {
+      const prepared: QuarantinedImport = {
         state: 'quarantined',
         sourceId: `sha256:${await sha256(originalBytes)}`,
         filename,
@@ -134,25 +140,61 @@ export function createImportIntake({
         originalBytes,
         warnings,
       };
+      preparedSources.set(prepared.sourceId, cloneQuarantined(prepared));
+      return cloneQuarantined(prepared);
     },
     async inspect(source) {
-      const scan = await scanner.scan(cloneQuarantined(source));
-      return {
-        ...cloneQuarantined(source),
-        state: 'inspected',
+      const submitted = cloneQuarantined(source);
+      await assertSourceDigest(submitted);
+      const prepared = preparedSources.get(submitted.sourceId);
+      if (prepared === undefined) {
+        throw new ImportIntakeError(
+          'INSPECTION_MISMATCH',
+          'Inspection requires bytes prepared by this intake.',
+        );
+      }
+      const ownedSource = cloneQuarantined(prepared);
+      const scan = {
+        ...(await scanner.scan(cloneQuarantined(ownedSource))),
+      };
+      inspections.set(ownedSource.sourceId, {
+        source: cloneQuarantined(ownedSource),
         scan,
+      });
+      return {
+        ...cloneQuarantined(ownedSource),
+        state: 'inspected',
+        scan: { ...scan },
       };
     },
     async approve(source) {
-      if (source.scan.verdict !== 'clean') {
+      const submitted = cloneInspected(source);
+      await assertSourceDigest(submitted);
+      const inspection = inspections.get(submitted.sourceId);
+      if (
+        inspection === undefined ||
+        inspection.scan.scannerId !== submitted.scan.scannerId ||
+        inspection.scan.verdict !== submitted.scan.verdict
+      ) {
         throw new ImportIntakeError(
-          'SCAN_BLOCKED',
-          `Conversion is blocked because ${source.scan.scannerId} reported ${source.scan.verdict}.`,
+          'INSPECTION_MISMATCH',
+          'Approval requires the exact bytes and scanner result inspected by this intake.',
         );
       }
-      const converted = await converter.convert(source);
+      if (inspection.scan.verdict !== 'clean') {
+        throw new ImportIntakeError(
+          'SCAN_BLOCKED',
+          `Conversion is blocked because ${inspection.scan.scannerId} reported ${inspection.scan.verdict}.`,
+        );
+      }
+      const inspected: InspectedImport = {
+        ...cloneQuarantined(inspection.source),
+        state: 'inspected',
+        scan: { ...inspection.scan },
+      };
+      const converted = await converter.convert(cloneInspected(inspected));
       return {
-        ...cloneInspected(source),
+        ...cloneInspected(inspected),
         state: 'approved',
         text: converted.text,
         conversionWarnings: [...converted.warnings],
@@ -234,6 +276,17 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('');
+}
+
+async function assertSourceDigest(
+  source: Pick<QuarantinedImport, 'originalBytes' | 'sourceId'>,
+): Promise<void> {
+  if (source.sourceId !== `sha256:${await sha256(source.originalBytes)}`) {
+    throw new ImportIntakeError(
+      'INSPECTION_MISMATCH',
+      'The import bytes no longer match their prepared source identifier.',
+    );
+  }
 }
 
 function cloneQuarantined(source: QuarantinedImport): QuarantinedImport {

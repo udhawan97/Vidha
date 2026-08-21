@@ -16,6 +16,14 @@ import {
 const DAY = 24 * 60 * 60 * 1_000;
 const START = Date.parse('2026-01-01T12:00:00.000Z');
 
+function opaqueKey(label: string): string {
+  let hash = 2_166_136_261;
+  for (const character of label) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16_777_619);
+  }
+  return `cmd_${(hash >>> 0).toString(16).padStart(8, '0').repeat(8)}`;
+}
+
 function draftPlan(): PlanState {
   return createDraftPlan({
     planId: 'plan_demo',
@@ -35,7 +43,7 @@ function armedPlan(): PlanState {
     at: START,
     authenticated: true,
     expectedPolicyRevision: 1,
-    idempotencyKey: 'rehearse',
+    idempotencyKey: opaqueKey('rehearse'),
   });
   return applyPlanCommand(rehearsed, {
     type: 'ARM_PLAN',
@@ -43,14 +51,14 @@ function armedPlan(): PlanState {
     authenticated: true,
     recentlyAuthenticated: true,
     expectedPolicyRevision: 1,
-    idempotencyKey: 'arm',
+    idempotencyKey: opaqueKey('arm'),
   });
 }
 
 class TestStore implements PlanTransactionStore {
   state: PlanState;
   transactionCount = 0;
-  private readonly commandKeys = new Set<string>();
+  private readonly commandFingerprints = new Map<string, string>();
 
   constructor(state = armedPlan()) {
     this.state = state;
@@ -67,6 +75,7 @@ class TestStore implements PlanTransactionStore {
   async transact(
     planId: string,
     commandKey: string,
+    commandFingerprint: string,
     authorize: (state: PlanState) => void,
     decide: (state: PlanState) => PlanState,
   ) {
@@ -75,11 +84,17 @@ class TestStore implements PlanTransactionStore {
       throw new Error('not found');
     }
     authorize(this.state);
-    if (this.commandKeys.has(commandKey)) {
+    const existingFingerprint = this.commandFingerprints.get(commandKey);
+    if (existingFingerprint !== undefined) {
+      if (existingFingerprint !== commandFingerprint) {
+        throw Object.assign(new Error('idempotency conflict'), {
+          code: 'IDEMPOTENCY_CONFLICT',
+        });
+      }
       return { state: this.state, duplicate: true };
     }
     const next = decide(this.state);
-    this.commandKeys.add(commandKey);
+    this.commandFingerprints.set(commandKey, commandFingerprint);
     this.state = next;
     return { state: next, duplicate: false };
   }
@@ -109,6 +124,19 @@ function setup(now = START + 1_000, state = armedPlan()) {
 }
 
 describe('authentication command boundary', () => {
+  it.each([0, 0.5, Number.MAX_SAFE_INTEGER + 1, Number.POSITIVE_INFINITY])(
+    'rejects a non-portable recent-authentication window: %s',
+    (recentAuthenticationWindowMs) => {
+      expect(() =>
+        createPlanApplication({
+          clock: { now: () => START },
+          recentAuthenticationWindowMs,
+          store: new TestStore(),
+        }),
+      ).toThrow(RangeError);
+    },
+  );
+
   it('treats reminder GET and replay as navigation-only without a transaction', () => {
     const { application, store } = setup();
     const challenge = {
@@ -319,6 +347,8 @@ describe('authentication command boundary', () => {
   it.each([
     { authenticatedAt: Number.NaN, expiresAt: START + DAY },
     { authenticatedAt: START, expiresAt: Number.POSITIVE_INFINITY },
+    { authenticatedAt: START + 0.5, expiresAt: START + DAY },
+    { authenticatedAt: START, expiresAt: Number.MAX_SAFE_INTEGER + 1 },
     { authenticatedAt: START + 2_000, expiresAt: START + DAY },
     { authenticatedAt: START + 2_000, expiresAt: START + 1_000 },
   ])(
@@ -337,6 +367,23 @@ describe('authentication command boundary', () => {
           },
         ),
       ).rejects.toMatchObject({ code: 'AUTHENTICATION_EXPIRED' });
+      expect(store.transactionCount).toBe(0);
+    },
+  );
+
+  it.each(['', 'x'.repeat(513)])(
+    'rejects an invalid external idempotency key before persistence',
+    async (idempotencyKey) => {
+      const { application, store } = setup();
+      await expect(
+        application.execute(session(), {
+          action: { type: 'OWNER_CHECK_IN' },
+          idempotencyKey,
+          method: 'POST',
+          planId: 'plan_demo',
+          userPresence: true,
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_IDEMPOTENCY_KEY' });
       expect(store.transactionCount).toBe(0);
     },
   );
@@ -388,5 +435,50 @@ describe('authentication command boundary', () => {
     expect(
       store.state.events.filter((event) => event.type === 'REMINDER_ENTERED'),
     ).toHaveLength(1);
+  });
+
+  it('rejects cross-action reuse of an external idempotency key', async () => {
+    const { application } = setup();
+    const sharedKey = 'external-shared-key';
+    await application.execute(session(), {
+      action: { type: 'OWNER_CHECK_IN' },
+      idempotencyKey: sharedKey,
+      method: 'POST',
+      planId: 'plan_demo',
+      userPresence: true,
+    });
+
+    await expect(
+      application.execute(session(), {
+        action: { type: 'PAUSE_PLAN', expectedPolicyRevision: 1 },
+        idempotencyKey: sharedKey,
+        method: 'POST',
+        planId: 'plan_demo',
+        userPresence: true,
+      }),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+  });
+
+  it('requires recent authentication before replaying a sensitive command', async () => {
+    let now = START + 1_000;
+    const store = new TestStore();
+    const application = createPlanApplication({
+      clock: { now: () => now },
+      recentAuthenticationWindowMs: 5 * 60 * 1_000,
+      store,
+    });
+    const request = {
+      action: { type: 'PAUSE_PLAN' as const, expectedPolicyRevision: 1 },
+      idempotencyKey: 'sensitive-replay',
+      method: 'POST',
+      planId: 'plan_demo',
+      userPresence: true,
+    };
+    await application.execute(session(), request);
+    now = START + 10 * 60 * 1_000;
+
+    await expect(application.execute(session(), request)).rejects.toMatchObject(
+      { code: 'RECENT_AUTHENTICATION_REQUIRED' },
+    );
   });
 });

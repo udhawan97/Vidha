@@ -8,6 +8,8 @@ import type { PlanState } from '@vidha/domain';
 import {
   PlanStoreError,
   assertLive,
+  assertPlanTransition,
+  assertPortablePlanState,
   assertSnapshot,
   cloneState,
   type AuditRecord,
@@ -29,6 +31,7 @@ const PGLITE_MIGRATION = `
   CREATE TABLE IF NOT EXISTS processed_commands (
     plan_id TEXT NOT NULL REFERENCES plans(plan_id),
     command_key TEXT NOT NULL,
+    command_fingerprint TEXT NOT NULL,
     processed_at BIGINT NOT NULL,
     PRIMARY KEY (plan_id, command_key)
   );
@@ -81,6 +84,7 @@ export class PglitePlanStore implements PortablePlanStore {
 
   async initialize(state: PlanState): Promise<void> {
     assertLive(this.mode);
+    assertPortablePlanState(state);
     await this.database.transaction(async (transaction) => {
       const existing = await transaction.query(
         'SELECT 1 FROM plans WHERE plan_id = $1',
@@ -105,6 +109,7 @@ export class PglitePlanStore implements PortablePlanStore {
   async transact(
     planId: string,
     commandKey: string,
+    commandFingerprint: string,
     authorize: (state: PlanState) => void,
     decide: (state: PlanState) => PlanState,
   ) {
@@ -120,19 +125,28 @@ export class PglitePlanStore implements PortablePlanStore {
       }
       const state = parseState(row.state_json);
       authorize(cloneState(state));
-      const duplicate = await transaction.query(
-        'SELECT 1 FROM processed_commands WHERE plan_id = $1 AND command_key = $2',
+      const duplicate = await transaction.query<{
+        command_fingerprint: string;
+      }>(
+        'SELECT command_fingerprint FROM processed_commands WHERE plan_id = $1 AND command_key = $2',
         [planId, commandKey],
       );
       if (duplicate.rows.length > 0) {
+        if (duplicate.rows[0]?.command_fingerprint !== commandFingerprint) {
+          throw new PlanStoreError(
+            'IDEMPOTENCY_CONFLICT',
+            'An idempotency key cannot be reused for different command semantics.',
+          );
+        }
         return { state, duplicate: true };
       }
 
       const next = decide(cloneState(state));
+      assertPlanTransition(state, next, commandKey, commandFingerprint);
       await transaction.query(
-        `INSERT INTO processed_commands(plan_id, command_key, processed_at)
-         VALUES ($1, $2, $3)`,
-        [planId, commandKey, next.lastCommandAt],
+        `INSERT INTO processed_commands(plan_id, command_key, command_fingerprint, processed_at)
+         VALUES ($1, $2, $3, $4)`,
+        [planId, commandKey, commandFingerprint, next.lastCommandAt],
       );
       await transaction.query(
         'UPDATE plans SET state_json = $1 WHERE plan_id = $2',
@@ -153,23 +167,28 @@ export class PglitePlanStore implements PortablePlanStore {
   }
 
   async exportSnapshot(): Promise<PlanStoreSnapshot> {
-    const plans = await this.database.query<{ state_json: string }>(
-      'SELECT state_json FROM plans ORDER BY plan_id',
-    );
-    const commands = await this.database.query<PostgresCommandRow>(
-      `SELECT plan_id, command_key, processed_at
-       FROM processed_commands ORDER BY plan_id, command_key`,
-    );
-    const auditEvents = await this.database.query<PostgresAuditRow>(
-      `SELECT plan_id, event_id, event_type, occurred_at, ordinal
-       FROM audit_events ORDER BY plan_id, ordinal`,
-    );
-    return {
-      schemaVersion: await this.schemaVersion(),
-      plans: plans.rows.map((row) => parseState(row.state_json)),
-      processedCommands: commands.rows.map(mapCommandRow),
-      auditEvents: auditEvents.rows.map(mapAuditRow),
-    };
+    return await this.database.transaction(async (transaction) => {
+      const plans = await transaction.query<{ state_json: string }>(
+        'SELECT state_json FROM plans ORDER BY plan_id',
+      );
+      const commands = await transaction.query<PostgresCommandRow>(
+        `SELECT plan_id, command_key, command_fingerprint, processed_at
+         FROM processed_commands ORDER BY plan_id, command_key`,
+      );
+      const auditEvents = await transaction.query<PostgresAuditRow>(
+        `SELECT plan_id, event_id, event_type, occurred_at, ordinal
+         FROM audit_events ORDER BY plan_id, ordinal`,
+      );
+      const schema = await transaction.query<{ version: number }>(
+        'SELECT MAX(version) AS version FROM vidha_schema',
+      );
+      return {
+        schemaVersion: Number(schema.rows[0]?.version),
+        plans: plans.rows.map((row) => parseState(row.state_json)),
+        processedCommands: commands.rows.map(mapCommandRow),
+        auditEvents: auditEvents.rows.map(mapAuditRow),
+      };
+    });
   }
 
   async restoreSnapshot(snapshot: PlanStoreSnapshot): Promise<void> {
@@ -192,9 +211,14 @@ export class PglitePlanStore implements PortablePlanStore {
       }
       for (const command of snapshot.processedCommands) {
         await transaction.query(
-          `INSERT INTO processed_commands(plan_id, command_key, processed_at)
-           VALUES ($1, $2, $3)`,
-          [command.planId, command.commandKey, command.processedAt],
+          `INSERT INTO processed_commands(plan_id, command_key, command_fingerprint, processed_at)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            command.planId,
+            command.commandKey,
+            command.commandFingerprint,
+            command.processedAt,
+          ],
         );
       }
       for (const event of snapshot.auditEvents) {
@@ -216,10 +240,17 @@ export class PglitePlanStore implements PortablePlanStore {
       [state.planId, JSON.stringify(state)],
     );
     for (const commandKey of state.processedCommandKeys) {
+      const commandFingerprint = state.processedCommandFingerprints[commandKey];
+      if (commandFingerprint === undefined) {
+        throw new PlanStoreError(
+          'INVALID_SNAPSHOT',
+          'Plan command identifiers must be fingerprinted.',
+        );
+      }
       await transaction.query(
-        `INSERT INTO processed_commands(plan_id, command_key, processed_at)
-         VALUES ($1, $2, $3)`,
-        [state.planId, commandKey, state.lastCommandAt],
+        `INSERT INTO processed_commands(plan_id, command_key, command_fingerprint, processed_at)
+         VALUES ($1, $2, $3, $4)`,
+        [state.planId, commandKey, commandFingerprint, state.lastCommandAt],
       );
     }
     await this.insertAuditRange(transaction, state, 0);
@@ -275,6 +306,7 @@ interface PostgresAuditRow {
 interface PostgresCommandRow {
   readonly plan_id: string;
   readonly command_key: string;
+  readonly command_fingerprint: string;
   readonly processed_at: number | string;
 }
 
@@ -292,6 +324,7 @@ function mapCommandRow(row: PostgresCommandRow): ProcessedCommandRecord {
   return {
     planId: row.plan_id,
     commandKey: row.command_key,
+    commandFingerprint: row.command_fingerprint,
     processedAt: Number(row.processed_at),
   };
 }

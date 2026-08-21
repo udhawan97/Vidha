@@ -33,6 +33,7 @@ export interface PlanTransactionStore {
   transact(
     planId: string,
     commandKey: string,
+    commandFingerprint: string,
     authorize: (state: PlanState) => void,
     decide: (state: PlanState) => PlanState,
   ): Promise<PlanTransactionResult>;
@@ -73,6 +74,7 @@ export interface InteractivePlanRequest {
 export type ApplicationErrorCode =
   | 'AUTHENTICATION_EXPIRED'
   | 'AUTHORIZATION_DENIED'
+  | 'INVALID_IDEMPOTENCY_KEY'
   | 'METHOD_NOT_ALLOWED'
   | 'RECENT_AUTHENTICATION_REQUIRED'
   | 'USER_PRESENCE_REQUIRED';
@@ -114,7 +116,7 @@ export function createPlanApplication({
   store,
 }: CreatePlanApplicationInput): PlanApplication {
   if (
-    !Number.isFinite(recentAuthenticationWindowMs) ||
+    !Number.isSafeInteger(recentAuthenticationWindowMs) ||
     recentAuthenticationWindowMs <= 0
   ) {
     throw new RangeError('The recent-authentication window must be positive.');
@@ -123,15 +125,17 @@ export function createPlanApplication({
   return {
     async advanceScheduled(planId, idempotencyKey) {
       const at = clock.now();
+      const commandKey = await deriveOpaqueCommandKey(idempotencyKey);
       return await store.transact(
         planId,
-        idempotencyKey,
+        commandKey,
+        'ADVANCE_TIME',
         () => undefined,
         (state) =>
           applyPlanCommand(state, {
             type: 'ADVANCE_TIME',
             at,
-            idempotencyKey,
+            idempotencyKey: commandKey,
           }),
       );
     },
@@ -140,13 +144,24 @@ export function createPlanApplication({
       requireInteractiveAuthentication(session, request, at);
       const recentlyAuthenticated =
         at - session.authenticatedAt <= recentAuthenticationWindowMs;
+      const commandKey = await deriveOpaqueCommandKey(request.idempotencyKey);
+      const commandFingerprint = interactiveCommandFingerprint(request.action);
 
       return await store.transact(
         request.planId,
-        request.idempotencyKey,
-        (state) => requireOwner(session.principal, state),
+        commandKey,
+        commandFingerprint,
         (state) => {
-          const command = toDomainCommand(request, at, recentlyAuthenticated);
+          requireOwner(session.principal, state);
+          requireActionAuthentication(request.action, recentlyAuthenticated);
+        },
+        (state) => {
+          const command = toDomainCommand(
+            request,
+            at,
+            recentlyAuthenticated,
+            commandKey,
+          );
           return applyPlanCommand(state, command);
         },
       );
@@ -174,9 +189,9 @@ function requireInteractiveAuthentication(
   at: number,
 ): void {
   if (
-    !Number.isFinite(at) ||
-    !Number.isFinite(session.authenticatedAt) ||
-    !Number.isFinite(session.expiresAt) ||
+    !Number.isSafeInteger(at) ||
+    !Number.isSafeInteger(session.authenticatedAt) ||
+    !Number.isSafeInteger(session.expiresAt) ||
     session.authenticatedAt > session.expiresAt
   ) {
     throw new ApplicationError(
@@ -220,13 +235,14 @@ function toDomainCommand(
   request: InteractivePlanRequest,
   at: number,
   recentlyAuthenticated: boolean,
+  commandKey: string,
 ): PlanCommand {
   if (request.action.type === 'OWNER_CHECK_IN') {
     return {
       type: request.action.type,
       at,
       authenticated: true,
-      idempotencyKey: request.idempotencyKey,
+      idempotencyKey: commandKey,
     };
   }
 
@@ -236,7 +252,7 @@ function toDomainCommand(
       at,
       authenticated: true,
       expectedPolicyRevision: request.action.expectedPolicyRevision,
-      idempotencyKey: request.idempotencyKey,
+      idempotencyKey: commandKey,
     };
   }
 
@@ -253,6 +269,44 @@ function toDomainCommand(
     authenticated: true,
     recentlyAuthenticated: true,
     expectedPolicyRevision: request.action.expectedPolicyRevision,
-    idempotencyKey: request.idempotencyKey,
+    idempotencyKey: commandKey,
   };
+}
+
+function requireActionAuthentication(
+  action: InteractivePlanAction,
+  recentlyAuthenticated: boolean,
+): void {
+  if (
+    action.type !== 'OWNER_CHECK_IN' &&
+    action.type !== 'REHEARSE_PLAN' &&
+    !recentlyAuthenticated
+  ) {
+    throw new ApplicationError(
+      'RECENT_AUTHENTICATION_REQUIRED',
+      'This lifecycle command requires recent authentication.',
+    );
+  }
+}
+
+function interactiveCommandFingerprint(action: InteractivePlanAction): string {
+  return 'expectedPolicyRevision' in action
+    ? `${action.type}:policy:${action.expectedPolicyRevision}`
+    : action.type;
+}
+
+export async function deriveOpaqueCommandKey(rawKey: string): Promise<string> {
+  if (rawKey.length === 0 || rawKey.length > 512) {
+    throw new ApplicationError(
+      'INVALID_IDEMPOTENCY_KEY',
+      'The idempotency key must contain between 1 and 512 characters.',
+    );
+  }
+  const digest = await globalThis.crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(rawKey),
+  );
+  return `cmd_${[...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')}`;
 }

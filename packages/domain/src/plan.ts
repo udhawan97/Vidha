@@ -33,7 +33,6 @@ export interface DomainEvent {
   readonly id: string;
   readonly type: DomainEventType;
   readonly at: number;
-  readonly commandKey: string;
 }
 
 export interface PlanState {
@@ -46,6 +45,7 @@ export interface PlanState {
   readonly policy: TimelinePolicy;
   readonly cycle: ConcernCycle;
   readonly processedCommandKeys: readonly string[];
+  readonly processedCommandFingerprints: Readonly<Record<string, string>>;
   readonly events: readonly DomainEvent[];
 }
 
@@ -121,9 +121,8 @@ export function createDraftPlan(input: CreateDraftPlanInput): PlanState {
     policy: { ...input.policy },
     cycle: createCycle(input.at, input.policy),
     processedCommandKeys: [],
-    events: [
-      createEvent('PLAN_DRAFTED', input.at, `initial:${input.planId}`, 0),
-    ],
+    processedCommandFingerprints: {},
+    events: [createEvent('PLAN_DRAFTED', input.at, 0)],
   };
 }
 
@@ -133,7 +132,16 @@ export function applyPlanCommand(
 ): PlanState {
   validateCommand(command);
 
-  if (state.processedCommandKeys.includes(command.idempotencyKey)) {
+  const fingerprint = planCommandFingerprint(command);
+  const existingFingerprint =
+    state.processedCommandFingerprints[command.idempotencyKey];
+  if (existingFingerprint !== undefined) {
+    if (existingFingerprint !== fingerprint) {
+      throw new DomainError(
+        'INVALID_COMMAND',
+        'An idempotency key cannot be reused for different command semantics.',
+      );
+    }
     return state;
   }
 
@@ -268,15 +276,14 @@ function acceptLifecycleCommand(
       ...state.processedCommandKeys,
       command.idempotencyKey,
     ],
+    processedCommandFingerprints: {
+      ...state.processedCommandFingerprints,
+      [command.idempotencyKey]: planCommandFingerprint(command),
+    },
     events: [
       ...state.events,
       ...update.eventTypes.map((eventType, index) =>
-        createEvent(
-          eventType,
-          command.at,
-          command.idempotencyKey,
-          state.events.length + index,
-        ),
+        createEvent(eventType, command.at, state.events.length + index),
       ),
     ],
   };
@@ -315,23 +322,9 @@ function applyOwnerCheckIn(
 
   const events = [...state.events];
   if (state.cycle.stage === 'concern') {
-    events.push(
-      createEvent(
-        'CONCERN_CANCELLED',
-        command.at,
-        command.idempotencyKey,
-        events.length,
-      ),
-    );
+    events.push(createEvent('CONCERN_CANCELLED', command.at, events.length));
   }
-  events.push(
-    createEvent(
-      'OWNER_CHECKED_IN',
-      command.at,
-      command.idempotencyKey,
-      events.length,
-    ),
-  );
+  events.push(createEvent('OWNER_CHECKED_IN', command.at, events.length));
 
   return {
     ...state,
@@ -341,6 +334,10 @@ function applyOwnerCheckIn(
       ...state.processedCommandKeys,
       command.idempotencyKey,
     ],
+    processedCommandFingerprints: {
+      ...state.processedCommandFingerprints,
+      [command.idempotencyKey]: planCommandFingerprint(command),
+    },
     events,
   };
 }
@@ -353,14 +350,28 @@ function applyTimeAdvance(
     ...state.processedCommandKeys,
     command.idempotencyKey,
   ];
+  const processedCommandFingerprints = {
+    ...state.processedCommandFingerprints,
+    [command.idempotencyKey]: planCommandFingerprint(command),
+  };
 
   if (state.lifecycle !== 'armed') {
-    return { ...state, lastCommandAt: command.at, processedCommandKeys };
+    return {
+      ...state,
+      lastCommandAt: command.at,
+      processedCommandKeys,
+      processedCommandFingerprints,
+    };
   }
 
   const transition = nextTimelineTransition(state.cycle, command.at);
   if (transition === null) {
-    return { ...state, lastCommandAt: command.at, processedCommandKeys };
+    return {
+      ...state,
+      lastCommandAt: command.at,
+      processedCommandKeys,
+      processedCommandFingerprints,
+    };
   }
 
   return {
@@ -368,14 +379,10 @@ function applyTimeAdvance(
     cycle: { ...state.cycle, stage: transition.stage },
     lastCommandAt: command.at,
     processedCommandKeys,
+    processedCommandFingerprints,
     events: [
       ...state.events,
-      createEvent(
-        transition.eventType,
-        command.at,
-        command.idempotencyKey,
-        state.events.length,
-      ),
+      createEvent(transition.eventType, command.at, state.events.length),
     ],
   };
 }
@@ -403,44 +410,59 @@ function nextTimelineTransition(
 }
 
 function createCycle(at: number, policy: TimelinePolicy): ConcernCycle {
-  const dueAt = at + policy.checkInIntervalMs;
+  const dueAt = safeTimestampAdd(at, policy.checkInIntervalMs);
 
   return {
     stage: 'on_time',
     startedAt: at,
-    reminderAt: dueAt - policy.reminderLeadMs,
+    reminderAt: safeTimestampAdd(dueAt, -policy.reminderLeadMs),
     dueAt,
-    concernAt: dueAt + policy.gracePeriodMs,
+    concernAt: safeTimestampAdd(dueAt, policy.gracePeriodMs),
   };
 }
 
 function createEvent(
   type: DomainEventType,
   at: number,
-  commandKey: string,
   ordinal: number,
 ): DomainEvent {
   return {
     id: `event:${ordinal}:${type.toLowerCase()}`,
     type,
     at,
-    commandKey,
   };
+}
+
+export function planCommandFingerprint(command: PlanCommand): string {
+  switch (command.type) {
+    case 'ADVANCE_TIME':
+    case 'OWNER_CHECK_IN':
+      return command.type;
+    case 'REHEARSE_PLAN':
+    case 'ARM_PLAN':
+    case 'PAUSE_PLAN':
+    case 'RESUME_PLAN':
+    case 'DISABLE_PLAN':
+      return `${command.type}:policy:${command.expectedPolicyRevision}`;
+  }
 }
 
 function validateCommand(command: PlanCommand): void {
   validateTimestamp(command.at);
-  if (command.idempotencyKey.trim().length === 0) {
+  if (!/^cmd_[a-f0-9]{64}$/u.test(command.idempotencyKey)) {
     throw new DomainError(
       'INVALID_COMMAND',
-      'Every command requires a non-empty idempotency key.',
+      'Every command requires an opaque SHA-256 command identifier.',
     );
   }
 }
 
 function validateTimestamp(at: number): void {
-  if (!Number.isFinite(at)) {
-    throw new DomainError('INVALID_TIME', 'Time must be a finite timestamp.');
+  if (!Number.isSafeInteger(at)) {
+    throw new DomainError(
+      'INVALID_TIME',
+      'Time must be a safe-integer timestamp.',
+    );
   }
 }
 
@@ -451,10 +473,10 @@ function validatePolicy(policy: TimelinePolicy): void {
     policy.gracePeriodMs,
   ];
 
-  if (values.some((value) => !Number.isFinite(value) || value <= 0)) {
+  if (values.some((value) => !Number.isSafeInteger(value) || value <= 0)) {
     throw new DomainError(
       'INVALID_POLICY',
-      'Timeline durations must be positive finite values.',
+      'Timeline durations must be positive safe-integer values.',
     );
   }
 
@@ -464,6 +486,17 @@ function validatePolicy(policy: TimelinePolicy): void {
       'The reminder must occur after the cycle begins and before Check-in is due.',
     );
   }
+}
+
+function safeTimestampAdd(left: number, right: number): number {
+  const result = left + right;
+  if (!Number.isSafeInteger(result)) {
+    throw new DomainError(
+      'INVALID_TIME',
+      'Timeline arithmetic must remain within safe-integer bounds.',
+    );
+  }
+  return result;
 }
 
 function validateOpaqueIdentifier(value: string, label: string): void {

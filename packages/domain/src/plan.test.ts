@@ -11,6 +11,14 @@ import {
 const DAY = 24 * 60 * 60 * 1_000;
 const START = Date.parse('2026-01-01T12:00:00.000Z');
 
+function opaqueKey(label: string): string {
+  let hash = 2_166_136_261;
+  for (const character of label) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16_777_619);
+  }
+  return `cmd_${(hash >>> 0).toString(16).padStart(8, '0').repeat(8)}`;
+}
+
 const policy: TimelinePolicy = {
   checkInIntervalMs: 30 * DAY,
   reminderLeadMs: 5 * DAY,
@@ -29,7 +37,7 @@ function makePlan(): PlanState {
     at: START,
     authenticated: true,
     expectedPolicyRevision: 1,
-    idempotencyKey: 'rehearse',
+    idempotencyKey: opaqueKey('rehearse'),
   });
   return applyPlanCommand(rehearsed, {
     type: 'ARM_PLAN',
@@ -37,7 +45,7 @@ function makePlan(): PlanState {
     authenticated: true,
     recentlyAuthenticated: true,
     expectedPolicyRevision: 1,
-    idempotencyKey: 'arm',
+    idempotencyKey: opaqueKey('arm'),
   });
 }
 
@@ -55,6 +63,39 @@ describe('plan lifecycle', () => {
     },
   );
 
+  it('rejects fractional and overflowing timeline values', () => {
+    expect(() =>
+      createDraftPlan({
+        planId: 'plan_fractional',
+        ownerId: 'owner_demo',
+        at: START + 0.5,
+        policy,
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<DomainError>>({ code: 'INVALID_TIME' }),
+    );
+    expect(() =>
+      createDraftPlan({
+        planId: 'plan_overflow',
+        ownerId: 'owner_demo',
+        at: Number.MAX_SAFE_INTEGER - 1,
+        policy,
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<DomainError>>({ code: 'INVALID_TIME' }),
+    );
+    expect(() =>
+      createDraftPlan({
+        planId: 'plan_bad_policy',
+        ownerId: 'owner_demo',
+        at: START,
+        policy: { ...policy, gracePeriodMs: 0.5 },
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<DomainError>>({ code: 'INVALID_POLICY' }),
+    );
+  });
+
   it('requires rehearsal and recent authentication before arming', () => {
     const draft = createDraftPlan({
       planId: 'plan_draft',
@@ -70,7 +111,7 @@ describe('plan lifecycle', () => {
         authenticated: true,
         recentlyAuthenticated: true,
         expectedPolicyRevision: 1,
-        idempotencyKey: 'arm-too-early',
+        idempotencyKey: opaqueKey('arm-too-early'),
       }),
     ).toThrowError(
       expect.objectContaining<Partial<DomainError>>({
@@ -83,7 +124,7 @@ describe('plan lifecycle', () => {
       at: START,
       authenticated: true,
       expectedPolicyRevision: 1,
-      idempotencyKey: 'rehearse-draft',
+      idempotencyKey: opaqueKey('rehearse-draft'),
     });
     expect(() =>
       applyPlanCommand(rehearsed, {
@@ -92,7 +133,7 @@ describe('plan lifecycle', () => {
         authenticated: true,
         recentlyAuthenticated: false,
         expectedPolicyRevision: 1,
-        idempotencyKey: 'stale-arm',
+        idempotencyKey: opaqueKey('stale-arm'),
       }),
     ).toThrowError(
       expect.objectContaining<Partial<DomainError>>({
@@ -109,12 +150,12 @@ describe('plan lifecycle', () => {
       authenticated: true,
       recentlyAuthenticated: true,
       expectedPolicyRevision: 1,
-      idempotencyKey: 'pause',
+      idempotencyKey: opaqueKey('pause'),
     });
     const whilePaused = applyPlanCommand(paused, {
       type: 'ADVANCE_TIME',
       at: START + 100 * DAY,
-      idempotencyKey: 'paused-time',
+      idempotencyKey: opaqueKey('paused-time'),
     });
     expect(whilePaused.cycle.stage).toBe('on_time');
 
@@ -124,7 +165,7 @@ describe('plan lifecycle', () => {
       authenticated: true,
       recentlyAuthenticated: true,
       expectedPolicyRevision: 1,
-      idempotencyKey: 'resume',
+      idempotencyKey: opaqueKey('resume'),
     });
     expect(resumed.lifecycle).toBe('armed');
     expect(resumed.cycle.dueAt).toBe(
@@ -140,7 +181,7 @@ describe('plan lifecycle', () => {
         authenticated: true,
         recentlyAuthenticated: true,
         expectedPolicyRevision: 2,
-        idempotencyKey: 'stale-policy',
+        idempotencyKey: opaqueKey('stale-policy'),
       }),
     ).toThrowError(
       expect.objectContaining<Partial<DomainError>>({
@@ -154,7 +195,7 @@ describe('plan lifecycle', () => {
       authenticated: true,
       recentlyAuthenticated: true,
       expectedPolicyRevision: 1,
-      idempotencyKey: 'disable',
+      idempotencyKey: opaqueKey('disable'),
     });
     expect(disabled.lifecycle).toBe('disabled');
     expect(() =>
@@ -164,7 +205,7 @@ describe('plan lifecycle', () => {
         authenticated: true,
         recentlyAuthenticated: true,
         expectedPolicyRevision: 1,
-        idempotencyKey: 'disable-again',
+        idempotencyKey: opaqueKey('disable-again'),
       }),
     ).toThrowError(
       expect.objectContaining<Partial<DomainError>>({
@@ -178,17 +219,17 @@ describe('plan lifecycle', () => {
     const reminder = applyPlanCommand(makePlan(), {
       type: 'ADVANCE_TIME',
       at,
-      idempotencyKey: 'disable-concern-1',
+      idempotencyKey: opaqueKey('disable-concern-1'),
     });
     const overdue = applyPlanCommand(reminder, {
       type: 'ADVANCE_TIME',
       at,
-      idempotencyKey: 'disable-concern-2',
+      idempotencyKey: opaqueKey('disable-concern-2'),
     });
     const concern = applyPlanCommand(overdue, {
       type: 'ADVANCE_TIME',
       at,
-      idempotencyKey: 'disable-concern-3',
+      idempotencyKey: opaqueKey('disable-concern-3'),
     });
 
     const disabled = applyPlanCommand(concern, {
@@ -197,7 +238,7 @@ describe('plan lifecycle', () => {
       authenticated: true,
       recentlyAuthenticated: true,
       expectedPolicyRevision: 1,
-      idempotencyKey: 'disable-from-concern',
+      idempotencyKey: opaqueKey('disable-from-concern'),
     });
 
     expect(disabled.lifecycle).toBe('disabled');
@@ -216,28 +257,28 @@ describe('plan timeline', () => {
     const beforeReminder = applyPlanCommand(initial, {
       type: 'ADVANCE_TIME',
       at: initial.cycle.reminderAt - 1,
-      idempotencyKey: 'before-reminder',
+      idempotencyKey: opaqueKey('before-reminder'),
     });
     expect(beforeReminder.cycle.stage).toBe('on_time');
 
     const reminder = applyPlanCommand(beforeReminder, {
       type: 'ADVANCE_TIME',
       at: initial.cycle.reminderAt,
-      idempotencyKey: 'at-reminder',
+      idempotencyKey: opaqueKey('at-reminder'),
     });
     expect(reminder.cycle.stage).toBe('reminder');
 
     const overdue = applyPlanCommand(reminder, {
       type: 'ADVANCE_TIME',
       at: initial.cycle.dueAt,
-      idempotencyKey: 'at-due',
+      idempotencyKey: opaqueKey('at-due'),
     });
     expect(overdue.cycle.stage).toBe('overdue');
 
     const concern = applyPlanCommand(overdue, {
       type: 'ADVANCE_TIME',
       at: initial.cycle.concernAt,
-      idempotencyKey: 'at-concern',
+      idempotencyKey: opaqueKey('at-concern'),
     });
     expect(concern.cycle.stage).toBe('concern');
   });
@@ -247,28 +288,28 @@ describe('plan timeline', () => {
     const reminder = applyPlanCommand(makePlan(), {
       type: 'ADVANCE_TIME',
       at: farFuture,
-      idempotencyKey: 'catch-up-1',
+      idempotencyKey: opaqueKey('catch-up-1'),
     });
     expect(reminder.cycle.stage).toBe('reminder');
 
     const overdue = applyPlanCommand(reminder, {
       type: 'ADVANCE_TIME',
       at: farFuture,
-      idempotencyKey: 'catch-up-2',
+      idempotencyKey: opaqueKey('catch-up-2'),
     });
     expect(overdue.cycle.stage).toBe('overdue');
 
     const concern = applyPlanCommand(overdue, {
       type: 'ADVANCE_TIME',
       at: farFuture,
-      idempotencyKey: 'catch-up-3',
+      idempotencyKey: opaqueKey('catch-up-3'),
     });
     expect(concern.cycle.stage).toBe('concern');
 
     const stillConcern = applyPlanCommand(concern, {
       type: 'ADVANCE_TIME',
       at: farFuture,
-      idempotencyKey: 'catch-up-4',
+      idempotencyKey: opaqueKey('catch-up-4'),
     });
     expect(stillConcern.cycle.stage).toBe('concern');
     expect(stillConcern.events.map((event) => event.type)).not.toContain(
@@ -281,7 +322,7 @@ describe('plan timeline', () => {
     const command = {
       type: 'ADVANCE_TIME' as const,
       at: initial.cycle.reminderAt,
-      idempotencyKey: 'scheduler-reminder',
+      idempotencyKey: opaqueKey('scheduler-reminder'),
     };
 
     const first = applyPlanCommand(initial, command);
@@ -293,12 +334,35 @@ describe('plan timeline', () => {
     ).toHaveLength(1);
   });
 
+  it('rejects cross-action reuse of an idempotency key', () => {
+    const initial = makePlan();
+    const commandKey = opaqueKey('cross-action');
+    const advanced = applyPlanCommand(initial, {
+      type: 'ADVANCE_TIME',
+      at: initial.cycle.reminderAt,
+      idempotencyKey: commandKey,
+    });
+
+    expect(() =>
+      applyPlanCommand(advanced, {
+        type: 'OWNER_CHECK_IN',
+        at: initial.cycle.reminderAt,
+        authenticated: true,
+        idempotencyKey: commandKey,
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<DomainError>>({
+        code: 'INVALID_COMMAND',
+      }),
+    );
+  });
+
   it('requires an authenticated Owner action for Check-in', () => {
     expect(() =>
       applyPlanCommand(makePlan(), {
         type: 'OWNER_CHECK_IN',
         at: START + DAY,
-        idempotencyKey: 'untrusted-link-fetch',
+        idempotencyKey: opaqueKey('untrusted-link-fetch'),
         authenticated: false,
       }),
     ).toThrowError(
@@ -313,14 +377,14 @@ describe('plan timeline', () => {
     const reminder = applyPlanCommand(initial, {
       type: 'ADVANCE_TIME',
       at: initial.cycle.reminderAt,
-      idempotencyKey: 'ordered-reminder',
+      idempotencyKey: opaqueKey('ordered-reminder'),
     });
 
     expect(() =>
       applyPlanCommand(reminder, {
         type: 'OWNER_CHECK_IN',
         at: initial.cycle.reminderAt - 1,
-        idempotencyKey: 'stale-check-in',
+        idempotencyKey: opaqueKey('stale-check-in'),
         authenticated: true,
       }),
     ).toThrowError(
@@ -333,23 +397,23 @@ describe('plan timeline', () => {
     const reminder = applyPlanCommand(makePlan(), {
       type: 'ADVANCE_TIME',
       at: farFuture,
-      idempotencyKey: 'concern-1',
+      idempotencyKey: opaqueKey('concern-1'),
     });
     const overdue = applyPlanCommand(reminder, {
       type: 'ADVANCE_TIME',
       at: farFuture,
-      idempotencyKey: 'concern-2',
+      idempotencyKey: opaqueKey('concern-2'),
     });
     const concern = applyPlanCommand(overdue, {
       type: 'ADVANCE_TIME',
       at: farFuture,
-      idempotencyKey: 'concern-3',
+      idempotencyKey: opaqueKey('concern-3'),
     });
 
     const checkedIn = applyPlanCommand(concern, {
       type: 'OWNER_CHECK_IN',
       at: farFuture,
-      idempotencyKey: 'owner-check-in',
+      idempotencyKey: opaqueKey('owner-check-in'),
       authenticated: true,
     });
 
@@ -368,7 +432,7 @@ describe('plan timeline', () => {
       applyPlanCommand(paused, {
         type: 'OWNER_CHECK_IN',
         at: START + DAY,
-        idempotencyKey: 'paused-check-in',
+        idempotencyKey: opaqueKey('paused-check-in'),
         authenticated: true,
       }),
     ).toThrowError(
@@ -385,7 +449,7 @@ describe('plan timeline', () => {
       const advanced = applyPlanCommand(inactive, {
         type: 'ADVANCE_TIME',
         at: START + 100 * DAY,
-        idempotencyKey: `inactive-${lifecycle}`,
+        idempotencyKey: opaqueKey(`inactive-${lifecycle}`),
       });
 
       expect(advanced.cycle).toEqual(inactive.cycle);

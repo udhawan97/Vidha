@@ -12,6 +12,15 @@ import type { PortablePlanStore, StoreMode } from './store';
 
 const DAY = 24 * 60 * 60 * 1_000;
 const START = Date.parse('2026-01-01T12:00:00.000Z');
+const ADVANCE_FINGERPRINT = 'ADVANCE_TIME';
+
+function opaqueKey(label: string): string {
+  let hash = 2_166_136_261;
+  for (const character of label) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16_777_619);
+  }
+  return `cmd_${(hash >>> 0).toString(16).padStart(8, '0').repeat(8)}`;
+}
 
 interface ClosableStore extends PortablePlanStore {
   close?(): Promise<void> | void;
@@ -35,7 +44,7 @@ function makePlan(): PlanState {
     at: START,
     authenticated: true,
     expectedPolicyRevision: 1,
-    idempotencyKey: 'rehearse',
+    idempotencyKey: opaqueKey('rehearse'),
   });
   return applyPlanCommand(rehearsed, {
     type: 'ARM_PLAN',
@@ -43,7 +52,7 @@ function makePlan(): PlanState {
     authenticated: true,
     recentlyAuthenticated: true,
     expectedPolicyRevision: 1,
-    idempotencyKey: 'arm',
+    idempotencyKey: opaqueKey('arm'),
   });
 }
 
@@ -79,6 +88,35 @@ function storeContract(name: string, factory: StoreFactory): void {
       expect(await store.audit(plan.planId)).toHaveLength(plan.events.length);
     });
 
+    it('rejects non-portable numeric state before persistence', async () => {
+      const store = await open();
+      const plan = makePlan();
+      await expect(
+        store.initialize({ ...plan, lastCommandAt: plan.lastCommandAt + 0.5 }),
+      ).rejects.toMatchObject({ code: 'INVALID_SNAPSHOT' });
+    });
+
+    it('rejects a snapshot with a fractional processed-command timestamp', async () => {
+      const live = await open();
+      const plan = makePlan();
+      await live.initialize(plan);
+      const snapshot = await live.exportSnapshot();
+      const command = snapshot.processedCommands[0];
+      expect(command).toBeDefined();
+      const restored = await open('restore_safe');
+
+      await expect(
+        restored.restoreSnapshot({
+          ...snapshot,
+          processedCommands: snapshot.processedCommands.map((record, index) =>
+            index === 0
+              ? { ...record, processedAt: record.processedAt + 0.5 }
+              : record,
+          ),
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_SNAPSHOT' });
+    });
+
     it('commits state, command identity, and append-only audit together', async () => {
       const store = await open();
       const plan = makePlan();
@@ -86,9 +124,10 @@ function storeContract(name: string, factory: StoreFactory): void {
 
       const result = await store.transact(
         plan.planId,
-        'scheduler-reminder',
+        opaqueKey('scheduler-reminder'),
+        ADVANCE_FINGERPRINT,
         () => undefined,
-        (state) => reminderDecision(state, 'scheduler-reminder'),
+        (state) => reminderDecision(state, opaqueKey('scheduler-reminder')),
       );
       const audit = await store.audit(plan.planId);
 
@@ -113,19 +152,48 @@ function storeContract(name: string, factory: StoreFactory): void {
         'taxes.pdf',
         'bearer-secret-token',
       ];
-      const commandKey = sensitiveParts.join('|');
+      const commandKey = opaqueKey(sensitiveParts.join('|'));
 
       await store.transact(
         plan.planId,
         commandKey,
+        ADVANCE_FINGERPRINT,
         () => undefined,
         (state) => reminderDecision(state, commandKey),
       );
 
-      const auditExport = JSON.stringify(await store.audit(plan.planId));
+      const persistedExport = JSON.stringify({
+        audit: await store.audit(plan.planId),
+        snapshot: await store.exportSnapshot(),
+        state: await store.read(plan.planId),
+      });
       for (const sensitivePart of sensitiveParts) {
-        expect(auditExport).not.toContain(sensitivePart);
+        expect(persistedExport).not.toContain(sensitivePart);
       }
+    });
+
+    it('rejects cross-action reuse of a committed idempotency key', async () => {
+      const store = await open();
+      const plan = makePlan();
+      await store.initialize(plan);
+      const commandKey = opaqueKey('semantic-conflict');
+      await store.transact(
+        plan.planId,
+        commandKey,
+        ADVANCE_FINGERPRINT,
+        () => undefined,
+        (state) => reminderDecision(state, commandKey),
+      );
+
+      await expect(
+        store.transact(
+          plan.planId,
+          commandKey,
+          'OWNER_CHECK_IN',
+          () => undefined,
+          (state) => state,
+        ),
+      ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
     });
 
     it('returns the committed result for a duplicate semantic command', async () => {
@@ -133,17 +201,19 @@ function storeContract(name: string, factory: StoreFactory): void {
       const plan = makePlan();
       await store.initialize(plan);
       const decide = (state: PlanState) =>
-        reminderDecision(state, 'scheduler-reminder');
+        reminderDecision(state, opaqueKey('scheduler-reminder'));
 
       const first = await store.transact(
         plan.planId,
-        'scheduler-reminder',
+        opaqueKey('scheduler-reminder'),
+        ADVANCE_FINGERPRINT,
         () => undefined,
         decide,
       );
       const replay = await store.transact(
         plan.planId,
-        'scheduler-reminder',
+        opaqueKey('scheduler-reminder'),
+        ADVANCE_FINGERPRINT,
         () => undefined,
         () => {
           throw new Error('A duplicate must not re-run the decision.');
@@ -162,15 +232,17 @@ function storeContract(name: string, factory: StoreFactory): void {
       await store.initialize(plan);
       await store.transact(
         plan.planId,
-        'authorized-first',
+        opaqueKey('authorized-first'),
+        ADVANCE_FINGERPRINT,
         () => undefined,
-        (state) => reminderDecision(state, 'authorized-first'),
+        (state) => reminderDecision(state, opaqueKey('authorized-first')),
       );
 
       await expect(
         store.transact(
           plan.planId,
-          'authorized-first',
+          opaqueKey('authorized-first'),
+          ADVANCE_FINGERPRINT,
           () => {
             throw new Error('authorization denied');
           },
@@ -190,15 +262,17 @@ function storeContract(name: string, factory: StoreFactory): void {
       await Promise.all([
         store.transact(
           plan.planId,
-          'concurrent-a',
+          opaqueKey('concurrent-a'),
+          ADVANCE_FINGERPRINT,
           () => undefined,
-          (state) => reminderDecision(state, 'concurrent-a'),
+          (state) => reminderDecision(state, opaqueKey('concurrent-a')),
         ),
         store.transact(
           plan.planId,
-          'concurrent-b',
+          opaqueKey('concurrent-b'),
+          ADVANCE_FINGERPRINT,
           () => undefined,
-          (state) => reminderDecision(state, 'concurrent-b'),
+          (state) => reminderDecision(state, opaqueKey('concurrent-b')),
         ),
       ]);
 
@@ -208,7 +282,10 @@ function storeContract(name: string, factory: StoreFactory): void {
         restored?.events.filter((event) => event.type === 'REMINDER_ENTERED'),
       ).toHaveLength(1);
       expect(restored?.processedCommandKeys).toEqual(
-        expect.arrayContaining(['concurrent-a', 'concurrent-b']),
+        expect.arrayContaining([
+          opaqueKey('concurrent-a'),
+          opaqueKey('concurrent-b'),
+        ]),
       );
     });
 
@@ -217,18 +294,20 @@ function storeContract(name: string, factory: StoreFactory): void {
       const plan = makePlan();
       await store.initialize(plan);
       const decide = (state: PlanState) =>
-        reminderDecision(state, 'concurrent-same-key');
+        reminderDecision(state, opaqueKey('concurrent-same-key'));
 
       const results = await Promise.all([
         store.transact(
           plan.planId,
-          'concurrent-same-key',
+          opaqueKey('concurrent-same-key'),
+          ADVANCE_FINGERPRINT,
           () => undefined,
           decide,
         ),
         store.transact(
           plan.planId,
-          'concurrent-same-key',
+          opaqueKey('concurrent-same-key'),
+          ADVANCE_FINGERPRINT,
           () => undefined,
           decide,
         ),
@@ -251,7 +330,8 @@ function storeContract(name: string, factory: StoreFactory): void {
       await expect(
         store.transact(
           plan.planId,
-          'crash-retry',
+          opaqueKey('crash-retry'),
+          ADVANCE_FINGERPRINT,
           () => undefined,
           () => {
             throw new Error('synthetic crash');
@@ -260,14 +340,63 @@ function storeContract(name: string, factory: StoreFactory): void {
       ).rejects.toThrow('synthetic crash');
       const retried = await store.transact(
         plan.planId,
-        'crash-retry',
+        opaqueKey('crash-retry'),
+        ADVANCE_FINGERPRINT,
         () => undefined,
-        (state) => reminderDecision(state, 'crash-retry'),
+        (state) => reminderDecision(state, opaqueKey('crash-retry')),
       );
 
       expect(retried.duplicate).toBe(false);
       expect(retried.state.cycle.stage).toBe('reminder');
       expect(await store.audit(plan.planId)).toHaveLength(4);
+    });
+
+    it('rejects a decision that does not bind its persisted command identity', async () => {
+      const store = await open();
+      const plan = makePlan();
+      await store.initialize(plan);
+
+      await expect(
+        store.transact(
+          plan.planId,
+          opaqueKey('unbound-command'),
+          ADVANCE_FINGERPRINT,
+          () => undefined,
+          (state) => state,
+        ),
+      ).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
+      expect(await store.read(plan.planId)).toEqual(plan);
+      expect(await store.audit(plan.planId)).toHaveLength(plan.events.length);
+    });
+
+    it('rejects a decision that appends an extra command identity', async () => {
+      const store = await open();
+      const plan = makePlan();
+      await store.initialize(plan);
+      const commandKey = opaqueKey('requested-command');
+      const extraKey = opaqueKey('smuggled-command');
+
+      await expect(
+        store.transact(
+          plan.planId,
+          commandKey,
+          ADVANCE_FINGERPRINT,
+          () => undefined,
+          (state) => {
+            const decided = reminderDecision(state, commandKey);
+            return {
+              ...decided,
+              processedCommandKeys: [...decided.processedCommandKeys, extraKey],
+              processedCommandFingerprints: {
+                ...decided.processedCommandFingerprints,
+                [extraKey]: ADVANCE_FINGERPRINT,
+              },
+            };
+          },
+        ),
+      ).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
+      expect(await store.read(plan.planId)).toEqual(plan);
+      expect(await store.audit(plan.planId)).toHaveLength(plan.events.length);
     });
 
     it('restores a portable snapshot into read-only restore-safe mode', async () => {
@@ -276,9 +405,10 @@ function storeContract(name: string, factory: StoreFactory): void {
       await live.initialize(plan);
       await live.transact(
         plan.planId,
-        'scheduler-reminder',
+        opaqueKey('scheduler-reminder'),
+        ADVANCE_FINGERPRINT,
         () => undefined,
-        (state) => reminderDecision(state, 'scheduler-reminder'),
+        (state) => reminderDecision(state, opaqueKey('scheduler-reminder')),
       );
       const snapshot = await live.exportSnapshot();
 
@@ -293,11 +423,32 @@ function storeContract(name: string, factory: StoreFactory): void {
       await expect(
         restored.transact(
           plan.planId,
-          'must-not-run',
+          opaqueKey('must-not-run'),
+          ADVANCE_FINGERPRINT,
           () => undefined,
           (state) => state,
         ),
       ).rejects.toMatchObject({ code: 'RESTORE_SAFE_MODE' });
+    });
+
+    it('exports a transactionally consistent snapshot during a write', async () => {
+      const store = await open();
+      const plan = makePlan();
+      await store.initialize(plan);
+      const commandKey = opaqueKey('snapshot-race');
+
+      const [snapshot] = await Promise.all([
+        store.exportSnapshot(),
+        store.transact(
+          plan.planId,
+          commandKey,
+          ADVANCE_FINGERPRINT,
+          () => undefined,
+          (state) => reminderDecision(state, commandKey),
+        ),
+      ]);
+      const restored = await open('restore_safe');
+      await expect(restored.restoreSnapshot(snapshot)).resolves.toBeUndefined();
     });
 
     it('rejects a restore whose audit no longer matches Plan state', async () => {

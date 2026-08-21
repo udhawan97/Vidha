@@ -14,26 +14,26 @@
 
 ## Compared models
 
-| Concern                  | SQLite-compatible model                                                                               | PostgreSQL model exercised through PGlite                                                                           |
-| ------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Transaction shape        | `BEGIN IMMEDIATE` serializes the Plan read/decide/write sequence on one connection                    | `transaction` plus `SELECT … FOR UPDATE` serializes each Plan command                                               |
-| Semantic uniqueness      | Composite primary key on `(plan_id, command_key)` and unique Plan audit ordinal                       | Equivalent primary and unique constraints                                                                           |
-| Concurrent writer model  | One writer; callers must handle busy/operational retry when multiple production connections are added | Real PostgreSQL can run concurrent writers but serializable/lock conflicts require whole-transaction retry          |
-| Local/self-host leverage | Single-file operation is attractive for small self-hosts                                              | Operational server, connection pool, roles, upgrades, and backups are heavier but align with multi-instance hosting |
-| Backup direction         | Online backup or `VACUUM INTO`; logical Vidha snapshot is test-only                                   | `pg_dump`/`pg_restore` or provider-native backups; logical Vidha snapshot is test-only                              |
-| Current proof            | Node SQLite in memory under the shared contract suite                                                 | PGlite in memory under the shared contract suite; this is not a real-server load, failover, or operations test      |
+| Concern                  | SQLite-compatible model                                                                                       | PostgreSQL model exercised through PGlite                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Transaction shape        | `BEGIN IMMEDIATE` serializes the Plan read/decide/write sequence on one connection                            | `transaction` plus `SELECT … FOR UPDATE` serializes each Plan command                                               |
+| Semantic uniqueness      | Composite primary key on `(plan_id, command_key)`, a bound command fingerprint, and unique Plan audit ordinal | Equivalent primary and unique constraints; conflicting fingerprint reuse fails closed                               |
+| Concurrent writer model  | One writer; callers must handle busy/operational retry when multiple production connections are added         | Real PostgreSQL can run concurrent writers but serializable/lock conflicts require whole-transaction retry          |
+| Local/self-host leverage | Single-file operation is attractive for small self-hosts                                                      | Operational server, connection pool, roles, upgrades, and backups are heavier but align with multi-instance hosting |
+| Backup direction         | Online backup or `VACUUM INTO`; logical Vidha snapshot is test-only                                           | `pg_dump`/`pg_restore` or provider-native backups; logical Vidha snapshot is test-only                              |
+| Current proof            | Node SQLite in memory under the shared contract suite                                                         | PGlite in memory under the shared contract suite; this is not a real-server load, failover, or operations test      |
 
 ## Implemented common interface
 
 Both SQL adapters and the browser's in-memory adapter support:
 
 1. initialize and read one synthetic Plan;
-2. atomically load, decide, record a unique semantic command, replace state, and append new audit events;
-3. return the already-committed state without re-running a duplicate decision;
-4. export and restore a versioned logical snapshot; and
+2. atomically load, authorize, decide, record an opaque command identifier and semantic fingerprint, replace state, and append new audit events;
+3. return the already-committed state without re-running a matching duplicate decision, while rejecting a reused identifier with different semantics;
+4. export one transactionally consistent versioned logical snapshot that contains no caller-supplied command keys, then validate and restore it; and
 5. open restored data in restore-safe mode, which permits inspection but rejects state-changing transactions.
 
-The shared schema intent is migration version 1, Plan state JSON, unique processed commands, and append-only ordered audit events. SQL syntax is adapter-specific; behavioral parity is the contract.
+The shared pre-alpha schema baseline is migration version 1, Plan state JSON, unique processed commands with semantic fingerprints, and append-only ordered audit events. SQL syntax is adapter-specific; behavioral parity is the contract. This remains a disposable-data baseline, not evidence of an upgrade path from a deployed schema.
 
 ## Decision withheld
 

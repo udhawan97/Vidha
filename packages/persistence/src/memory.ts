@@ -4,6 +4,8 @@ import {
   PLAN_STORE_SCHEMA_VERSION,
   PlanStoreError,
   assertLive,
+  assertPlanTransition,
+  assertPortablePlanState,
   assertSnapshot,
   auditRecord,
   cloneState,
@@ -30,6 +32,7 @@ export class MemoryPlanStore implements PortablePlanStore {
 
   async initialize(state: PlanState): Promise<void> {
     assertLive(this.mode);
+    assertPortablePlanState(state);
     if (this.plans.has(state.planId)) {
       throw new PlanStoreError('ALREADY_EXISTS', 'The Plan already exists.');
     }
@@ -44,6 +47,7 @@ export class MemoryPlanStore implements PortablePlanStore {
   async transact(
     planId: string,
     commandKey: string,
+    commandFingerprint: string,
     authorize: (state: PlanState) => void,
     decide: (state: PlanState) => PlanState,
   ) {
@@ -54,11 +58,19 @@ export class MemoryPlanStore implements PortablePlanStore {
     }
     authorize(cloneState(state));
     const storageKey = commandStorageKey(planId, commandKey);
-    if (this.commands.has(storageKey)) {
+    const existing = this.commands.get(storageKey);
+    if (existing !== undefined) {
+      if (existing.commandFingerprint !== commandFingerprint) {
+        throw new PlanStoreError(
+          'IDEMPOTENCY_CONFLICT',
+          'An idempotency key cannot be reused for different command semantics.',
+        );
+      }
       return { state: cloneState(state), duplicate: true };
     }
 
     const next = decide(cloneState(state));
+    assertPlanTransition(state, next, commandKey, commandFingerprint);
     const processedAt = next.lastCommandAt;
     const previousEventCount = state.events.length;
     const nextAudit = [
@@ -70,7 +82,12 @@ export class MemoryPlanStore implements PortablePlanStore {
         ),
     ];
     this.plans.set(planId, cloneState(next));
-    this.commands.set(storageKey, { planId, commandKey, processedAt });
+    this.commands.set(storageKey, {
+      planId,
+      commandKey,
+      commandFingerprint,
+      processedAt,
+    });
     this.auditEvents.set(planId, nextAudit);
     return { state: cloneState(next), duplicate: false };
   }
@@ -119,6 +136,8 @@ export class MemoryPlanStore implements PortablePlanStore {
       this.commands.set(commandStorageKey(state.planId, commandKey), {
         planId: state.planId,
         commandKey,
+        commandFingerprint:
+          state.processedCommandFingerprints[commandKey] ?? '',
         processedAt: state.lastCommandAt,
       });
     });

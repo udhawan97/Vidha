@@ -5,6 +5,8 @@ import type { PlanState } from '@vidha/domain';
 import {
   PlanStoreError,
   assertLive,
+  assertPlanTransition,
+  assertPortablePlanState,
   assertSnapshot,
   cloneState,
   type AuditRecord,
@@ -27,6 +29,7 @@ const SQLITE_MIGRATION = `
   CREATE TABLE IF NOT EXISTS processed_commands (
     plan_id TEXT NOT NULL,
     command_key TEXT NOT NULL,
+    command_fingerprint TEXT NOT NULL,
     processed_at INTEGER NOT NULL,
     PRIMARY KEY (plan_id, command_key),
     FOREIGN KEY (plan_id) REFERENCES plans(plan_id)
@@ -67,6 +70,7 @@ export class SqlitePlanStore implements PortablePlanStore {
 
   async initialize(state: PlanState): Promise<void> {
     assertLive(this.mode);
+    assertPortablePlanState(state);
     this.withTransaction(() => {
       const existing = this.database
         .prepare('SELECT 1 AS found FROM plans WHERE plan_id = ?')
@@ -88,6 +92,7 @@ export class SqlitePlanStore implements PortablePlanStore {
   async transact(
     planId: string,
     commandKey: string,
+    commandFingerprint: string,
     authorize: (state: PlanState) => void,
     decide: (state: PlanState) => PlanState,
   ) {
@@ -103,19 +108,26 @@ export class SqlitePlanStore implements PortablePlanStore {
       authorize(cloneState(state));
       const duplicate = this.database
         .prepare(
-          'SELECT 1 AS found FROM processed_commands WHERE plan_id = ? AND command_key = ?',
+          'SELECT command_fingerprint FROM processed_commands WHERE plan_id = ? AND command_key = ?',
         )
-        .get(planId, commandKey);
+        .get(planId, commandKey) as { command_fingerprint: string } | undefined;
       if (duplicate !== undefined) {
+        if (duplicate.command_fingerprint !== commandFingerprint) {
+          throw new PlanStoreError(
+            'IDEMPOTENCY_CONFLICT',
+            'An idempotency key cannot be reused for different command semantics.',
+          );
+        }
         return { state, duplicate: true };
       }
 
       const next = decide(cloneState(state));
+      assertPlanTransition(state, next, commandKey, commandFingerprint);
       this.database
         .prepare(
-          'INSERT INTO processed_commands(plan_id, command_key, processed_at) VALUES (?, ?, ?)',
+          'INSERT INTO processed_commands(plan_id, command_key, command_fingerprint, processed_at) VALUES (?, ?, ?, ?)',
         )
-        .run(planId, commandKey, next.lastCommandAt);
+        .run(planId, commandKey, commandFingerprint, next.lastCommandAt);
       this.database
         .prepare('UPDATE plans SET state_json = ? WHERE plan_id = ?')
         .run(JSON.stringify(next), planId);
@@ -140,7 +152,7 @@ export class SqlitePlanStore implements PortablePlanStore {
       .all() as unknown as { state_json: string }[];
     const commandRows = this.database
       .prepare(
-        `SELECT plan_id, command_key, processed_at
+        `SELECT plan_id, command_key, command_fingerprint, processed_at
          FROM processed_commands ORDER BY plan_id, command_key`,
       )
       .all() as unknown as SqliteCommandRow[];
@@ -180,9 +192,14 @@ export class SqlitePlanStore implements PortablePlanStore {
       for (const command of snapshot.processedCommands) {
         this.database
           .prepare(
-            'INSERT INTO processed_commands(plan_id, command_key, processed_at) VALUES (?, ?, ?)',
+            'INSERT INTO processed_commands(plan_id, command_key, command_fingerprint, processed_at) VALUES (?, ?, ?, ?)',
           )
-          .run(command.planId, command.commandKey, command.processedAt);
+          .run(
+            command.planId,
+            command.commandKey,
+            command.commandFingerprint,
+            command.processedAt,
+          );
       }
       for (const event of snapshot.auditEvents) {
         this.insertAudit(event);
@@ -211,11 +228,18 @@ export class SqlitePlanStore implements PortablePlanStore {
       .prepare('INSERT INTO plans(plan_id, state_json) VALUES (?, ?)')
       .run(state.planId, JSON.stringify(state));
     for (const commandKey of state.processedCommandKeys) {
+      const commandFingerprint = state.processedCommandFingerprints[commandKey];
+      if (commandFingerprint === undefined) {
+        throw new PlanStoreError(
+          'INVALID_SNAPSHOT',
+          'Plan command identifiers must be fingerprinted.',
+        );
+      }
       this.database
         .prepare(
-          'INSERT INTO processed_commands(plan_id, command_key, processed_at) VALUES (?, ?, ?)',
+          'INSERT INTO processed_commands(plan_id, command_key, command_fingerprint, processed_at) VALUES (?, ?, ?, ?)',
         )
-        .run(state.planId, commandKey, state.lastCommandAt);
+        .run(state.planId, commandKey, commandFingerprint, state.lastCommandAt);
     }
     this.insertAuditRange(state, 0);
   }
@@ -264,6 +288,7 @@ interface SqliteAuditRow {
 interface SqliteCommandRow {
   readonly plan_id: string;
   readonly command_key: string;
+  readonly command_fingerprint: string;
   readonly processed_at: number;
 }
 
@@ -281,6 +306,7 @@ function mapCommandRow(row: SqliteCommandRow): ProcessedCommandRecord {
   return {
     planId: row.plan_id,
     commandKey: row.command_key,
+    commandFingerprint: row.command_fingerprint,
     processedAt: Number(row.processed_at),
   };
 }
