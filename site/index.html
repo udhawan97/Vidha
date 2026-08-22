@@ -1,233 +1,400 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vidha — a careful contingency relay</title>
-<meta name="description" content="Vidha is a pre-alpha open-source project designing a contingency relay: recipient-specific letters and documents, released only through missed check-ins and human verification — never a timer alone.">
-<link rel="icon" href="vidha-mark.svg" type="image/svg+xml">
-<link rel="icon" href="pwa-192.png" type="image/png" sizes="192x192">
-<style>
-  /*
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vidha — a careful contingency relay</title>
+    <meta
+      name="description"
+      content="Vidha is a pre-alpha open-source project designing a contingency relay: recipient-specific letters and documents, released only through missed check-ins and human verification — never a timer alone."
+    />
+    <link rel="icon" href="vidha-mark.svg" type="image/svg+xml" />
+    <link rel="icon" href="pwa-192.png" type="image/png" sizes="192x192" />
+    <style>
+      /*
    * Palette derives from the provisional Continuity Span mark:
    * pine #1f565b on cream #fbfdfc. Light theme by default, dark via
    * prefers-color-scheme. No external assets, fonts, or scripts.
    */
-  :root {
-    --pine: #1f565b;
-    --pine-deep: #14383c;
-    --cream: #fbfdfc;
-    --bg: #f4f8f6;
-    --surface: #fbfdfc;
-    --ink: #14282a;
-    --muted: #47656a;
-    --line: #d5e2df;
-    --accent: #1f565b;
-    --pill-bg: #e4efec;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0e2427;
-      --surface: #122e31;
-      --ink: #eef6f4;
-      --muted: #a3c2c0;
-      --line: #235156;
-      --accent: #8fc6c2;
-      --pill-bg: #17393d;
-    }
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: var(--bg); color: var(--ink);
-    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 780px; margin: 0 auto; padding: 0 22px; }
-  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+      :root {
+        --pine: #1f565b;
+        --pine-deep: #14383c;
+        --cream: #fbfdfc;
+        --bg: #f4f8f6;
+        --surface: #fbfdfc;
+        --ink: #14282a;
+        --muted: #47656a;
+        --line: #d5e2df;
+        --accent: #1f565b;
+        --pill-bg: #e4efec;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0e2427;
+          --surface: #122e31;
+          --ink: #eef6f4;
+          --muted: #a3c2c0;
+          --line: #235156;
+          --accent: #8fc6c2;
+          --pill-bg: #17393d;
+        }
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          17px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Inter,
+          Helvetica,
+          Arial,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 780px;
+        margin: 0 auto;
+        padding: 0 22px;
+      }
+      a {
+        color: var(--accent);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+      }
 
-  header.site {
-    display: flex; align-items: center; gap: 12px; padding: 26px 0 0;
-  }
-  header.site img { width: 42px; height: 42px; border-radius: 10px; }
-  header.site b { font-size: 20px; letter-spacing: -.01em; }
-  .pill {
-    margin-left: auto; padding: 5px 12px; border-radius: 99px;
-    background: var(--pill-bg); color: var(--accent);
-    font-size: 12.5px; font-weight: 600; letter-spacing: .02em; white-space: nowrap;
-  }
+      header.site {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 26px 0 0;
+      }
+      header.site img {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+      }
+      header.site b {
+        font-size: 20px;
+        letter-spacing: -0.01em;
+      }
+      .pill {
+        margin-left: auto;
+        padding: 5px 12px;
+        border-radius: 99px;
+        background: var(--pill-bg);
+        color: var(--accent);
+        font-size: 12.5px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
 
-  .hero { padding: 58px 0 8px; }
-  h1 {
-    font-size: clamp(34px, 6vw, 52px); line-height: 1.08;
-    letter-spacing: -.025em; font-weight: 750;
-  }
-  .lede { margin-top: 20px; font-size: 19px; color: var(--muted); max-width: 640px; }
-  .lede strong { color: var(--ink); font-weight: 600; }
+      .hero {
+        padding: 58px 0 8px;
+      }
+      h1 {
+        font-size: clamp(34px, 6vw, 52px);
+        line-height: 1.08;
+        letter-spacing: -0.025em;
+        font-weight: 750;
+      }
+      .lede {
+        margin-top: 20px;
+        font-size: 19px;
+        color: var(--muted);
+        max-width: 640px;
+      }
+      .lede strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
 
-  .status {
-    margin: 34px 0 0; padding: 16px 18px; border-radius: 14px;
-    background: var(--surface); border: 1px solid var(--line);
-    font-size: 15.5px; color: var(--muted);
-  }
-  .status b { color: var(--ink); }
+      .status {
+        margin: 34px 0 0;
+        padding: 16px 18px;
+        border-radius: 14px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        font-size: 15.5px;
+        color: var(--muted);
+      }
+      .status b {
+        color: var(--ink);
+      }
 
-  section { padding: 46px 0 0; }
-  h2 {
-    font-size: 14px; letter-spacing: .1em; text-transform: uppercase;
-    color: var(--accent); font-weight: 700; margin-bottom: 18px;
-  }
-  .steps { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; counter-reset: step; }
-  .step {
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: 14px; padding: 18px;
-  }
-  .step::before {
-    counter-increment: step; content: counter(step, decimal-leading-zero);
-    display: block; font-size: 12.5px; font-weight: 700; letter-spacing: .08em;
-    color: var(--accent); margin-bottom: 8px;
-  }
-  .step b { display: block; margin-bottom: 6px; font-size: 16.5px; }
-  .step p { font-size: 14.8px; color: var(--muted); }
+      section {
+        padding: 46px 0 0;
+      }
+      h2 {
+        font-size: 14px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin-bottom: 18px;
+      }
+      .steps {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        counter-reset: step;
+      }
+      .step {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+      }
+      .step::before {
+        counter-increment: step;
+        content: counter(step, decimal-leading-zero);
+        display: block;
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: var(--accent);
+        margin-bottom: 8px;
+      }
+      .step b {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 16.5px;
+      }
+      .step p {
+        font-size: 14.8px;
+        color: var(--muted);
+      }
 
-  ul.lines { list-style: none; }
-  ul.lines li {
-    padding: 11px 0 11px 26px; position: relative;
-    border-bottom: 1px solid var(--line); font-size: 16px;
-  }
-  ul.lines li:last-child { border-bottom: 0; }
-  ul.lines li::before {
-    content: ""; position: absolute; left: 4px; top: 1.35em;
-    width: 8px; height: 8px; border-radius: 50%;
-    border: 2px solid var(--accent);
-  }
+      ul.lines {
+        list-style: none;
+      }
+      ul.lines li {
+        padding: 11px 0 11px 26px;
+        position: relative;
+        border-bottom: 1px solid var(--line);
+        font-size: 16px;
+      }
+      ul.lines li:last-child {
+        border-bottom: 0;
+      }
+      ul.lines li::before {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 1.35em;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 2px solid var(--accent);
+      }
 
-  .diff { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 26px; }
-  .diff div { padding: 12px 0; }
-  .diff b { display: block; margin-bottom: 4px; font-size: 16.5px; }
-  .diff p { font-size: 14.8px; color: var(--muted); }
+      .diff {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px 26px;
+      }
+      .diff div {
+        padding: 12px 0;
+      }
+      .diff b {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 16.5px;
+      }
+      .diff p {
+        font-size: 14.8px;
+        color: var(--muted);
+      }
 
-  .docs { display: flex; flex-wrap: wrap; gap: 10px; }
-  .docs a {
-    padding: 9px 16px; border-radius: 99px; text-decoration: none;
-    border: 1px solid var(--line); background: var(--surface);
-    color: var(--ink); font-size: 14.5px; font-weight: 600;
-  }
-  .docs a:hover { border-color: var(--accent); color: var(--accent); }
+      .docs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .docs a {
+        padding: 9px 16px;
+        border-radius: 99px;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+        font-size: 14.5px;
+        font-weight: 600;
+      }
+      .docs a:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
 
-  footer {
-    margin-top: 64px; padding: 26px 0 44px; border-top: 1px solid var(--line);
-    font-size: 13.5px; color: var(--muted);
-  }
-  footer p + p { margin-top: 6px; }
+      footer {
+        margin-top: 64px;
+        padding: 26px 0 44px;
+        border-top: 1px solid var(--line);
+        font-size: 13.5px;
+        color: var(--muted);
+      }
+      footer p + p {
+        margin-top: 6px;
+      }
 
-  @media (max-width: 620px) {
-    .steps, .diff { grid-template-columns: 1fr; }
-    .hero { padding-top: 44px; }
-    .pill { font-size: 11px; }
-  }
-</style>
-</head>
-<body>
-<div class="wrap">
+      @media (max-width: 620px) {
+        .steps,
+        .diff {
+          grid-template-columns: 1fr;
+        }
+        .hero {
+          padding-top: 44px;
+        }
+        .pill {
+          font-size: 11px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site">
+        <img src="vidha-mark.svg" alt="" width="42" height="42" />
+        <b>Vidha</b>
+        <span class="pill">Pre-alpha · built in the open</span>
+      </header>
 
-  <header class="site">
-    <img src="vidha-mark.svg" alt="" width="42" height="42">
-    <b>Vidha</b>
-    <span class="pill">Pre-alpha · built in the open</span>
-  </header>
-
-  <div class="hero">
-    <h1>Prepare what matters.<br>Release it carefully.</h1>
-    <p class="lede">
-      Vidha is an open-source <strong>contingency relay</strong> being designed for one
-      person — the Owner — who wants selected people to receive private letters and
-      documents if they ever become persistently unreachable. Silence starts a question
-      for trusted humans. <strong>It is never treated as proof of death.</strong>
-    </p>
-  </div>
-
-  <p class="status">
-    <b>Where this stands:</b> Vidha is pre-alpha. There is no hosted service, download,
-    or release yet — this page describes the design. The repository holds a runnable
-    synthetic prototype, the decision records behind it, and their tests.
-  </p>
-
-  <section>
-    <h2>Designed to work like this</h2>
-    <div class="steps">
-      <div class="step">
-        <b>Prepare</b>
-        <p>Write or import material in a focused workspace and seal it into
-        recipient-specific Envelopes, each with its own Release Policy.</p>
+      <div class="hero">
+        <h1>Prepare what matters.<br />Release it carefully.</h1>
+        <p class="lede">
+          Vidha is an open-source <strong>contingency relay</strong> being
+          designed for one person — the Owner — who wants selected people to
+          receive private letters and documents if they ever become persistently
+          unreachable. Silence starts a question for trusted humans.
+          <strong>It is never treated as proof of death.</strong>
+        </p>
       </div>
-      <div class="step">
-        <b>Check in</b>
-        <p>Quick, authenticated Check-ins on the Owner’s schedule keep everything at
-        rest. An opened email or a scanned link never counts.</p>
-      </div>
-      <div class="step">
-        <b>Concern</b>
-        <p>A missed schedule moves through reminders and grace, then asks Guardians —
-        trusted people — for bounded attestations. No one is asked to declare death.</p>
-      </div>
-      <div class="step">
-        <b>Release</b>
-        <p>Only after verification and a final veto window does an Envelope reach its
-        Recipient. Notifications never carry the private content itself.</p>
-      </div>
+
+      <p class="status">
+        <b>Where this stands:</b> Vidha is pre-alpha. There is no hosted
+        service, download, or release yet — this page describes the design. The
+        repository holds a runnable synthetic prototype, the decision records
+        behind it, and their tests.
+      </p>
+
+      <section>
+        <h2>Designed to work like this</h2>
+        <div class="steps">
+          <div class="step">
+            <b>Prepare</b>
+            <p>
+              Write or import material in a focused workspace and seal it into
+              recipient-specific Envelopes, each with its own Release Policy.
+            </p>
+          </div>
+          <div class="step">
+            <b>Check in</b>
+            <p>
+              Quick, authenticated Check-ins on the Owner’s schedule keep
+              everything at rest. An opened email or a scanned link never
+              counts.
+            </p>
+          </div>
+          <div class="step">
+            <b>Concern</b>
+            <p>
+              A missed schedule moves through reminders and grace, then asks
+              Guardians — trusted people — for bounded attestations. No one is
+              asked to declare death.
+            </p>
+          </div>
+          <div class="step">
+            <b>Release</b>
+            <p>
+              Only after verification and a final veto window does an Envelope
+              reach its Recipient. Notifications never carry the private content
+              itself.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>The lines it will not cross</h2>
+        <ul class="lines">
+          <li>Vidha never claims an Owner has died.</li>
+          <li>
+            Nothing is released because an email was opened or a timer ran out
+            on its own.
+          </li>
+          <li>Emails and texts are notifications, not the vault.</li>
+          <li>
+            No AI or probabilistic system decides Check-in, Concern, or Release.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>What will make it different</h2>
+        <div class="diff">
+          <div>
+            <b>Document-first</b>
+            <p>
+              Writing and importing are the core experience, not an attachment
+              afterthought.
+            </p>
+          </div>
+          <div>
+            <b>A policy per Envelope</b>
+            <p>
+              Practical instructions and deeply private letters need not share
+              release conditions.
+            </p>
+          </div>
+          <div>
+            <b>People, not timers</b>
+            <p>
+              Human verification is the default; an automatic fallback is a
+              deliberate, per-Envelope choice.
+            </p>
+          </div>
+          <div>
+            <b>Yours to run</b>
+            <p>
+              AGPL-3.0 and self-hostable by design, with replaceable delivery
+              and hosting adapters.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Read the design</h2>
+        <div class="docs">
+          <a href="https://github.com/udhawan97/Vidha">Repository</a>
+          <a
+            href="https://github.com/udhawan97/Vidha/blob/main/docs/product/PRODUCT_BRIEF.md"
+            >Product brief</a
+          >
+          <a
+            href="https://github.com/udhawan97/Vidha/blob/main/docs/security/THREAT_MODEL.md"
+            >Threat model</a
+          >
+          <a
+            href="https://github.com/udhawan97/Vidha/blob/main/docs/release/V1_RELEASE_GATES.md"
+            >V1 release gates</a
+          >
+        </div>
+      </section>
+
+      <footer>
+        <p>“Vidha” is a provisional working name with no exclusivity claim.</p>
+        <p>
+          AGPL-3.0 · A project by Umang Dhawan — more builds at
+          <a href="https://udhawan97.github.io">udhawan97.github.io</a>.
+        </p>
+      </footer>
     </div>
-  </section>
-
-  <section>
-    <h2>The lines it will not cross</h2>
-    <ul class="lines">
-      <li>Vidha never claims an Owner has died.</li>
-      <li>Nothing is released because an email was opened or a timer ran out on its own.</li>
-      <li>Emails and texts are notifications, not the vault.</li>
-      <li>No AI or probabilistic system decides Check-in, Concern, or Release.</li>
-    </ul>
-  </section>
-
-  <section>
-    <h2>What will make it different</h2>
-    <div class="diff">
-      <div>
-        <b>Document-first</b>
-        <p>Writing and importing are the core experience, not an attachment afterthought.</p>
-      </div>
-      <div>
-        <b>A policy per Envelope</b>
-        <p>Practical instructions and deeply private letters need not share release conditions.</p>
-      </div>
-      <div>
-        <b>People, not timers</b>
-        <p>Human verification is the default; an automatic fallback is a deliberate,
-        per-Envelope choice.</p>
-      </div>
-      <div>
-        <b>Yours to run</b>
-        <p>AGPL-3.0 and self-hostable by design, with replaceable delivery and hosting
-        adapters.</p>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <h2>Read the design</h2>
-    <div class="docs">
-      <a href="https://github.com/udhawan97/Vidha">Repository</a>
-      <a href="https://github.com/udhawan97/Vidha/blob/main/docs/product/PRODUCT_BRIEF.md">Product brief</a>
-      <a href="https://github.com/udhawan97/Vidha/blob/main/docs/security/THREAT_MODEL.md">Threat model</a>
-      <a href="https://github.com/udhawan97/Vidha/blob/main/docs/release/V1_RELEASE_GATES.md">V1 release gates</a>
-    </div>
-  </section>
-
-  <footer>
-    <p>“Vidha” is a provisional working name with no exclusivity claim.</p>
-    <p>AGPL-3.0 · A project by Umang Dhawan — more builds at
-      <a href="https://udhawan97.github.io">udhawan97.github.io</a>.</p>
-  </footer>
-
-</div>
-</body>
+  </body>
 </html>
