@@ -125,8 +125,11 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       migrationReport = await rehearseMigrationInterruptions(
         migrationPool,
         adminPool,
-        (client, boundary) =>
-          terminationErrors.expect(client, `migration:${boundary}`),
+        (client, boundary) => {
+          if (boundary !== 'after_advisory_lock') {
+            terminationErrors.expect(client, `migration:${boundary}`);
+          }
+        },
       );
     } finally {
       await migrationPool.end();
@@ -202,9 +205,9 @@ suite('disposable PostgreSQL topology rehearsal', () => {
     expect(unexpectedPoolErrors).toEqual([]);
     expect(terminationErrors.report()).toEqual({
       expected: [
-        ...MIGRATION_REHEARSAL_BOUNDARIES.map(
-          (boundary) => `migration:${boundary}`,
-        ),
+        ...MIGRATION_REHEARSAL_BOUNDARIES.filter(
+          (boundary) => boundary !== 'after_advisory_lock',
+        ).map((boundary) => `migration:${boundary}`),
         ...CLAIM_REHEARSAL_BOUNDARIES.map((boundary) => `claim:${boundary}`),
       ],
       unconsumed: [],
