@@ -55,7 +55,7 @@ services:
       dockerfile: infra/Dockerfile
     environment:
       <<: *runtime_environment
-      DATABASE_URL: postgres://vidha_worker:disposable_worker_fixture_only@postgres:5432/vidha_fixture
+      DATABASE_URL: postgres://vidha_worker:disposable_worker_fixture_only@postgres:5432/vidha_fixture?query_timeout=5000
       VIDHA_ROLE: worker
     depends_on:
       migrate:
