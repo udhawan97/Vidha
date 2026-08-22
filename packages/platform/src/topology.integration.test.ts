@@ -118,9 +118,7 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       connectionString: ownerConnectionString,
       max: 1,
     });
-    migrationPool.on('error', (error) =>
-      recordUnexpectedPoolError(error, unexpectedPoolErrors),
-    );
+    capturePoolConnectionErrors(migrationPool, unexpectedPoolErrors);
     try {
       migrationReport = await rehearseMigrationInterruptions(
         migrationPool,
@@ -158,9 +156,7 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       connectionString: workerConnectionString,
       max: 6,
     });
-    workerPool.on('error', (error) =>
-      recordUnexpectedPoolError(error, unexpectedPoolErrors),
-    );
+    capturePoolConnectionErrors(workerPool, unexpectedPoolErrors);
   }, 120_000);
 
   afterAll(async () => {
@@ -364,4 +360,11 @@ function recordUnexpectedPoolError(error: Error, unexpected: Error[]): void {
     return;
   }
   unexpected.push(error);
+}
+
+function capturePoolConnectionErrors(pool: Pool, unexpected: Error[]): void {
+  const capture = (error: Error) =>
+    recordUnexpectedPoolError(error, unexpected);
+  pool.on('connect', (client) => client.on('error', capture));
+  pool.on('error', capture);
 }
