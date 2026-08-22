@@ -69,7 +69,7 @@ worker_id=$("${compose[@]}" ps -q worker)
 postgres_id=$("${compose[@]}" ps -q postgres)
 test "$(docker inspect --format '{{.Config.User}}' "$api_id")" = node
 test "$(docker inspect --format '{{.Config.User}}' "$worker_id")" = node
-test "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/18/docker"}}{{.Type}}{{end}}{{end}}' "$postgres_id")" = tmpfs
+test "$(docker inspect --format '{{json .HostConfig.Tmpfs}}' "$postgres_id")" = '{"/var/lib/postgresql/18/docker":""}'
 
 roles=''
 roles_observed=false
