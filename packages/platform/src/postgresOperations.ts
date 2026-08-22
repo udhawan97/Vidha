@@ -288,6 +288,10 @@ export class PostgresOperationsStore implements OperationsStore {
 
 export async function rehearseClaimInterruptions(input: {
   readonly controlPool: Pool;
+  readonly expectTermination?: (
+    client: PoolClient,
+    boundary: ClaimRehearsalBoundary,
+  ) => void;
   readonly jobId: string;
   readonly leaseMs: number;
   readonly workerId: string;
@@ -324,8 +328,9 @@ export async function rehearseClaimInterruptions(input: {
           leaseMs: input.leaseMs,
           limit: 1,
         },
-        async (boundary, backendPid) => {
+        async (boundary, backendPid, client) => {
           if (boundary !== target) return;
+          input.expectTermination?.(client, target);
           const result = await input.controlPool.query<{ terminated: boolean }>(
             `SELECT pg_terminate_backend(pid) AS terminated
              FROM pg_stat_activity
@@ -419,6 +424,7 @@ export async function rehearseClaimInterruptions(input: {
 type ClaimObserver = (
   boundary: ClaimRehearsalBoundary,
   backendPid: number,
+  client: PoolClient,
 ) => Promise<void>;
 
 async function claimDueTransaction(
@@ -455,7 +461,7 @@ async function claimDueTransaction(
        LIMIT $2`,
         [now, input.limit],
       );
-      await observe('after_selection', backendPid);
+      await observe('after_selection', backendPid, client);
       const claimed: ClaimedSafetyJob[] = [];
       let wrote = false;
       for (const row of result.rows) {
@@ -471,7 +477,7 @@ async function claimDueTransaction(
           });
           if (!wrote) {
             wrote = true;
-            await observe('after_first_write', backendPid);
+            await observe('after_first_write', backendPid, client);
           }
           continue;
         }
@@ -490,18 +496,18 @@ async function claimDueTransaction(
         await writeJob(client, next);
         if (!wrote) {
           wrote = true;
-          await observe('after_first_write', backendPid);
+          await observe('after_first_write', backendPid, client);
         }
         claimed.push({ job: structuredClone(next), leaseId });
       }
-      await observe('before_commit', backendPid);
+      await observe('before_commit', backendPid, client);
       return claimed;
     },
-    async () => {
+    async (client) => {
       if (backendPid === undefined) {
         throw new Error('The claim transaction lost its backend identity.');
       }
-      await observe('after_commit', backendPid);
+      await observe('after_commit', backendPid, client);
     },
   );
 }

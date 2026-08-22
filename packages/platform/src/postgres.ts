@@ -192,6 +192,10 @@ export async function applyMigrations(pool: Pool): Promise<void> {
 export async function rehearseMigrationInterruptions(
   migrationPool: Pool,
   controlPool: Pool,
+  expectTermination: (
+    client: PoolClient,
+    boundary: MigrationRehearsalBoundary,
+  ) => void = () => undefined,
 ): Promise<MigrationRehearsalReport> {
   const existing = await migrationPool.query<{
     migration_ledger: string | null;
@@ -227,8 +231,9 @@ export async function rehearseMigrationInterruptions(
     try {
       await applyMigrationsTransaction(
         migrationPool,
-        async (boundary, backendPid) => {
+        async (boundary, backendPid, client) => {
           if (boundary !== target) return;
+          expectTermination(client, target);
           const result = await controlPool.query<{ terminated: boolean }>(
             `SELECT pg_terminate_backend(pid) AS terminated
              FROM pg_stat_activity
@@ -304,6 +309,7 @@ export async function rehearseMigrationInterruptions(
 type MigrationObserver = (
   boundary: MigrationRehearsalBoundary,
   backendPid: number,
+  client: PoolClient,
 ) => Promise<void>;
 
 async function applyMigrationsTransaction(
@@ -322,7 +328,7 @@ async function applyMigrationsTransaction(
     if (!Number.isSafeInteger(backendPid)) {
       throw new Error('PostgreSQL did not report a migrator backend PID.');
     }
-    await observe('after_advisory_lock', backendPid);
+    await observe('after_advisory_lock', backendPid, client);
     await client.query(`
       CREATE TABLE IF NOT EXISTS vidha_migrations (
         version INTEGER PRIMARY KEY,
@@ -331,7 +337,7 @@ async function applyMigrationsTransaction(
         applied_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
       )
     `);
-    await observe('after_migration_ledger', backendPid);
+    await observe('after_migration_ledger', backendPid, client);
     for (const migration of platformMigrations) {
       const checksum = sha256(migration.sql);
       const existing = await client.query<{ checksum: string; name: string }>(
@@ -348,16 +354,16 @@ async function applyMigrationsTransaction(
         continue;
       }
       await client.query(migration.sql);
-      await observe('after_migration_sql', backendPid);
+      await observe('after_migration_sql', backendPid, client);
       await client.query(
         'INSERT INTO vidha_migrations(version, name, checksum) VALUES ($1, $2, $3)',
         [migration.version, migration.name, checksum],
       );
-      await observe('after_migration_record', backendPid);
+      await observe('after_migration_record', backendPid, client);
     }
-    await observe('before_commit', backendPid);
+    await observe('before_commit', backendPid, client);
     await client.query('COMMIT');
-    await observe('after_commit', backendPid);
+    await observe('after_commit', backendPid, client);
   } catch (error) {
     try {
       await client.query('ROLLBACK');

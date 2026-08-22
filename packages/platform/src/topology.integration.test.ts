@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import { OperationsError, type SafetyJobIntent } from '@vidha/operations';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 
 import {
   MIGRATION_REHEARSAL_BOUNDARIES,
@@ -63,12 +63,14 @@ suite('disposable PostgreSQL topology rehearsal', () => {
   let migrationReport: MigrationRehearsalReport;
   let databaseCreated = false;
   const unexpectedPoolErrors: Error[] = [];
+  const terminationErrors = createTerminationErrorTracker(unexpectedPoolErrors);
 
   beforeAll(async () => {
     adminPool = new Pool({
       application_name: 'vidha-topology-control',
       connectionString: connectionString ?? '',
     });
+    adminPool.on('error', (error) => unexpectedPoolErrors.push(error));
     const authority = await adminPool.query<{
       database_name: string;
       database_user: string;
@@ -118,11 +120,13 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       connectionString: ownerConnectionString,
       max: 1,
     });
-    capturePoolConnectionErrors(migrationPool, unexpectedPoolErrors);
+    terminationErrors.capture(migrationPool);
     try {
       migrationReport = await rehearseMigrationInterruptions(
         migrationPool,
         adminPool,
+        (client, boundary) =>
+          terminationErrors.expect(client, `migration:${boundary}`),
       );
     } finally {
       await migrationPool.end();
@@ -133,6 +137,7 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       environmentId: `environment_${'4'.repeat(64)}`,
       installationId: `installation_${'5'.repeat(64)}`,
       mode: 'live',
+      onPoolError: (error) => unexpectedPoolErrors.push(error),
     });
     const apiConnectionString = connectionForRole(
       ownerConnectionString,
@@ -150,13 +155,14 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       installationId: `installation_${'5'.repeat(64)}`,
       manageSchema: false,
       mode: 'live',
+      onPoolError: (error) => unexpectedPoolErrors.push(error),
     });
     workerPool = new Pool({
       application_name: 'vidha-topology-worker',
       connectionString: workerConnectionString,
       max: 6,
     });
-    capturePoolConnectionErrors(workerPool, unexpectedPoolErrors);
+    terminationErrors.capture(workerPool);
   }, 120_000);
 
   afterAll(async () => {
@@ -194,6 +200,15 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       throw rejected.reason;
     }
     expect(unexpectedPoolErrors).toEqual([]);
+    expect(terminationErrors.report()).toEqual({
+      expected: [
+        ...MIGRATION_REHEARSAL_BOUNDARIES.map(
+          (boundary) => `migration:${boundary}`,
+        ),
+        ...CLAIM_REHEARSAL_BOUNDARIES.map((boundary) => `claim:${boundary}`),
+      ],
+      unconsumed: [],
+    });
   });
 
   it('rolls back or replays all defined migration checkpoints', () => {
@@ -238,6 +253,8 @@ suite('disposable PostgreSQL topology rehearsal', () => {
 
     const rehearsal = await rehearseClaimInterruptions({
       controlPool: ownerPlatform.pool,
+      expectTermination: (client, boundary) =>
+        terminationErrors.expect(client, `claim:${boundary}`),
       jobId: JOB_ID,
       leaseMs: 40,
       workerId: 'worker_crash_fixture',
@@ -351,20 +368,47 @@ async function delay(milliseconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function recordUnexpectedPoolError(error: Error, unexpected: Error[]): void {
+function isExpectedTerminationError(error: Error): boolean {
   const code = (error as Error & { readonly code?: string }).code;
-  if (
-    code === '57P01' ||
-    error.message === 'Connection terminated unexpectedly'
-  ) {
-    return;
-  }
-  unexpected.push(error);
+  return (
+    code === '57P01' || error.message === 'Connection terminated unexpectedly'
+  );
 }
 
-function capturePoolConnectionErrors(pool: Pool, unexpected: Error[]): void {
-  const capture = (error: Error) =>
-    recordUnexpectedPoolError(error, unexpected);
-  pool.on('connect', (client) => client.on('error', capture));
-  pool.on('error', capture);
+function createTerminationErrorTracker(unexpected: Error[]) {
+  const expected = new Map<
+    PoolClient,
+    { readonly label: string; observed: boolean }
+  >();
+  const capture = (client: PoolClient, error: Error) => {
+    const allowance = expected.get(client);
+    if (allowance !== undefined && isExpectedTerminationError(error)) {
+      allowance.observed = true;
+      return;
+    }
+    unexpected.push(error);
+  };
+  return {
+    capture(pool: Pool) {
+      pool.on('connect', (client) =>
+        client.on('error', (error) => capture(client, error)),
+      );
+      pool.on('error', (error, client) => capture(client, error));
+    },
+    expect(client: PoolClient, label: string) {
+      if (expected.has(client)) {
+        throw new Error('A terminated PostgreSQL client was reused.');
+      }
+      expected.set(client, { label, observed: false });
+    },
+    report() {
+      const allowances = [...expected.values()];
+      return {
+        expected: allowances.map(({ label }) => label),
+        unconsumed: allowances
+          .filter(({ observed }) => !observed)
+          .map(({ label }) => label),
+      };
+    },
+  };
 }
