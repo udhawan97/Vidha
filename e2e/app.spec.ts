@@ -184,6 +184,82 @@ test('has no serious or critical automated accessibility violations', async ({
   expect(materialViolations).toEqual([]);
 });
 
+test('uses the motion-aware working-concept icon with a reduced-motion fallback', async ({
+  page,
+}) => {
+  const embeddedMark = page.locator('img[src="/vidha-mark.svg"]');
+  await expect(embeddedMark).toBeVisible();
+  await expect
+    .poll(() => embeddedMark.evaluate((image) => image.currentSrc))
+    .toContain('/vidha-mark.svg');
+  await expect(
+    page.locator('link[rel="icon"][media*="reduced-motion: reduce"]'),
+  ).toHaveAttribute('href', '/pwa-192.png');
+  await expect(
+    page.locator('link[rel="icon"][media*="reduced-motion: no-preference"]'),
+  ).toHaveAttribute('href', '/vidha-mark.svg');
+
+  await page.goto('/vidha-mark.svg');
+  const continuitySpan = page.locator('.continuity-span');
+  await expect(continuitySpan).toHaveCount(1);
+  await expect
+    .poll(() =>
+      continuitySpan.evaluate(
+        (element) => getComputedStyle(element).animationName,
+      ),
+    )
+    .toContain('relay-span');
+  await expect
+    .poll(() =>
+      continuitySpan.evaluate(
+        (element) => getComputedStyle(element).animationIterationCount,
+      ),
+    )
+    .toBe('1');
+
+  const openDestination = page.locator('.open-destination');
+  await expect
+    .poll(() =>
+      openDestination.evaluate(
+        (element) => getComputedStyle(element).animationName,
+      ),
+    )
+    .toContain('relay-arrival');
+  await expect
+    .poll(() =>
+      openDestination.evaluate(
+        (element) => getComputedStyle(element).animationIterationCount,
+      ),
+    )
+    .toBe('1');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect
+    .poll(() =>
+      continuitySpan.evaluate(
+        (element) => getComputedStyle(element).animationName,
+      ),
+    )
+    .toBe('none');
+  await expect
+    .poll(() =>
+      openDestination.evaluate(
+        (element) => getComputedStyle(element).animationName,
+      ),
+    )
+    .toBe('none');
+
+  await page.goto('/');
+  const reducedMark = page.locator('img[src="/vidha-mark.svg"]');
+  await expect(reducedMark).toBeVisible();
+  await expect
+    .poll(() => reducedMark.evaluate((image) => image.currentSrc))
+    .toContain('/pwa-192.png');
+  const reducedFrame = await reducedMark.screenshot();
+  await page.waitForTimeout(4_000);
+  expect((await reducedMark.screenshot()).equals(reducedFrame)).toBe(true);
+});
+
 test('fits the viewport and exposes installable PWA infrastructure', async ({
   page,
 }) => {

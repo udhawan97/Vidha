@@ -1,7 +1,76 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
-  <title id="title">Vidha continuity mark</title>
-  <rect width="512" height="512" rx="112" fill="#1f565b"/>
-  <path d="M118 166c58 0 71 180 138 180s80-180 138-180" fill="none" stroke="#f3e5bf" stroke-width="34" stroke-linecap="round"/>
-  <circle cx="118" cy="166" r="22" fill="#d9a84e"/>
-  <circle cx="394" cy="166" r="22" fill="#d9a84e"/>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">Vidha Continuity Span working-concept icon</title>
+  <desc id="description">
+    A held origin connected by one uninterrupted span to an open destination.
+    Vidha is a provisional working name.
+  </desc>
+  <style>
+    .continuity-span {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 0;
+      animation: relay-span 3.8s cubic-bezier(0.55, 0, 0.25, 1) 1 both;
+    }
+
+    .open-destination {
+      animation: relay-arrival 3.8s ease-in-out 1 both;
+    }
+
+    @keyframes relay-span {
+      0%,
+      8% {
+        stroke-dashoffset: 1;
+      }
+      62%,
+      100% {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes relay-arrival {
+      0%,
+      55% {
+        opacity: 0.28;
+      }
+      72%,
+      100% {
+        opacity: 1;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .continuity-span,
+      .open-destination {
+        animation: none;
+      }
+    }
+  </style>
+  <rect width="512" height="512" rx="112" fill="#1f565b" />
+  <g
+    transform="translate(102.4 102.4) scale(4.8)"
+    fill="#fbfdfc"
+    stroke="#fbfdfc"
+  >
+    <circle cx="12.5" cy="16.5" r="6.5" stroke="none" />
+    <path
+      class="continuity-span"
+      d="M12.5 16.5 C13.5 33 19.5 46.5 30 46.5 C39.5 46.5 43.8 34.5 46.3 22.8"
+      fill="none"
+      pathLength="1"
+      stroke-width="7"
+      stroke-linecap="round"
+    />
+    <circle
+      class="open-destination"
+      cx="51.5"
+      cy="16.5"
+      r="6.5"
+      fill="none"
+      stroke-width="4.5"
+    />
+  </g>
 </svg>

@@ -1,27 +1,68 @@
-# Vidha
+<p align="center">
+  <picture>
+    <source media="(prefers-reduced-motion: reduce)" srcset="apps/web/public/pwa-512.png" />
+    <img src="apps/web/public/vidha-mark.svg" width="112" alt="Vidha Continuity Span working-concept icon: a held origin connected to an open destination" />
+  </picture>
+</p>
 
-**Prepare what matters. Release it carefully.**
+<h1 align="center">Vidha</h1>
 
-Vidha is an open-source contingency relay for an individual who wants selected people to receive private messages or documents if they become persistently unreachable. It is designed around explicit Check-ins, human verification by default, recipient-specific Envelopes, and clear recovery trade-offs.
+<p align="center"><strong>Prepare what matters. Release it carefully.</strong></p>
 
-> **Pre-alpha:** this repository contains a runnable synthetic browser prototype and a Phase 3B disposable server foundation: a deterministic domain lifecycle through Concern, canonical session/recovery contracts, PostgreSQL 18 adapters, wrapped-key metadata fixtures, WebAuthn ceremony adapters, fenced durable work, and executable file/ClamAV/Pandoc gates. There are no real accounts, production credentials or key custody, durable personal-content storage, rootless conversion sandbox, notification delivery, Release implementation, hosted service, deployment, download, tag, or GitHub release yet.
+<p align="center">
+  An open-source contingency relay for one adult Owner—designed around explicit Check-ins, human verification by default, and recipient-specific Envelopes.
+</p>
 
-> **Working name:** “Vidha” is provisional. The exact GitHub account, several exact-name repositories, and the `.com` and `.org` domains are already occupied; this project makes no exclusivity or legal-clearance claim. See the [name-collision evidence](docs/research/GITHUB_COMPETITIVE_LANDSCAPE.md#working-name-collision-check-vidha).
+<p align="center">
+  <a href="#run-the-local-prototype">Run the local prototype</a> ·
+  <a href="docs/public-surface/FACT_SHEET.md">See current evidence</a> ·
+  <a href="docs/FABLE_BUILD_PROMPT.md">Developer build handoff</a>
+</p>
 
-[Product brief](docs/product/PRODUCT_BRIEF.md) · [Threat model](docs/security/THREAT_MODEL.md) · [Current foundation](docs/architecture/FOUNDATION_PHASE_3B.md) · [Proposed architecture](docs/architecture/ARCHITECTURE.md) · [Fable build handoff](docs/FABLE_BUILD_PROMPT.md)
+> [!IMPORTANT]
+> **Pre-alpha · local synthetic prototype · working name.** There is no hosted service, download, real account, notification delivery, Release path, tag, or GitHub release. The prototype uses disposable synthetic data; refresh clears its browser session. Do not enter personal or sensitive information.
 
-## Run the local synthetic prototype
+“Vidha” and the Continuity Span icon are provisional working concepts. Name and logo clearance are incomplete, and this project makes no exclusivity or ownership claim.
 
-Prerequisites: Node.js 24 or newer and pnpm 11.17.0.
+## What is Vidha?
+
+Vidha is for someone who wants selected people to receive private messages or documents if they become persistently unreachable. The Owner prepares an individual Envelope for each Recipient, stays in control through deliberate authenticated Check-ins, and chooses a Release Policy for each Envelope.
+
+A missed Check-in may begin **Concern** and verification. It never proves death, and no email open, link preview, or unauthenticated request can count as a Check-in or authorize a state change.
+
+## What can I try today?
+
+The repository currently provides two kinds of evidence. Neither is a release:
+
+| Path                          | Current status            | What it demonstrates                                                                                                                   |
+| ----------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Local browser prototype       | Available from source     | Draft rehearsal, plan lifecycle controls, Check-ins through Concern, an in-memory event record, and a synthetic Envelope workspace     |
+| Phase 3B foundations          | Code and disposable tests | WebAuthn adapter contracts, PostgreSQL seams, fenced durable work, wrapped metadata-key fixtures, and bounded file/ClamAV/Pandoc gates |
+| Hosted service or v1 download | **Unavailable**           | Planned only; no public deployment, installer, supported-browser matrix, or update guarantee exists                                    |
+
+The browser prototype deliberately stops at Concern. Guardian Attestations, Veto Window, Delivery Hold, Automatic Fallback, real notifications, Recipient retrieval, and Release are not implemented. Bounded Guardian Attestations are the default intended Release Policy; Automatic Fallback must be explicitly enabled for an individual Envelope.
+
+## Run the local prototype
+
+You need Node.js 24 or newer and pnpm 11.17.0.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the local URL printed by Vite. The prototype lets you rehearse Draft, Armed, Paused, and Disabled lifecycle controls; advance the Check-in timeline through Concern; explicitly confirm a synthetic Check-in; inspect an in-memory event record; and work with two synthetic Envelopes. A Markdown/plain-text import is first quarantined, classified, and shown for explicit approval. Approved text and its exact original bytes remain available only for the browser session; the fixture inspection is not a malware scan or sandbox. The workspace also supports Recipient reassignment, undo/redo, checkpoints, source restore/download, and Markdown, plain-text, or escaped standalone HTML copies. Refresh clears the session. **Do not enter personal or sensitive information.**
+Open the local URL printed by Vite. You can:
 
-Run the complete local verification suite with:
+- rehearse a Draft, then arm, pause, resume, or disable the synthetic Contingency Plan;
+- advance one schedule stage at a time from On Time through Concern;
+- record an explicit synthetic Check-in and inspect the in-memory event history;
+- edit two synthetic Envelopes and reassign their Recipients;
+- quarantine and review a Markdown or plain-text import up to 256 KB;
+- create checkpoints, restore or download the original source, and export Markdown, plain text, or escaped standalone HTML.
+
+Browser import inspection is a synthetic fixture—not a malware scan or sandbox. Approved content and exact source bytes remain in memory for the current session only.
+
+### Verify the repository
 
 ```sh
 pnpm check
@@ -29,87 +70,66 @@ pnpm exec playwright install webkit
 pnpm test:e2e
 ```
 
-The production build includes a web-app manifest, service worker, and prompted update flow. This is infrastructure evidence, not a claim that installation or updates have passed the v1 release gate.
+The production build contains PWA infrastructure and a prompted service-worker update flow. Browser installation and update behavior have not passed the v1 release gate.
 
-## What Vidha is designed to do
+## How the intended relay works
 
-- Let one Owner create recipient-specific Envelopes in a focused writing workspace.
-- Convert supported text formats into Editable Documents and preserve other files as Attachments.
-- Give every Envelope a recoverable Standard Mode and, only if its v1 security gates pass, an optional stricter Sealed Mode covering both Editable Documents and Attachments.
-- Make routine Check-ins quick without treating email opens or automated link scans as proof of control.
-- Enter Concern after a missed schedule, notify Guardians without exposing content, and use bounded Guardian Attestations as the default Release Policy.
-- Allow an Owner to deliberately choose a longer Automatic Fallback for an individual Envelope.
-- Notify a Recipient when an Envelope is released without putting the private content directly in email or SMS.
-- Run as an installable web app, with an officially hosted path and a complete self-hosting path.
+This is the target journey, not a claim that v1 exists:
 
-## What makes the product narrow
+1. The Owner prepares recipient-specific Envelopes and completes a safe rehearsal.
+2. The Owner arms the Contingency Plan and completes authenticated Check-ins on their schedule.
+3. Persistent inactivity may enter Concern, where bounded verification can begin without drawing a conclusion.
+4. Every potential Release must preserve the full final notice and Veto Window. If every verified Owner channel fails before Release—including negative delivery evidence after initial provider acceptance—the Envelope enters Delivery Hold; clearing that hold starts a new full Veto Window.
+5. Only an authorized Release makes one Envelope available to its designated Recipient through authenticated retrieval.
 
-Vidha is not trying to manage an estate, transfer money, store passwords, predict death, or replace emergency services. Its job is smaller: help someone prepare meaningful material, keep control while they are reachable, and make an eventual handoff deliberate and auditable.
-
-That focus produces four product boundaries:
-
-1. **Document-first:** creation and import are part of the core experience, not an attachment afterthought.
-2. **Policy per Envelope:** practical instructions and deeply private letters do not need identical Release conditions.
-3. **Human verification by default:** silence begins Concern; it does not announce death.
-4. **Portable by design:** the application is AGPL-licensed, self-hostable, and built around replaceable delivery and hosting adapters.
-
-## Intended v1 journey
-
-1. The Owner creates a Contingency Plan, adds verified Guardians and Recipients, and writes or imports an Envelope.
-2. The Owner chooses a Release Policy for that Envelope and completes a safe rehearsal before arming it.
-3. Vidha requests authenticated Check-ins on the Owner's schedule.
-4. A missed schedule moves through reminders, grace, Concern, verification, and a final Veto Window.
-5. Release makes the Envelope available only to its Recipient and records an audit trail.
-
-The exact state machine, retries, provider failures, recovery paths, and abuse cases must pass the [v1 release gates](docs/release/V1_RELEASE_GATES.md) before any public release.
+See the [product brief](docs/product/PRODUCT_BRIEF.md), [canonical vocabulary](CONTEXT.md), and [v1 release gates](docs/release/V1_RELEASE_GATES.md) for the complete contract.
 
 ## Trust boundaries
 
-- Vidha never claims that an Owner has died.
-- No content is released solely because an email was opened or a link was fetched.
-- Standard Mode uses managed encryption and can support recovery; operator access must be restricted and audited.
-- If it passes its protocol, recovery, independent-review, and test-vector gates, Sealed Mode trades recovery and server-assisted features for stronger confidentiality across the entire Envelope; otherwise it does not ship as an armable v1 feature.
-- Emails and SMS messages are notifications, not containers for private Envelope content.
-- Legal wills, passwords, recovery seeds, financial transfers, and emergency dispatch are outside the v1 promise.
+- Vidha is a contingency relay—not a death detector, legal will, estate platform, password manager, asset-transfer system, emergency service, or wellness monitor.
+- A Guardian can submit only a bounded Guardian Attestation. That role never grants access to Envelope contents and never asks someone to declare death.
+- Notifications contain no private Envelope content; they lead an authenticated Recipient to retrieval.
+- Standard Mode and Sealed Mode are design targets, not implemented protection claims in this prototype.
+- No AI or probabilistic system may decide Check-in, Concern, Guardian quorum, Veto Window, or Release.
+- The AGPL application is intended to remain self-hostable behind replaceable infrastructure adapters, but a supported self-hosting path does not exist yet.
 
-Read the full [threat model](docs/security/THREAT_MODEL.md) before treating any implementation as trustworthy.
+Read the [threat model](docs/security/THREAT_MODEL.md) before treating any implementation as trustworthy. The [current fact sheet](docs/public-surface/FACT_SHEET.md) lists both verified evidence and claims that are not yet permitted.
 
-## Repository map
+## Architecture
 
-| Path                                                                     | Purpose                                           |
-| ------------------------------------------------------------------------ | ------------------------------------------------- |
-| [`apps/web/`](apps/web/)                                                 | Responsive React/Vite PWA prototype               |
-| [`apps/runtime/`](apps/runtime/)                                         | Disposable API/worker/migrator runtime image      |
-| [`packages/domain/`](packages/domain/)                                   | Pure lifecycle, Check-in, and Concern decisions   |
-| [`packages/application/`](packages/application/)                         | Canonical-session and authorization seam          |
-| [`packages/identity/`](packages/identity/)                               | Synthetic Owner identity and recovery contract    |
-| [`packages/operations/`](packages/operations/)                           | Encrypted metadata and durable-work contracts     |
-| [`packages/persistence/`](packages/persistence/)                         | Disposable Plan-store adapters and contract tests |
-| [`packages/platform/`](packages/platform/)                               | PostgreSQL identity, Plan, and operations seams   |
-| [`packages/documents/`](packages/documents/)                             | Bounded untrusted text-import intake              |
-| [`e2e/`](e2e/)                                                           | WebKit desktop and mobile acceptance checks       |
-| [`CONTEXT.md`](CONTEXT.md)                                               | Canonical product vocabulary                      |
-| [`docs/adr/`](docs/adr/)                                                 | Accepted, hard-to-reverse decisions               |
-| [`docs/product/`](docs/product/)                                         | Product brief and journeys                        |
-| [`docs/architecture/`](docs/architecture/)                               | Proposed system boundaries                        |
-| [`docs/security/`](docs/security/)                                       | Threat model and security expectations            |
-| [`docs/release/`](docs/release/)                                         | Evidence required before v1                       |
-| [`docs/public-surface/FACT_SHEET.md`](docs/public-surface/FACT_SHEET.md) | Verified facts and forbidden pre-alpha claims     |
-| [`docs/research/`](docs/research/)                                       | Primary-source inspiration and landscape research |
-| [`docs/FABLE_BUILD_PROMPT.md`](docs/FABLE_BUILD_PROMPT.md)               | Copy-paste implementation and release handoff     |
+Vidha is a TypeScript monorepo. Safety-sensitive state transitions remain in framework-independent packages; the React client and infrastructure adapters consume those decisions rather than recreating them.
 
-## Build status
+| Path                                             | Responsibility                                         |
+| ------------------------------------------------ | ------------------------------------------------------ |
+| [`apps/web/`](apps/web/)                         | Responsive React/Vite synthetic PWA prototype          |
+| [`apps/runtime/`](apps/runtime/)                 | Disposable API/worker/migrator image                   |
+| [`packages/domain/`](packages/domain/)           | Pure lifecycle, Check-in, and Concern decisions        |
+| [`packages/application/`](packages/application/) | Canonical-session and authorization seam               |
+| [`packages/identity/`](packages/identity/)       | Synthetic Owner identity and recovery contracts        |
+| [`packages/operations/`](packages/operations/)   | Encrypted-metadata and durable-work contracts          |
+| [`packages/persistence/`](packages/persistence/) | Disposable Plan-store adapters and parity tests        |
+| [`packages/platform/`](packages/platform/)       | PostgreSQL identity, Plan, and operations seams        |
+| [`packages/documents/`](packages/documents/)     | Bounded untrusted-file intake and conversion contracts |
 
-The intermediate Phase 3B milestone adds production-shaped but disposable adapters around the Concern-bounded domain. `packages/identity` now includes pinned SimpleWebAuthn ceremony verification and durable repository seams. `packages/platform` supplies checksum-locked PostgreSQL 18 migrations, separate API/worker role grants, durable identity/recovery, Plan/audit/outbox atomicity, database-time leases, fencing, and a content-free synthetic sink. `packages/operations` adds wrapped per-record metadata keys and signed anti-rollback backup manifests. `packages/documents` can execute exact-byte file classification, ClamAV `INSTREAM`, and bounded Pandoc JSON conversion in the mandatory CI fixture.
+The [Phase 3B evidence map](docs/architecture/FOUNDATION_PHASE_3B.md) explains what the production-shaped foundations prove—and what they do not.
 
-It deliberately stops at Concern, and Phase 3B remains in progress. The [Phase 3B evidence map](docs/architecture/FOUNDATION_PHASE_3B.md), [six-slice implementation record](docs/product/NEXT_PHASE_3B_SIX.md), [primary-source decisions](docs/research/PHASE_3_PRIMARY_SOURCES.md), and ADRs 0009–0012 state the exact proof and limits. Browser WebAuthn/cookies, authenticated database restore and atomic key rotation, topology failure/capacity, integrated scheduled-command crash testing, and rootless adversarial import isolation remain in the [Phase 3B closure six](docs/product/PHASE_3B_CLOSURE_SIX.md). Real data, external delivery, Guardian authority, and Release remain behind later gates.
+<details>
+<summary><strong>Current implementation boundary</strong></summary>
 
-Fable can continue from the [bounded build handoff](docs/FABLE_BUILD_PROMPT.md), but must not treat this prototype as release authority. Run `refresh-docs` only after a real release candidate can supply truthful screenshots, commands, downloads, and platform claims.
+Phase 3B adds disposable executable evidence for exact WebAuthn RP/origin checks, one-time ceremonies and proofs, digest-only session storage, revisioned recovery locks, PostgreSQL plan/audit/outbox atomicity, database-time leasing and fencing, wrapped metadata-key fixtures, signed backup manifests, and source-pinned file/ClamAV/Pandoc gates.
 
-## Contributing
+It does not provide browser authentication routes or cookies, real identities or recovery factors, production key custody, authenticated database restore, rootless import isolation, external providers, durable personal-content storage, Guardian authority, or Release.
 
-The safest contribution is one that preserves the domain language and makes a failure mode explicit. Read [CONTRIBUTING.md](CONTRIBUTING.md), the [product brief](docs/product/PRODUCT_BRIEF.md), and the [threat model](docs/security/THREAT_MODEL.md) before proposing behavior.
+</details>
+
+## Help, security, and contributing
+
+- Start with [Contributing to Vidha](CONTRIBUTING.md) and preserve the exact vocabulary in [CONTEXT.md](CONTEXT.md).
+- Ask product or documentation questions in [GitHub Discussions](https://github.com/udhawan97/Vidha/discussions).
+- Report ordinary defects with [GitHub Issues](https://github.com/udhawan97/Vidha/issues).
+- Do not disclose a vulnerability or real Envelope scenario publicly; follow the private process in [SECURITY.md](SECURITY.md).
+- Use the [Fable build handoff](docs/FABLE_BUILD_PROMPT.md) only when you intend to continue the bounded implementation and decision process.
 
 ## License
 
-Vidha is licensed under [AGPL-3.0](LICENSE). Anyone may use, modify, self-host, or commercially operate it; network-hosted modifications must remain available as source under the license terms.
+Vidha is licensed under [AGPL-3.0](LICENSE). You may use, modify, self-host, or commercially operate it; network-hosted modifications must remain available as source under the license terms.

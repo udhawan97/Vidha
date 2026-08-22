@@ -12,7 +12,7 @@ export default defineConfig({
         name: 'Vidha',
         short_name: 'Vidha',
         description:
-          'A deliberate contingency workspace for prepared handoffs.',
+          'A pre-alpha contingency-relay prototype for deliberate, recipient-specific handoffs.',
         theme_color: '#1f565b',
         background_color: '#eef4f3',
         display: 'standalone',

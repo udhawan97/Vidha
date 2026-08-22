@@ -192,7 +192,13 @@ export function App() {
           onClick={() => setView('overview')}
           type="button"
         >
-          <img alt="" src="/vidha-mark.svg" />
+          <picture>
+            <source
+              media="(prefers-reduced-motion: reduce)"
+              srcSet="/pwa-192.png"
+            />
+            <img alt="" src="/vidha-mark.svg" />
+          </picture>
           <span>Vidha</span>
         </button>
         <nav aria-label="Primary navigation">
@@ -229,7 +235,7 @@ export function App() {
         <header className="topbar">
           <div>
             <span className="build-label">
-              Phase 2 foundations · synthetic data
+              Pre-alpha prototype · synthetic data
             </span>
           </div>
           <div className="owner-chip" aria-label="Synthetic Owner profile">

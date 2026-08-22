@@ -1,0 +1,27 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">Vidha Continuity Span maskable working-concept icon</title>
+  <desc id="description">
+    Static full-bleed icon artwork for operating-system surfaces that do not
+    support animation. Vidha is a provisional working name.
+  </desc>
+  <rect width="512" height="512" fill="#1f565b" />
+  <g
+    transform="translate(122.88 122.88) scale(4.16)"
+    fill="#fbfdfc"
+    stroke="#fbfdfc"
+  >
+    <circle cx="12.5" cy="16.5" r="6.5" stroke="none" />
+    <path
+      d="M12.5 16.5 C13.5 33 19.5 46.5 30 46.5 C39.5 46.5 43.8 34.5 46.3 22.8"
+      fill="none"
+      stroke-width="7"
+      stroke-linecap="round"
+    />
+    <circle cx="51.5" cy="16.5" r="6.5" fill="none" stroke-width="4.5" />
+  </g>
+</svg>
