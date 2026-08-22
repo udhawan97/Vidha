@@ -1,6 +1,6 @@
 # Persistence portability comparison
 
-**Status:** The common Plan-store interface, disposable parity harness, and PostgreSQL 18 adapter are implemented. The PostgreSQL adapter covers checksum-locked migrations, Plan/command/audit persistence, atomic allowed work, contention, and restore-safe denial in disposable CI; authenticated logical backup/restore, migration rollback, capacity, failover, and deployment evidence do not exist yet.
+**Status:** The common Plan-store interface, disposable parity harness, and PostgreSQL 18 adapter are implemented. A mandatory disposable CI gate exercises checksum-locked migration rollback/replay, Plan/command/audit persistence, atomic allowed work, claim interruption/replay, fixed capacity fixtures, contention, and restore-safe denial; each exact commit still requires a passing gate. Authenticated logical backup/restore, durable-volume recovery, failover, production capacity, and deployment evidence do not exist.
 
 ## Evidence used
 
@@ -37,4 +37,4 @@ The shared pre-alpha schema baseline is migration version 1, Plan state JSON, un
 
 ## Target accepted; production evidence withheld
 
-ADR 0010 accepts PostgreSQL as Vidha's production database target; the earlier adapter decision is no longer open. The intermediate Phase 3B milestone exercises a disposable server topology and real-server role/contention paths. Vidha still lacks migration interruption and rollback rehearsal, encrypted backup rehearsal, a capacity model, failover evidence, and a real restore drill. The current logical snapshot contains disposable synthetic metadata and is not an encrypted v1 backup format.
+ADR 0010 accepts PostgreSQL as Vidha's production database target; the earlier adapter decision is no longer open. The Phase 3B fixture now exercises disposable migration and claim interruption/rollback, real-server role/contention paths, a fixed 1,000-due-job/100,000-row capacity profile, network partition recovery, and data-root destruction. These are bounded rehearsal results, not a production capacity model. Vidha still lacks an authenticated encrypted backup rehearsal, durable-volume recovery, failover evidence, and a real restore drill. The current logical snapshot contains disposable synthetic metadata and is not an encrypted v1 backup format.

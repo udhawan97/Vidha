@@ -18,6 +18,25 @@ import { PostgresPlanStore, type PlanOutboxPlanner } from './postgresPlan';
 
 export type PlatformMode = 'live' | 'restore_safe';
 
+export const MIGRATION_REHEARSAL_BOUNDARIES = [
+  'after_advisory_lock',
+  'after_migration_ledger',
+  'after_migration_sql',
+  'after_migration_record',
+  'before_commit',
+  'after_commit',
+] as const;
+
+export type MigrationRehearsalBoundary =
+  (typeof MIGRATION_REHEARSAL_BOUNDARIES)[number];
+
+export interface MigrationRehearsalReport {
+  readonly interruptedBoundaries: readonly MigrationRehearsalBoundary[];
+  readonly postCommitReplayVerified: boolean;
+  readonly rollbackVerified: boolean;
+  readonly schemaVersion: number;
+}
+
 export interface RecoveryProofStore {
   issue(input: {
     readonly attemptId: string;
@@ -165,10 +184,142 @@ async function verifyRuntimeConfiguration(
 }
 
 export async function applyMigrations(pool: Pool): Promise<void> {
+  await applyMigrationsTransaction(pool);
+}
+
+export async function rehearseMigrationInterruptions(
+  migrationPool: Pool,
+  controlPool: Pool,
+): Promise<MigrationRehearsalReport> {
+  const existing = await migrationPool.query<{
+    migration_ledger: string | null;
+  }>("SELECT to_regclass('public.vidha_migrations')::text AS migration_ledger");
+  if (existing.rows[0]?.migration_ledger !== null) {
+    throw new Error(
+      'Migration interruption rehearsal requires an empty disposable database.',
+    );
+  }
+  const identity = await migrationPool.query<{
+    application_name: string;
+    database_name: string;
+    database_user: string;
+  }>(
+    `SELECT
+       current_setting('application_name') AS application_name,
+       current_database() AS database_name,
+       current_user AS database_user`,
+  );
+  const expected = identity.rows[0];
+  if (
+    expected === undefined ||
+    expected.application_name !== 'vidha-topology-migrator'
+  ) {
+    throw new Error(
+      'Migration rehearsal requires its isolated application ID.',
+    );
+  }
+
+  const interruptedBoundaries: MigrationRehearsalBoundary[] = [];
+  for (const target of MIGRATION_REHEARSAL_BOUNDARIES) {
+    let terminated = false;
+    try {
+      await applyMigrationsTransaction(
+        migrationPool,
+        async (boundary, backendPid) => {
+          if (boundary !== target) return;
+          const result = await controlPool.query<{ terminated: boolean }>(
+            `SELECT pg_terminate_backend(pid) AS terminated
+             FROM pg_stat_activity
+             WHERE pid = $1 AND datname = $2 AND usename = $3
+               AND application_name = $4`,
+            [
+              backendPid,
+              expected.database_name,
+              expected.database_user,
+              expected.application_name,
+            ],
+          );
+          if (result.rows[0]?.terminated !== true) {
+            throw new Error(
+              `PostgreSQL did not terminate the migrator at ${target}.`,
+            );
+          }
+          terminated = true;
+          throw new Error(`Injected migration interruption at ${target}.`);
+        },
+      );
+    } catch {
+      if (!terminated) {
+        throw new Error(
+          `Migration interruption did not reach the ${target} boundary.`,
+        );
+      }
+    }
+    if (!terminated) {
+      throw new Error(
+        `Migration interruption unexpectedly committed at ${target}.`,
+      );
+    }
+    if (target === 'after_commit') {
+      const committed = await migrationPool.query<{ schema_version: number }>(
+        'SELECT MAX(version)::integer AS schema_version FROM vidha_migrations',
+      );
+      if (
+        Number(committed.rows[0]?.schema_version) !== PLATFORM_SCHEMA_VERSION
+      ) {
+        throw new Error('Committed migration disappeared after a lost ack.');
+      }
+    } else {
+      const rolledBack = await migrationPool.query<{
+        migration_ledger: string | null;
+      }>(
+        "SELECT to_regclass('public.vidha_migrations')::text AS migration_ledger",
+      );
+      if (rolledBack.rows[0]?.migration_ledger !== null) {
+        throw new Error(
+          `Migration interruption left schema state behind at ${target}.`,
+        );
+      }
+    }
+    interruptedBoundaries.push(target);
+  }
+
+  await applyMigrations(migrationPool);
+  const applied = await migrationPool.query<{ schema_version: number }>(
+    'SELECT MAX(version)::integer AS schema_version FROM vidha_migrations',
+  );
+  if (Number(applied.rows[0]?.schema_version) !== PLATFORM_SCHEMA_VERSION) {
+    throw new Error('Migration restart did not reach the expected schema.');
+  }
+  return {
+    interruptedBoundaries,
+    postCommitReplayVerified: true,
+    rollbackVerified: true,
+    schemaVersion: PLATFORM_SCHEMA_VERSION,
+  };
+}
+
+type MigrationObserver = (
+  boundary: MigrationRehearsalBoundary,
+  backendPid: number,
+) => Promise<void>;
+
+async function applyMigrationsTransaction(
+  pool: Pool,
+  observe: MigrationObserver = async () => undefined,
+): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock($1)', [0x56494448]);
+    const backend = await client.query<{ backend_pid: number }>(
+      'SELECT pg_backend_pid() AS backend_pid',
+    );
+    const backendPid = Number(backend.rows[0]?.backend_pid);
+    if (!Number.isSafeInteger(backendPid)) {
+      throw new Error('PostgreSQL did not report a migrator backend PID.');
+    }
+    await observe('after_advisory_lock', backendPid);
     await client.query(`
       CREATE TABLE IF NOT EXISTS vidha_migrations (
         version INTEGER PRIMARY KEY,
@@ -177,6 +328,7 @@ export async function applyMigrations(pool: Pool): Promise<void> {
         applied_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
       )
     `);
+    await observe('after_migration_ledger', backendPid);
     for (const migration of platformMigrations) {
       const checksum = sha256(migration.sql);
       const existing = await client.query<{ checksum: string; name: string }>(
@@ -193,14 +345,22 @@ export async function applyMigrations(pool: Pool): Promise<void> {
         continue;
       }
       await client.query(migration.sql);
+      await observe('after_migration_sql', backendPid);
       await client.query(
         'INSERT INTO vidha_migrations(version, name, checksum) VALUES ($1, $2, $3)',
         [migration.version, migration.name, checksum],
       );
+      await observe('after_migration_record', backendPid);
     }
+    await observe('before_commit', backendPid);
     await client.query('COMMIT');
+    await observe('after_commit', backendPid);
   } catch (error) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // A terminated migrator backend already caused PostgreSQL to roll back.
+    }
     throw error;
   } finally {
     client.release();

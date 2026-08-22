@@ -9,6 +9,7 @@
   "scripts": {
     "test": "vitest run",
     "test:postgres": "VIDHA_REQUIRE_POSTGRES=1 vitest run src/postgres.integration.test.ts",
+    "test:topology": "VIDHA_REQUIRE_POSTGRES=1 vitest run src/topology.integration.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

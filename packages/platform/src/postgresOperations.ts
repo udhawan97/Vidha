@@ -18,6 +18,26 @@ import {
 } from '@vidha/operations';
 import { Pool, type PoolClient } from 'pg';
 
+export const CLAIM_REHEARSAL_BOUNDARIES = [
+  'after_selection',
+  'after_first_write',
+  'before_commit',
+  'after_commit',
+] as const;
+
+export type ClaimRehearsalBoundary =
+  (typeof CLAIM_REHEARSAL_BOUNDARIES)[number];
+
+export interface ClaimRehearsalReport {
+  readonly committedLeaseId: string;
+  readonly finalClaimGeneration: number;
+  readonly finalLeaseId: string;
+  readonly interruptedBoundaries: readonly ClaimRehearsalBoundary[];
+  readonly jobId: string;
+  readonly postCommitReplayVerified: boolean;
+  readonly rollbackVerified: boolean;
+}
+
 export class PostgresOperationsStore implements OperationsStore {
   constructor(
     private readonly pool: Pool,
@@ -100,50 +120,7 @@ export class PostgresOperationsStore implements OperationsStore {
     readonly limit: number;
   }): Promise<readonly ClaimedSafetyJob[]> {
     assertLive(this.mode);
-    return await transaction(this.pool, async (client) => {
-      await assertDatabaseMode(client, this.mode);
-      const now = await databaseNow(client);
-      const result = await client.query<{ state_json: unknown }>(
-        `SELECT state_json FROM safety_jobs
-         WHERE
-           (status = 'pending' AND available_at <= $1)
-           OR (status = 'leased' AND lease_expires_at <= clock_timestamp())
-         ORDER BY available_at, job_id
-         FOR UPDATE SKIP LOCKED
-         LIMIT $2`,
-        [now, input.limit],
-      );
-      const claimed: ClaimedSafetyJob[] = [];
-      for (const row of result.rows) {
-        const job = parseJob(row.state_json);
-        if (job.status === 'leased' && job.attempts >= job.maxAttempts) {
-          await writeJob(client, {
-            ...job,
-            status: 'dead_letter',
-            leaseId: null,
-            leaseOwner: null,
-            leaseExpiresAt: null,
-            lastFailureCode: 'lease_expired',
-          });
-          continue;
-        }
-        const leaseVersion = job.leaseVersion + 1;
-        const leaseId = `lease_${job.jobId.slice(4)}_${leaseVersion}`;
-        const next: SafetyJob = {
-          ...job,
-          status: 'leased',
-          attempts: job.attempts + 1,
-          leaseId,
-          leaseOwner: input.workerId,
-          leaseExpiresAt: now + input.leaseMs,
-          leaseVersion,
-        };
-        validateJob(next);
-        await writeJob(client, next);
-        claimed.push({ job: structuredClone(next), leaseId });
-      }
-      return claimed;
-    });
+    return await claimDueTransaction(this.pool, this.mode, input);
   }
 
   async complete(input: {
@@ -309,22 +286,251 @@ export class PostgresOperationsStore implements OperationsStore {
   }
 }
 
+export async function rehearseClaimInterruptions(input: {
+  readonly controlPool: Pool;
+  readonly jobId: string;
+  readonly leaseMs: number;
+  readonly workerId: string;
+  readonly workerPool: Pool;
+}): Promise<ClaimRehearsalReport> {
+  const identity = await input.workerPool.query<{
+    application_name: string;
+    database_name: string;
+    database_user: string;
+  }>(
+    `SELECT
+       current_setting('application_name') AS application_name,
+       current_database() AS database_name,
+       current_user AS database_user`,
+  );
+  const expected = identity.rows[0];
+  if (
+    expected === undefined ||
+    expected.application_name !== 'vidha-topology-worker'
+  ) {
+    throw new Error('Claim rehearsal requires its isolated application ID.');
+  }
+  const interruptedBoundaries: ClaimRehearsalBoundary[] = [];
+  let committedLeaseId: string | undefined;
+  for (const target of CLAIM_REHEARSAL_BOUNDARIES) {
+    let terminated = false;
+    try {
+      await claimDueTransaction(
+        input.workerPool,
+        'live',
+        {
+          workerId: input.workerId,
+          at: 0,
+          leaseMs: input.leaseMs,
+          limit: 1,
+        },
+        async (boundary, backendPid) => {
+          if (boundary !== target) return;
+          const result = await input.controlPool.query<{ terminated: boolean }>(
+            `SELECT pg_terminate_backend(pid) AS terminated
+             FROM pg_stat_activity
+             WHERE pid = $1 AND datname = $2 AND usename = $3
+               AND application_name = $4`,
+            [
+              backendPid,
+              expected.database_name,
+              expected.database_user,
+              expected.application_name,
+            ],
+          );
+          if (result.rows[0]?.terminated !== true) {
+            throw new Error(
+              `PostgreSQL did not terminate the worker at ${target}.`,
+            );
+          }
+          terminated = true;
+          throw new Error(`Injected claim interruption at ${target}.`);
+        },
+      );
+    } catch {
+      if (!terminated) {
+        throw new Error(
+          `Claim interruption did not reach the ${target} boundary.`,
+        );
+      }
+    }
+    if (!terminated) {
+      throw new Error(
+        `Claim interruption unexpectedly committed at ${target}.`,
+      );
+    }
+    const state = await input.controlPool.query<{
+      claim_generation: number;
+      lease_id: string | null;
+      status: SafetyJob['status'];
+    }>(
+      `SELECT status, claim_generation, lease_id
+       FROM safety_jobs WHERE job_id = $1`,
+      [input.jobId],
+    );
+    const row = state.rows[0];
+    if (target === 'after_commit') {
+      if (
+        row?.status !== 'leased' ||
+        Number(row.claim_generation) !== 1 ||
+        row.lease_id === null
+      ) {
+        throw new Error('Committed claim disappeared after a lost ack.');
+      }
+      committedLeaseId = row.lease_id;
+    } else if (
+      row?.status !== 'pending' ||
+      Number(row.claim_generation) !== 0 ||
+      row.lease_id !== null
+    ) {
+      throw new Error(`Claim interruption did not roll back at ${target}.`);
+    }
+    interruptedBoundaries.push(target);
+  }
+
+  await delay(input.leaseMs + 25);
+  const final = await claimDueTransaction(input.workerPool, 'live', {
+    workerId: input.workerId,
+    at: 0,
+    leaseMs: input.leaseMs,
+    limit: 1,
+  });
+  const claim = final[0];
+  if (
+    claim === undefined ||
+    claim.job.jobId !== input.jobId ||
+    claim.job.leaseVersion !== 2 ||
+    committedLeaseId === undefined
+  ) {
+    throw new Error('Claim restart did not fence a committed lost ack.');
+  }
+  return {
+    committedLeaseId,
+    finalClaimGeneration: claim.job.leaseVersion,
+    finalLeaseId: claim.leaseId,
+    interruptedBoundaries,
+    jobId: claim.job.jobId,
+    postCommitReplayVerified: true,
+    rollbackVerified: true,
+  };
+}
+
+type ClaimObserver = (
+  boundary: ClaimRehearsalBoundary,
+  backendPid: number,
+) => Promise<void>;
+
+async function claimDueTransaction(
+  pool: Pool,
+  mode: StoreMode,
+  input: {
+    readonly workerId: string;
+    readonly at: number;
+    readonly leaseMs: number;
+    readonly limit: number;
+  },
+  observe: ClaimObserver = async () => undefined,
+): Promise<readonly ClaimedSafetyJob[]> {
+  let backendPid: number | undefined;
+  return await transaction(
+    pool,
+    async (client) => {
+      await assertDatabaseMode(client, mode);
+      const backend = await client.query<{ backend_pid: number }>(
+        'SELECT pg_backend_pid() AS backend_pid',
+      );
+      backendPid = Number(backend.rows[0]?.backend_pid);
+      if (!Number.isSafeInteger(backendPid)) {
+        throw new Error('PostgreSQL did not report a worker backend PID.');
+      }
+      const now = await databaseNow(client);
+      const result = await client.query<{ state_json: unknown }>(
+        `SELECT state_json FROM safety_jobs
+       WHERE
+         (status = 'pending' AND available_at <= $1)
+         OR (status = 'leased' AND lease_expires_at <= clock_timestamp())
+       ORDER BY available_at, job_id
+       FOR UPDATE SKIP LOCKED
+       LIMIT $2`,
+        [now, input.limit],
+      );
+      await observe('after_selection', backendPid);
+      const claimed: ClaimedSafetyJob[] = [];
+      let wrote = false;
+      for (const row of result.rows) {
+        const job = parseJob(row.state_json);
+        if (job.status === 'leased' && job.attempts >= job.maxAttempts) {
+          await writeJob(client, {
+            ...job,
+            status: 'dead_letter',
+            leaseId: null,
+            leaseOwner: null,
+            leaseExpiresAt: null,
+            lastFailureCode: 'lease_expired',
+          });
+          if (!wrote) {
+            wrote = true;
+            await observe('after_first_write', backendPid);
+          }
+          continue;
+        }
+        const leaseVersion = job.leaseVersion + 1;
+        const leaseId = `lease_${job.jobId.slice(4)}_${leaseVersion}`;
+        const next: SafetyJob = {
+          ...job,
+          status: 'leased',
+          attempts: job.attempts + 1,
+          leaseId,
+          leaseOwner: input.workerId,
+          leaseExpiresAt: now + input.leaseMs,
+          leaseVersion,
+        };
+        validateJob(next);
+        await writeJob(client, next);
+        if (!wrote) {
+          wrote = true;
+          await observe('after_first_write', backendPid);
+        }
+        claimed.push({ job: structuredClone(next), leaseId });
+      }
+      await observe('before_commit', backendPid);
+      return claimed;
+    },
+    async () => {
+      if (backendPid === undefined) {
+        throw new Error('The claim transaction lost its backend identity.');
+      }
+      await observe('after_commit', backendPid);
+    },
+  );
+}
+
 async function transaction<T>(
   pool: Pool,
   operation: (client: PoolClient) => Promise<T>,
+  afterCommit: (client: PoolClient) => Promise<void> = async () => undefined,
 ): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const result = await operation(client);
     await client.query('COMMIT');
+    await afterCommit(client);
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // A terminated worker backend already caused PostgreSQL to roll back.
+    }
     throw error;
   } finally {
     client.release();
   }
+}
+
+async function delay(milliseconds: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function assertDatabaseMode(
