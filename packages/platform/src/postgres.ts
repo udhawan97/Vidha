@@ -525,8 +525,11 @@ class PostgresRecoveryProofStore implements RecoveryProofStore {
       const failures = row.failures + 1;
       await client.query(
         `UPDATE recovery_proof_attempts SET
-          failures = $2,
-          locked_until = CASE WHEN $2 >= $3 THEN $4 ELSE locked_until END
+          failures = $2::integer,
+          locked_until = CASE
+            WHEN $2::integer >= $3::integer THEN $4::bigint
+            ELSE locked_until
+          END
          WHERE attempt_id = $1`,
         [input.attemptId, failures, input.maxFailures, now + input.lockMs],
       );

@@ -82,7 +82,7 @@ function startApi(): void {
 
 function startWorker(): void {
   const store = platform.operationsStore;
-  const workerId = `worker_${sha256(`${hostname()}:${role}`)}`;
+  const workerId = `worker_${sha256(`${hostname()}:${role}`).slice(0, 57)}`;
   let running = false;
   const poll = async () => {
     if (running || mode === 'restore_safe') return;

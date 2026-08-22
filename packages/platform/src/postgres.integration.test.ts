@@ -33,6 +33,7 @@ const CHANNEL = `channel_${'e'.repeat(64)}`;
 const SESSION = `session_${'f'.repeat(64)}`;
 const JOB_ID = `job_${'1'.repeat(64)}`;
 const PLAN_ID = 'plan_postgres_fixture';
+const PLAN_OWNER_ID = 'owner_postgres_fixture';
 
 function commandKey(character: string): string {
   return `cmd_${character.repeat(64)}`;
@@ -372,13 +373,13 @@ suite('disposable PostgreSQL 18 platform', () => {
     );
     const [left, right] = await Promise.all([
       first.claimDue({
-        workerId: `worker_${'a'.repeat(64)}`,
+        workerId: 'worker_fixture_a',
         at: START,
         leaseMs: 40,
         limit: 1,
       }),
       second.claimDue({
-        workerId: `worker_${'b'.repeat(64)}`,
+        workerId: 'worker_fixture_b',
         at: START,
         leaseMs: 40,
         limit: 1,
@@ -404,7 +405,7 @@ suite('disposable PostgreSQL 18 platform', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 60));
     const reclaimed = await second.claimDue({
-      workerId: `worker_${'b'.repeat(64)}`,
+      workerId: 'worker_fixture_b',
       at: START,
       leaseMs: 1_000,
       limit: 1,
@@ -433,7 +434,7 @@ suite('disposable PostgreSQL 18 platform', () => {
     });
     await expect(
       first.claimDue({
-        workerId: `worker_${'a'.repeat(64)}`,
+        workerId: 'worker_fixture_a',
         at: Number.MAX_SAFE_INTEGER,
         leaseMs: 1_000,
         limit: 1,
@@ -477,7 +478,7 @@ suite('disposable PostgreSQL 18 platform', () => {
     );
     const draft = createDraftPlan({
       planId: PLAN_ID,
-      ownerId: OWNER_ID,
+      ownerId: PLAN_OWNER_ID,
       at: START,
       policy: {
         checkInIntervalMs: 86_400_000,
@@ -571,7 +572,7 @@ suite('disposable PostgreSQL 18 platform', () => {
     ]);
     const draft = createDraftPlan({
       planId: PLAN_ID,
-      ownerId: OWNER_ID,
+      ownerId: PLAN_OWNER_ID,
       at: START,
       policy: {
         checkInIntervalMs: 86_400_000,
@@ -607,7 +608,7 @@ suite('disposable PostgreSQL 18 platform', () => {
     const store = new PostgresOperationsStore(platform.pool, 'restore_safe');
     await expect(
       store.claimDue({
-        workerId: `worker_${'d'.repeat(64)}`,
+        workerId: 'worker_fixture_d',
         at: START,
         leaseMs: 1_000,
         limit: 1,
