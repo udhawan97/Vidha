@@ -114,6 +114,10 @@ core_network=$(
 test -n "$core_network"
 failures_before=$("${compose[@]}" logs worker 2>&1 | grep -c 'worker_poll_failed' || true)
 docker network disconnect "$core_network" "$worker_id"
+"${compose[@]}" exec -T postgres \
+  psql -U vidha_owner -d vidha_fixture -Atc \
+  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = 'vidha_worker' AND datname = 'vidha_fixture'" \
+  >/dev/null
 
 partition_observed=false
 for attempt in $(seq 1 30); do
@@ -127,10 +131,6 @@ done
 test "$partition_observed" = true
 curl --fail --silent --show-error "$ready_url" >/dev/null
 
-"${compose[@]}" exec -T postgres \
-  psql -U vidha_owner -d vidha_fixture -Atc \
-  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = 'vidha_worker' AND datname = 'vidha_fixture'" \
-  >/dev/null
 docker network connect "$core_network" "$worker_id"
 
 worker_recovered=false
