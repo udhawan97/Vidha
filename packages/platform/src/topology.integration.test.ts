@@ -62,6 +62,7 @@ suite('disposable PostgreSQL topology rehearsal', () => {
   let workerConnectionString: string;
   let migrationReport: MigrationRehearsalReport;
   let databaseCreated = false;
+  const unexpectedPoolErrors: Error[] = [];
 
   beforeAll(async () => {
     adminPool = new Pool({
@@ -117,6 +118,9 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       connectionString: ownerConnectionString,
       max: 1,
     });
+    migrationPool.on('error', (error) =>
+      recordUnexpectedPoolError(error, unexpectedPoolErrors),
+    );
     try {
       migrationReport = await rehearseMigrationInterruptions(
         migrationPool,
@@ -154,6 +158,9 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       connectionString: workerConnectionString,
       max: 6,
     });
+    workerPool.on('error', (error) =>
+      recordUnexpectedPoolError(error, unexpectedPoolErrors),
+    );
   }, 120_000);
 
   afterAll(async () => {
@@ -190,6 +197,7 @@ suite('disposable PostgreSQL topology rehearsal', () => {
     if (rejected?.status === 'rejected') {
       throw rejected.reason;
     }
+    expect(unexpectedPoolErrors).toEqual([]);
   });
 
   it('rolls back or replays all defined migration checkpoints', () => {
@@ -345,4 +353,15 @@ function quoteLiteral(value: string): string {
 
 async function delay(milliseconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function recordUnexpectedPoolError(error: Error, unexpected: Error[]): void {
+  const code = (error as Error & { readonly code?: string }).code;
+  if (
+    code === '57P01' ||
+    error.message === 'Connection terminated unexpectedly'
+  ) {
+    return;
+  }
+  unexpected.push(error);
 }

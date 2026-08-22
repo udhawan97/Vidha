@@ -309,6 +309,7 @@ async function applyMigrationsTransaction(
   observe: MigrationObserver = async () => undefined,
 ): Promise<void> {
   const client = await pool.connect();
+  let discard = false;
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock($1)', [0x56494448]);
@@ -359,11 +360,12 @@ async function applyMigrationsTransaction(
     try {
       await client.query('ROLLBACK');
     } catch {
+      discard = true;
       // A terminated migrator backend already caused PostgreSQL to roll back.
     }
     throw error;
   } finally {
-    client.release();
+    client.release(discard);
   }
 }
 

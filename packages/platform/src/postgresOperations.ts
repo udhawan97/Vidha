@@ -386,6 +386,7 @@ export async function rehearseClaimInterruptions(input: {
       throw new Error(`Claim interruption did not roll back at ${target}.`);
     }
     interruptedBoundaries.push(target);
+    await delay(25);
   }
 
   await delay(input.leaseMs + 25);
@@ -511,6 +512,7 @@ async function transaction<T>(
   afterCommit: (client: PoolClient) => Promise<void> = async () => undefined,
 ): Promise<T> {
   const client = await pool.connect();
+  let discard = false;
   try {
     await client.query('BEGIN');
     const result = await operation(client);
@@ -521,11 +523,12 @@ async function transaction<T>(
     try {
       await client.query('ROLLBACK');
     } catch {
+      discard = true;
       // A terminated worker backend already caused PostgreSQL to roll back.
     }
     throw error;
   } finally {
-    client.release();
+    client.release(discard);
   }
 }
 

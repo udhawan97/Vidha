@@ -229,7 +229,7 @@ async function seedOutboxRows(
          jsonb_build_object(
            'kind', 'synthetic_notice',
            'jobId', 'job_' || opaque,
-           'channelRef', $4,
+           'channelRef', $4::text,
            'template', 'synthetic_rehearsal',
            'commandKey', 'cmd_' || opaque,
            'dueAt', available_at,
