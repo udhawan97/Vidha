@@ -104,7 +104,6 @@ function startWorker(): void {
     }
   };
   const timer = setInterval(poll, 1_000);
-  timer.unref();
   void poll();
   const close = async () => {
     clearInterval(timer);
