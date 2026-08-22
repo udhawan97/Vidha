@@ -23,6 +23,10 @@ cleanup_on_exit() {
   vidha_status=$?
   trap - EXIT
   if [ "$cleanup_required" = true ]; then
+    if [ "$vidha_status" -ne 0 ]; then
+      "${compose[@]}" ps --all >&2 || true
+      "${compose[@]}" logs --no-color >&2 || true
+    fi
     if ! "${compose[@]}" down --volumes --remove-orphans; then
       echo 'The disposable Compose project did not cleanly tear down.' >&2
       if [ "$vidha_status" -eq 0 ]; then

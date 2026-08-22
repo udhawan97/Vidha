@@ -1,6 +1,7 @@
 export {
   applyMigrations,
   createPostgresPlatform,
+  type CreatePostgresPlatformInput,
   type PlatformMode,
   type PostgresPlatform,
   type RecoveryProofStore,

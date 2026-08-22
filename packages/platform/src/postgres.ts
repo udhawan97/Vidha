@@ -72,12 +72,13 @@ export interface PostgresPlatform {
   }>;
 }
 
-interface CreatePostgresPlatformInput {
+export interface CreatePostgresPlatformInput {
   readonly connectionString: string;
   readonly environmentId: string;
   readonly installationId: string;
   readonly manageSchema?: boolean;
   readonly mode: PlatformMode;
+  readonly onPoolError?: (error: Error) => void;
   readonly poolSize?: number;
 }
 
@@ -91,6 +92,7 @@ export async function createPostgresPlatform(
     max: input.poolSize ?? 10,
     application_name: `vidha-${input.mode}`,
   });
+  pool.on('error', input.onPoolError ?? (() => undefined));
   try {
     if (input.manageSchema ?? true) {
       await applyMigrations(pool);

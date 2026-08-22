@@ -23,6 +23,7 @@ const platform = await createPostgresPlatform({
   installationId: required('VIDHA_INSTALLATION_ID'),
   manageSchema: role === 'migrate',
   mode: mode as PlatformMode,
+  onPoolError: reportPostgresPoolError,
 });
 
 if (role === 'migrate') {
@@ -145,6 +146,16 @@ function required(name: string): string {
     throw new Error(`${name} is required.`);
   }
   return value;
+}
+
+function reportPostgresPoolError(error: Error): void {
+  const code = (error as Error & { readonly code?: unknown }).code;
+  process.stderr.write(
+    `${JSON.stringify({
+      code: typeof code === 'string' ? code : 'connection_error',
+      event: 'postgres_pool_error',
+    })}\n`,
+  );
 }
 
 function sha256(value: string): string {
