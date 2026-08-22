@@ -7,6 +7,8 @@ export interface EncryptedMetadataRecord {
   readonly recordId: string;
   readonly schemaVersion: number;
   readonly keyVersion: string;
+  readonly keyProviderId?: string;
+  readonly wrappedDataKey?: string;
   readonly initializationVector: string;
   readonly ciphertext: string;
   readonly retainUntil: number | null;
@@ -109,6 +111,8 @@ export interface MetadataCipher {
     readonly plaintext: Uint8Array;
   }): Promise<{
     readonly keyVersion: string;
+    readonly keyProviderId?: string;
+    readonly wrappedDataKey?: string;
     readonly initializationVector: string;
     readonly ciphertext: string;
   }>;
@@ -574,7 +578,9 @@ export function validateJobIntent(intent: SafetyJobIntent): void {
     invalid('Maximum attempts cannot exceed 100.');
   }
   if (intent.kind === 'advance_plan_stage') {
-    if (!/^plan_[a-f0-9]{64}$/u.test(intent.planRef)) {
+    if (
+      !/^(?:[a-z][a-z0-9_-]{7,63}|plan_[a-f0-9]{64})$/u.test(intent.planRef)
+    ) {
       invalid('Scheduled Plan references must be opaque.');
     }
   } else if (intent.kind === 'synthetic_notice') {
@@ -602,6 +608,17 @@ export function validateEncryptedRecord(record: EncryptedMetadataRecord): void {
   }
   if (!isBase64(record.initializationVector) || !isBase64(record.ciphertext)) {
     invalidSnapshot('Encrypted metadata must use bounded base64 fields.');
+  }
+  if (
+    (record.keyProviderId === undefined) !==
+      (record.wrappedDataKey === undefined) ||
+    (record.keyProviderId !== undefined &&
+      !/^[a-z][a-z0-9_-]{2,63}$/u.test(record.keyProviderId)) ||
+    (record.wrappedDataKey !== undefined && !isBase64(record.wrappedDataKey))
+  ) {
+    invalidSnapshot(
+      'Wrapped metadata keys require a bounded provider and base64 envelope.',
+    );
   }
   if (base64ToBytes(record.initializationVector).byteLength !== 12) {
     invalidSnapshot(

@@ -1,0 +1,24 @@
+{
+  "name": "@vidha/platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:postgres": "VIDHA_REQUIRE_POSTGRES=1 vitest run src/postgres.integration.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vidha/identity": "workspace:*",
+    "@vidha/operations": "workspace:*",
+    "@vidha/domain": "workspace:*",
+    "@vidha/persistence": "workspace:*",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

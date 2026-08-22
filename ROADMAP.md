@@ -19,12 +19,17 @@ This roadmap describes intent, not shipped capability or a delivery date.
 - Quarantined TXT/Markdown intake with byte/type/resource checks, digest-bound scanner version/duration/isolation evidence, explicit approval, and exact session-byte preservation
 - Accepted one-image API/worker plus PostgreSQL topology contract with replaceable adapters and a read-only watchdog
 - Disposable encrypted operational-metadata, retention, restore-safe, atomic synthetic-outbox, retry/dead-letter, lease, and stale-worker fencing evidence across memory and PGlite
+- Digest-pinned PostgreSQL 18 topology with one image, one-shot migrator, separate API/worker roles, checksum-locked migrations, readiness, and disposable integration gates
+- Pinned SimpleWebAuthn ceremony adapter plus durable credential, assertion-proof, identity, session-digest, recovery-proof, and revision storage
+- Per-record wrapped metadata keys, key rewrap, signed generation-chain backup manifests, and external anti-rollback inventory fixtures
+- PostgreSQL Plan/audit/schedule/outbox atomicity, `SKIP LOCKED`, database-time leasing, fencing, dead letter, restore-safe denial, and an idempotent synthetic sink
+- Executable source-pinned file, digest-pinned ClamAV, and Pandoc import gates with exact-byte evidence and bounded AST conversion
 - Unit, component, build, documentation, accessibility, PWA, desktop-WebKit, and mobile-WebKit checks
 - Fable implementation and release handoff
 
-The partial [Phase 3 six-slice record](docs/product/NEXT_PHASE_3_SIX.md) selects identity, credential recovery, deployment, encrypted metadata, isolated scanning, and durable scheduler/outbox directions and exercises only their provider-free contracts. The planned [Phase 3B next six](docs/product/NEXT_PHASE_3B_SIX.md) must complete disposable PostgreSQL, wrapped-key backup, WebAuthn, durable identity, integrated worker, and scanner/sandbox evidence before accepting real data or sending a message. Guardian authority, Veto Window, Delivery Hold, Automatic Fallback, and Release remain outside the implemented state machine.
+The [Phase 3B six-slice record](docs/product/NEXT_PHASE_3B_SIX.md) now has intermediate disposable executable adapters for PostgreSQL topology, wrapped-key backup manifests, WebAuthn ceremonies, durable identity/recovery, integrated PostgreSQL Plan/outbox storage, and file/ClamAV/Pandoc intake. Phase 3B remains in progress: the [closure six](docs/product/PHASE_3B_CLOSURE_SIX.md) must still prove failure/capacity, authenticated restore and atomic key rotation, browser sessions, wired recovery abuse, scheduled-command crashes, and rootless import isolation before accepting real data or sending a message. Guardian authority, Veto Window, Delivery Hold, Automatic Fallback, and Release remain outside the implemented state machine.
 
-The earlier foundation record is in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md), and current boundaries are in [`docs/architecture/FOUNDATION_PHASE_3.md`](docs/architecture/FOUNDATION_PHASE_3.md). The sequence remains intentional: executable provider and operational evidence still precedes any durable personal data, and none of this work authorizes Guardian Attestation or Release behavior.
+The earlier foundation record is in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md), and current boundaries are in [`docs/architecture/FOUNDATION_PHASE_3B.md`](docs/architecture/FOUNDATION_PHASE_3B.md). The sequence remains intentional: executable provider and operational evidence still precedes any durable personal data, and none of this work authorizes Guardian Attestation or Release behavior.
 
 ## Version 1 candidate — planned
 

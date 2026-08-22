@@ -64,14 +64,14 @@ export interface IdentityNoticeIntent {
     | 'verified_channel_changed';
 }
 
-interface CredentialRecord {
+export interface CredentialRecord {
   readonly credentialId: string;
   readonly enrolledAt: number;
   readonly status: 'active' | 'revoked';
   readonly revokedAt?: number;
 }
 
-interface SessionRecord {
+export interface SessionRecord {
   readonly sessionDigest: string;
   readonly credentialId: string;
   readonly authenticatedAt: number;
@@ -80,13 +80,13 @@ interface SessionRecord {
   readonly revokedAt?: number;
 }
 
-interface RecoveryAttempt {
+export interface RecoveryAttempt {
   readonly attemptId: string;
   readonly startedAt: number;
   readonly readyAt: number;
 }
 
-interface VerifiedChannelChange {
+export interface VerifiedChannelChange {
   readonly changeId: string;
   readonly previousChannelRef: string;
   readonly nextChannelRef: string;
@@ -94,7 +94,7 @@ interface VerifiedChannelChange {
   readonly readyAt: number;
 }
 
-interface ProcessedIdentityCommand {
+export interface ProcessedIdentityCommand {
   readonly commandKey: string;
   readonly fingerprint: string;
   readonly resultRevision: number;
@@ -130,6 +130,20 @@ export interface OwnerIdentityState {
   readonly verifiedChannelChange: VerifiedChannelChange | null;
   readonly processedCommands: readonly ProcessedIdentityCommand[];
   readonly events: readonly IdentityEvent[];
+}
+
+export interface OwnerIdentityRepositoryTransaction {
+  list(): Promise<readonly OwnerIdentityState[]>;
+  read(ownerId: string): Promise<OwnerIdentityState | null>;
+  write(state: OwnerIdentityState): Promise<void>;
+}
+
+export interface OwnerIdentityRepository {
+  transaction<T>(
+    operation: (transaction: OwnerIdentityRepositoryTransaction) => Promise<T>,
+  ): Promise<T>;
+  list(): Promise<readonly OwnerIdentityState[]>;
+  read(ownerId: string): Promise<OwnerIdentityState | null>;
 }
 
 type IdentityCommandDetails =
@@ -246,6 +260,7 @@ export interface OwnerIdentityCoordinator extends SessionVerifier {
 interface CreateOwnerIdentityCoordinatorInput {
   readonly clock: { now(): number };
   readonly policy: IdentityPolicy;
+  readonly repository?: OwnerIdentityRepository;
   readonly sessionIdGenerator?: () => string;
   readonly verifier: CredentialProofVerifier;
 }
@@ -253,36 +268,29 @@ interface CreateOwnerIdentityCoordinatorInput {
 export function createOwnerIdentityCoordinator({
   clock,
   policy,
+  repository = createMemoryOwnerIdentityRepository(),
   sessionIdGenerator = generateSessionId,
   verifier,
 }: CreateOwnerIdentityCoordinatorInput): OwnerIdentityCoordinator {
   validatePolicy(policy);
-  const states = new Map<string, OwnerIdentityState>();
-  let mutationTail: Promise<void> = Promise.resolve();
-
-  async function serialize<T>(mutation: () => Promise<T>): Promise<T> {
-    const pending = mutationTail.then(mutation);
-    mutationTail = pending.then(
-      () => undefined,
-      () => undefined,
-    );
-    return await pending;
-  }
 
   return {
     async initialize(input) {
-      return await serialize(async () => {
+      return await repository.transaction(async (transaction) => {
         const at = validNow(clock);
         validateOwnerId(input.ownerId);
         validateCredentialId(input.credentialId);
         validateChannelRef(input.verifiedChannelRef);
-        if (states.has(input.ownerId)) {
+        if ((await transaction.read(input.ownerId)) !== null) {
           throw new IdentityError(
             'ALREADY_EXISTS',
             'Owner Identity already exists.',
           );
         }
-        assertCredentialAvailable(states, input.credentialId);
+        assertCredentialAvailable(
+          stateMap(await transaction.list()),
+          input.credentialId,
+        );
         const state: OwnerIdentityState = {
           ownerId: input.ownerId,
           securityRevision: 1,
@@ -301,14 +309,15 @@ export function createOwnerIdentityCoordinator({
           processedCommands: [],
           events: [event('IDENTITY_INITIALIZED', at, 0)],
         };
-        states.set(input.ownerId, cloneState(state));
+        await transaction.write(state);
         return cloneState(state);
       });
     },
     async authenticate(input) {
-      return await serialize(async () => {
+      return await repository.transaction(async (transaction) => {
         const at = validNow(clock);
         validateCredentialId(input.credentialId);
+        const states = stateMap(await transaction.list());
         const state = requireState(states, input.ownerId);
         const credential = state.credentials.find(
           (candidate) => candidate.credentialId === input.credentialId,
@@ -352,7 +361,7 @@ export function createOwnerIdentityCoordinator({
           'SESSION_ISSUED',
           at,
         );
-        states.set(input.ownerId, cloneState(next));
+        await transaction.write(next);
         return canonicalSession(sessionId, input.ownerId, at, expiresAt);
       });
     },
@@ -362,7 +371,7 @@ export function createOwnerIdentityCoordinator({
         return null;
       }
       const sessionDigest = await digestSessionId(sessionId);
-      for (const state of states.values()) {
+      for (const state of await repository.list()) {
         const session = state.sessions.find(
           (candidate) => candidate.sessionDigest === sessionDigest,
         );
@@ -384,8 +393,9 @@ export function createOwnerIdentityCoordinator({
       return null;
     },
     async execute(command) {
-      return await serialize(async () => {
+      return await repository.transaction(async (transaction) => {
         const at = validNow(clock);
+        const states = stateMap(await transaction.list());
         const state = requireState(states, command.ownerId);
         const commandKey = await deriveCommandKey(command.idempotencyKey);
         const fingerprint = await identityCommandFingerprint(command);
@@ -447,7 +457,7 @@ export function createOwnerIdentityCoordinator({
             },
           ],
         };
-        states.set(command.ownerId, cloneState(next));
+        await transaction.write(next);
         return {
           state: cloneState(next),
           noticeIntents: decided.noticeIntents.map((intent) => ({ ...intent })),
@@ -456,6 +466,55 @@ export function createOwnerIdentityCoordinator({
       });
     },
     async read(ownerId) {
+      return await repository.read(ownerId);
+    },
+  };
+}
+
+export function createMemoryOwnerIdentityRepository(): OwnerIdentityRepository {
+  const states = new Map<string, OwnerIdentityState>();
+  let transactionTail: Promise<void> = Promise.resolve();
+
+  return {
+    async transaction(operation) {
+      const pending = transactionTail.then(async () => {
+        const staged = new Map(
+          [...states.entries()].map(([ownerId, state]) => [
+            ownerId,
+            cloneState(state),
+          ]),
+        );
+        const transaction: OwnerIdentityRepositoryTransaction = {
+          async list() {
+            return [...staged.values()].map(cloneState);
+          },
+          async read(ownerId) {
+            const state = staged.get(ownerId);
+            return state === undefined ? null : cloneState(state);
+          },
+          async write(state) {
+            staged.set(state.ownerId, cloneState(state));
+          },
+        };
+        const result = await operation(transaction);
+        states.clear();
+        for (const [ownerId, state] of staged) {
+          states.set(ownerId, cloneState(state));
+        }
+        return result;
+      });
+      transactionTail = pending.then(
+        () => undefined,
+        () => undefined,
+      );
+      return await pending;
+    },
+    async list() {
+      await transactionTail;
+      return [...states.values()].map(cloneState);
+    },
+    async read(ownerId) {
+      await transactionTail;
       const state = states.get(ownerId);
       return state === undefined ? null : cloneState(state);
     },
@@ -1167,6 +1226,12 @@ async function identityCommandFingerprint(
       break;
   }
   return await sha256Text(JSON.stringify(semantic));
+}
+
+function stateMap(
+  states: readonly OwnerIdentityState[],
+): ReadonlyMap<string, OwnerIdentityState> {
+  return new Map(states.map((state) => [state.ownerId, cloneState(state)]));
 }
 
 function assertCredentialAvailable(

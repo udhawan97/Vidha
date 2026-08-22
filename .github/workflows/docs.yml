@@ -12,6 +12,20 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.3-alpine3.23@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7
+        env:
+          POSTGRES_DB: vidha_fixture
+          POSTGRES_PASSWORD: disposable_fixture_only
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vidha_fixture"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 20
     steps:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -26,6 +40,76 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check formatting, lint, types, tests, build, and documentation
         run: pnpm check
+      - name: Run disposable PostgreSQL 18 integration gate
+        env:
+          VIDHA_POSTGRES_URL: postgres://postgres:disposable_fixture_only@127.0.0.1:5432/vidha_fixture
+        run: pnpm test:postgres
+      - name: Run digest-pinned API, worker, migrator, and PostgreSQL topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() { docker compose -f infra/compose.yaml down --volumes --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          if ! docker compose -f infra/compose.yaml up --build --wait --wait-timeout 240; then
+            docker compose -f infra/compose.yaml ps --all
+            docker compose -f infra/compose.yaml logs
+            exit 1
+          fi
+          curl --fail --silent --show-error http://127.0.0.1:4179/readyz | tee "$RUNNER_TEMP/vidha-ready.json"
+          grep --fixed-strings '"databaseMajor":18' "$RUNNER_TEMP/vidha-ready.json"
+          test "$(docker inspect --format '{{.Config.User}}' "$(docker compose -f infra/compose.yaml ps -q api)")" = node
+          test "$(docker inspect --format '{{.Config.User}}' "$(docker compose -f infra/compose.yaml ps -q worker)")" = node
+          roles="$(docker compose -f infra/compose.yaml exec -T postgres psql -U vidha_owner -d vidha_fixture -Atc \"SELECT string_agg(DISTINCT usename, ',' ORDER BY usename) FROM pg_stat_activity WHERE usename IN ('vidha_api','vidha_worker')\")"
+          test "$roles" = 'vidha_api,vidha_worker'
+      - name: Install pinned file and Pandoc fixtures
+        id: scanner-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools_root="$RUNNER_TEMP/vidha-scanner-tools"
+          mkdir -p "$tools_root"
+
+          curl -fsSL https://github.com/file/file/archive/refs/tags/FILE5_48.tar.gz -o "$tools_root/file.tar.gz"
+          echo '76cefc3a662ab0e9f45db941b0a56e71705abad0690da19a5c32379cc6de3488  '"$tools_root/file.tar.gz" | sha256sum --check
+          tar -xzf "$tools_root/file.tar.gz" -C "$tools_root"
+          sudo apt-get update
+          sudo apt-get install --yes autoconf automake libtool make gcc
+          pushd "$tools_root/file-FILE5_48"
+          autoreconf --force --install
+          ./configure --prefix="$tools_root/file-install" --disable-shared
+          make --jobs=2
+          make install
+          popd
+
+          curl -fsSL https://github.com/jgm/pandoc/releases/download/3.10.2/pandoc-3.10.2-linux-amd64.tar.gz -o "$tools_root/pandoc.tar.gz"
+          echo 'c7edd535941c48be6a362081a748272837de81ae11777202d9c341d3d8261c9a  '"$tools_root/pandoc.tar.gz" | sha256sum --check
+          tar -xzf "$tools_root/pandoc.tar.gz" -C "$tools_root"
+
+          echo "file_bin=$tools_root/file-install/bin/file" >> "$GITHUB_OUTPUT"
+          echo "pandoc_bin=$tools_root/pandoc-3.10.2/bin/pandoc" >> "$GITHUB_OUTPUT"
+      - name: Run executable scanner and converter gate
+        env:
+          VIDHA_CLAMD_HOST: 127.0.0.1
+          VIDHA_CLAMD_PORT: '3310'
+          VIDHA_FILE_BIN: ${{ steps.scanner-tools.outputs.file_bin }}
+          VIDHA_PANDOC_BIN: ${{ steps.scanner-tools.outputs.pandoc_bin }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name vidha-clamd --publish 3310:3310 clamav/clamav:1.5.4@sha256:15167977085b01d083812d42aa70d390c2e3fcaaf647dfe82a47328fa6d48c9c
+          cleanup() { docker rm --force vidha-clamd >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for attempt in $(seq 1 90); do
+            if node -e "const n=require('node:net');const s=n.connect(3310,'127.0.0.1',()=>s.write('zPING\\0'));const t=setTimeout(()=>{s.destroy();process.exit(1)},1000);s.on('data',d=>{if(d.toString().includes('PONG')){clearTimeout(t);s.destroy();process.exit(0)}});s.on('error',()=>process.exit(1))"; then
+              break
+            fi
+            if [ "$attempt" -eq 90 ]; then
+              docker logs vidha-clamd
+              exit 1
+            fi
+            sleep 2
+          done
+          pnpm test:scanner
       - name: Install WebKit
         run: pnpm exec playwright install --with-deps webkit
       - name: Run desktop and mobile browser acceptance

@@ -1,6 +1,6 @@
 # Threat model
 
-**Status:** Pre-v1 security contract. Phase 3 supplies disposable contract evidence for selected identity, encrypted-metadata, inspection, restore-safe, and durable-work properties; controls remain requirements until the exact runnable release candidate proves them.
+**Status:** Pre-v1 security contract. The intermediate Phase 3B milestone supplies disposable executable evidence for selected WebAuthn, durable identity/recovery, wrapped metadata, PostgreSQL transaction/lease, restore-safe, and import-tool properties; Phase 3B remains in progress and controls remain requirements until the exact runnable release candidate proves them.
 
 Vidha coordinates an irreversible disclosure under uncertainty. Its dominant risk is not only data theft; it is releasing the right content at the wrong time or to the wrong person.
 
@@ -66,15 +66,16 @@ Before version 1 can ship, the implementation must demonstrate:
 | Supply-chain compromise                                                  | credential or plaintext theft                                  | lockfile, dependency review, provenance/SBOM, least-privilege CI, secret scanning, reproducible builds                                                                       | CI evidence and artifact inspection                                                      |
 | Logs leak sensitive data                                                 | secondary privacy breach                                       | structured redaction, no content logging, short retention, restricted access                                                                                                 | log corpus inspection                                                                    |
 
-## Current Phase 3 evidence boundary
+## Current Phase 3B evidence boundary
 
 - Canonical session facts come from `SessionVerifier`; caller-supplied principal and time fields are ignored, and an unknown or inactive session fails before a Plan transaction.
-- The synthetic identity coordinator requires verified user presence and user verification from its injected proof adapter, retains only session digests, supports exact credential/session revocation, requires two independently modeled recovery proofs and cooling-off, and verifies a new channel reference before its cooling-off begins.
-- The AES-256-GCM operational-metadata fixture binds record/schema context, detects injected IV reuse, keeps plaintext out of snapshots, exercises retention, and restores into writer-disabled safe mode. It is not production key custody, Standard Mode, Sealed Mode, or encrypted-backup evidence.
-- Durable-work fixtures commit encrypted synthetic state and content-free outbox intent atomically, enforce positive task kinds, deduplicate semantic intent, bound retries, dead-letter exhausted work, and reject expired or superseded leases in memory and PGlite.
-- Import intake owns exact bytes and rejects scanner evidence that does not match source digest, byte count, bounded version identifiers, duration, verdict, and the configured isolation profile. The runnable browser uses `synthetic_fixture`, not a malware scanner or sandbox.
+- Pinned SimpleWebAuthn adapters enforce exact RP/origin configuration, one-time purpose-bound ceremonies, user presence/verification, credential counters, and expiring one-time assertion proofs. There is no browser endpoint, cookie, virtual-authenticator matrix, real authenticator, or public origin.
+- The PostgreSQL Owner Identity and recovery repositories retain digest-only session/proof material, serialize revisions, consume ceremonies/proofs atomically, enforce independent recovery proofs and a retry lock, and reject mutations in restore-safe mode.
+- Wrapped per-record AES-GCM metadata keys bind record/schema context; AES-KW rewrap leaves ciphertext unchanged; signed backup manifests bind generation, parent, and ciphertext digest to an external anti-rollback inventory. The adapters are in-memory fixtures, not production key custody, database restore, Standard Mode, or Sealed Mode.
+- PostgreSQL commits accepted Plan state, processed-command history, append-only audit, next-stage schedule, and content-free synthetic outbox intent atomically. Its positive task allowlist, `SKIP LOCKED`, database-time leases, fencing, bounded retries/dead letter, restore-safe denial, and idempotent synthetic sink remain provider-free.
+- Import intake executes source-pinned file classification, ClamAV `INSTREAM`, and bounded Pandoc JSON conversion in mandatory CI. File and Pandoc still run as host CI processes, so this is not rootless OCI isolation or an adversarial-corpus sandbox claim; the browser remains `synthetic_fixture`.
 
-No item above checks a v1 release gate. Executable WebAuthn, PostgreSQL, key-provider and authenticated-backup, scanner/sandbox, provider, and full outage evidence remain Phase 3B work or later.
+No item above checks a v1 release gate. Browser WebAuthn/cookies, external key custody and authenticated database restore, topology failure/capacity, integrated scheduled-command crash evidence, rootless adversarial import isolation, providers, and full outage evidence remain Phase 3B closure work or later.
 
 ## Abuse controls
 

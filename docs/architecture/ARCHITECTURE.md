@@ -1,6 +1,6 @@
 # Proposed architecture
 
-**Status:** Phase 3 implements the pure domain, canonical-session application boundary, synthetic identity/recovery coordinator, disposable Plan and operations stores, encrypted operational-metadata fixture, fenced durable-work fixture, bounded inspection evidence, and local PWA described in the foundation record. WebAuthn, a PostgreSQL server, production key custody and backup, scanner/sandbox processes, notifications, Guardian authority, and Release remain unimplemented.
+**Status:** Phase 3B is in progress. Its intermediate milestone implements the pure Concern-bounded domain plus disposable PostgreSQL, WebAuthn ceremony, wrapped-key metadata, durable identity/recovery, Plan/audit/outbox, and file/ClamAV/Pandoc adapters described in the current foundation record. Browser authentication, production key custody and restore, rootless import isolation, real notifications, Guardian authority, and Release remain unimplemented.
 
 ## Architectural objective
 
@@ -31,21 +31,23 @@ The repository is a TypeScript monorepo. Entries marked “implemented” exist 
 ```text
 apps/
   web/                 implemented local React/Vite PWA foundation
-  api/                 planned Phase 3B HTTP entry point
-  worker/              planned Phase 3B scheduled entry point
+  runtime/             implemented bundled migrator/API/worker fixture
 packages/
   domain/              implemented pure Check-in states, commands, events, invariants
   application/         implemented authenticated commands and authorization orchestration
-  identity/            implemented synthetic Owner identity, recovery, and session contract
+  identity/            implemented synthetic identity plus WebAuthn ceremony adapters
   persistence/         implemented disposable memory, SQLite, and PGlite Plan stores
-  operations/          implemented encrypted-metadata and durable-work fixture contracts
+  operations/          implemented wrapped metadata, backup, and durable-work contracts
+  platform/            implemented disposable PostgreSQL 18 adapters and migrations
   crypto/              proposed reviewed Standard and Sealed Mode boundaries
-  documents/           implemented bounded TXT/Markdown intake seam; broader conversion proposed
+  documents/           implemented bounded TXT/Markdown plus executable intake seam
   notifications/       proposed provider-neutral outbox and templates
   ui/                  proposed shared components if a second client requires them
 infra/
-  hosted/              official deployment configuration
-  self-hosted/         reproducible container and migration configuration
+  Dockerfile           implemented digest-pinned disposable runtime image
+  compose.yaml         implemented internal synthetic topology fixture
+  hosted/              official deployment configuration remains proposed
+  self-hosted/         supported deployment documentation remains proposed
 docs/
 ```
 
@@ -100,7 +102,7 @@ Use unique constraints for semantic events such as one reminder per cycle/stage/
 
 ## Hosted and self-hosted persistence
 
-The current synthetic parity harness compares a Node SQLite adapter with a PGlite adapter behind one Plan transaction interface; see `PERSISTENCE_PORTABILITY.md`. Phase 3 selected one Node application image with API and worker roles plus PostgreSQL as the hosted and self-hosted metadata topology. PGlite is contract evidence only, not PostgreSQL operations evidence. Phase 3B must account for:
+The synthetic parity harness compares Node SQLite and PGlite behind one Plan transaction interface; see `PERSISTENCE_PORTABILITY.md`. The intermediate Phase 3B milestone adds a PostgreSQL 18 adapter, checksum-locked migration, separate migrator/API/worker topology, atomic Plan/audit/allowed-work transaction, database-time lease/fencing, and restore-safe denial. PGlite remains contract evidence. Phase 3B closure must still account for:
 
 - reliable scheduled execution when the application is otherwise idle;
 - transactions and uniqueness under concurrent jobs;

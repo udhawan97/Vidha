@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "nodeImage": {
+    "reference": "node:24.13.1-bookworm-slim",
+    "digest": "sha256:a81a03dd965b4052269a57fac857004022b522a4bf06e7a739e25e18bce45af2"
+  },
+  "postgresImage": {
+    "reference": "postgres:18.3-alpine3.23",
+    "digest": "sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7"
+  },
+  "simpleWebAuthn": {
+    "package": "@simplewebauthn/server",
+    "version": "13.3.2"
+  },
+  "clamav": {
+    "version": "1.5.4",
+    "imageDigest": "sha256:15167977085b01d083812d42aa70d390c2e3fcaaf647dfe82a47328fa6d48c9c",
+    "linuxAmd64Sha256": "28d6efc5b4423e7830c3559339552eb53870a9eac51ac4efb37d60530d329886"
+  },
+  "pandoc": {
+    "version": "3.10.2",
+    "linuxAmd64Sha256": "c7edd535941c48be6a362081a748272837de81ae11777202d9c341d3d8261c9a"
+  },
+  "file": {
+    "version": "5.48",
+    "sourceTag": "FILE5_48",
+    "sourceSha256": "76cefc3a662ab0e9f45db941b0a56e71705abad0690da19a5c32379cc6de3488"
+  }
+}

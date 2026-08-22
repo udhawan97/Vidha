@@ -1,6 +1,6 @@
 # Persistence portability comparison
 
-**Status:** The common Plan-store interface and disposable parity harness are implemented. ADR 0010 selects PostgreSQL as the production metadata and durable-work target, but no PostgreSQL server adapter, migration deployment, backup, or operations evidence exists yet.
+**Status:** The common Plan-store interface, disposable parity harness, and PostgreSQL 18 adapter are implemented. The PostgreSQL adapter covers checksum-locked migrations, Plan/command/audit persistence, atomic allowed work, contention, and restore-safe denial in disposable CI; authenticated logical backup/restore, migration rollback, capacity, failover, and deployment evidence do not exist yet.
 
 ## Evidence used
 
@@ -37,4 +37,4 @@ The shared pre-alpha schema baseline is migration version 1, Plan state JSON, un
 
 ## Target accepted; production evidence withheld
 
-ADR 0010 accepts PostgreSQL as Vidha's production database target; the earlier adapter decision is no longer open. The target is not implementation evidence: Vidha still lacks an executable server topology, migration and rollback rehearsal, encrypted backup rehearsal, multi-process contention evidence, capacity model, and real restore drill. The current logical snapshot contains disposable synthetic metadata and is not an encrypted v1 backup format.
+ADR 0010 accepts PostgreSQL as Vidha's production database target; the earlier adapter decision is no longer open. The intermediate Phase 3B milestone exercises a disposable server topology and real-server role/contention paths. Vidha still lacks migration interruption and rollback rehearsal, encrypted backup rehearsal, a capacity model, failover evidence, and a real restore drill. The current logical snapshot contains disposable synthetic metadata and is not an encrypted v1 backup format.

@@ -1,5 +1,6 @@
 export {
   IdentityError,
+  createMemoryOwnerIdentityRepository,
   createOwnerIdentityCoordinator,
   type AuthenticatedPrincipal,
   type AuthenticationSession,
@@ -10,7 +11,27 @@ export {
   type IdentityPolicy,
   type IdentityResult,
   type OwnerIdentityCoordinator,
+  type OwnerIdentityRepository,
+  type OwnerIdentityRepositoryTransaction,
   type OwnerIdentityState,
+  type CredentialRecord,
+  type ProcessedIdentityCommand,
+  type RecoveryAttempt,
+  type SessionRecord,
+  type VerifiedChannelChange,
   type PrincipalRole,
   type SessionVerifier,
 } from './identity';
+
+export {
+  createMemoryWebAuthnStateStore,
+  createWebAuthnCeremonyCoordinator,
+  simpleWebAuthnServerAdapter,
+  type WebAuthnAssertionProof,
+  type WebAuthnCeremonyCoordinator,
+  type WebAuthnCeremonyPurpose,
+  type WebAuthnCeremonyRecord,
+  type WebAuthnCredentialRecord,
+  type WebAuthnServerAdapter,
+  type WebAuthnStateStore,
+} from './webauthn';

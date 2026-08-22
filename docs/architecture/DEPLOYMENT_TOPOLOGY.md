@@ -1,6 +1,6 @@
 # Bounded deployment topology
 
-**Status:** Accepted topology contract, not an implemented deployment.
+**Status:** Accepted topology contract with a disposable digest-pinned Compose fixture, not a hosted or supported self-host deployment.
 
 ```text
 browser
@@ -17,8 +17,8 @@ The `api` and `worker` roles run the same versioned application image with separ
 
 ## Restore behavior
 
-A restore enters `restore_safe` before any application role starts. Read-only inspection and invariant checks are allowed. Metadata writes, scheduled-job claims, outbox dispatch, scanner updates, conversion, and every provider adapter remain disabled until explicit promotion. Backup authenticity, anti-rollback generation, isolated least-privilege restore, and promotion are Phase 3B evidence targets, not Phase 3 claims.
+A restore enters `restore_safe` before any application role starts. Read-only inspection and invariant checks are allowed. Metadata writes, scheduled-job claims, outbox dispatch, scanner updates, conversion, and every provider adapter remain disabled until explicit promotion. The intermediate Phase 3B milestone signs and chains synthetic backup manifests and rejects PostgreSQL mutations/claims in restore-safe adapters; a real logical backup, isolated least-privilege restore, invariant report, rollback rejection, and promotion remain Phase 3B closure targets.
 
 ## Explicit exclusions
 
-There is no chosen cloud host, public DNS, TLS certificate, production secret store, KMS, object store, notification provider, monitoring provider, image registry, supported self-host platform, high-availability model, RPO, RTO, updater, or deployment. PGlite supplies PostgreSQL-shaped local contract coverage only and is not a substitute for a disposable PostgreSQL server rehearsal.
+There is no chosen cloud host, public DNS, TLS certificate, production secret store, KMS, object store, notification provider, monitoring provider, image registry, supported self-host platform, high-availability model, RPO, RTO, updater, or deployment. The disposable PostgreSQL 18 service and Compose topology are CI fixtures with synthetic credentials and temporary storage; they are not a production environment.

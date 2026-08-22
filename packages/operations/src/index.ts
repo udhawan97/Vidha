@@ -1,7 +1,14 @@
 export {
+  OPERATIONS_SCHEMA_VERSION,
   OperationsError,
+  assertLive,
+  assertOperationsSnapshot,
+  createPendingJob,
   createOperationsFoundation,
   createWebCryptoMetadataCipher,
+  sameIntent,
+  validateEncryptedRecord,
+  validateJob,
   validateDeploymentManifest,
   type ClaimedSafetyJob,
   type DeploymentManifest,
@@ -19,5 +26,18 @@ export {
   type StoreMode,
   type SyntheticNoticeIntent,
 } from './operations';
+export {
+  createAuthenticatedBackupChain,
+  createEd25519BackupSigner,
+  createEnvelopeMetadataCipher,
+  encodeBackupManifest,
+  createMemoryBackupInventory,
+  createWebCryptoKeyProvider,
+  type BackupInventory,
+  type BackupManifest,
+  type BackupManifestSigner,
+  type MetadataKeyProvider,
+  type WrappedMetadataCipher,
+} from './keyCustody';
 export { MemoryOperationsStore } from './memory';
 export { PgliteOperationsStore, createPgliteOperationsStore } from './pglite';

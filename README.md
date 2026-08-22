@@ -4,11 +4,11 @@
 
 Vidha is an open-source contingency relay for an individual who wants selected people to receive private messages or documents if they become persistently unreachable. It is designed around explicit Check-ins, human verification by default, recipient-specific Envelopes, and clear recovery trade-offs.
 
-> **Pre-alpha:** this repository contains a runnable synthetic browser prototype and a Phase 3 provider-free operations foundation: a deterministic domain lifecycle through Concern, canonical session and recovery contracts, disposable memory/SQLite/PGlite stores, encrypted metadata fixtures, fenced durable-work fixtures, and bounded text-import inspection evidence. There are no real accounts, production credentials or cryptography, durable personal-content storage, malware scanning, sandboxed conversion, notification delivery, Release implementation, hosted service, deployment, download, tag, or GitHub release yet.
+> **Pre-alpha:** this repository contains a runnable synthetic browser prototype and a Phase 3B disposable server foundation: a deterministic domain lifecycle through Concern, canonical session/recovery contracts, PostgreSQL 18 adapters, wrapped-key metadata fixtures, WebAuthn ceremony adapters, fenced durable work, and executable file/ClamAV/Pandoc gates. There are no real accounts, production credentials or key custody, durable personal-content storage, rootless conversion sandbox, notification delivery, Release implementation, hosted service, deployment, download, tag, or GitHub release yet.
 
 > **Working name:** “Vidha” is provisional. The exact GitHub account, several exact-name repositories, and the `.com` and `.org` domains are already occupied; this project makes no exclusivity or legal-clearance claim. See the [name-collision evidence](docs/research/GITHUB_COMPETITIVE_LANDSCAPE.md#working-name-collision-check-vidha).
 
-[Product brief](docs/product/PRODUCT_BRIEF.md) · [Threat model](docs/security/THREAT_MODEL.md) · [Current foundation](docs/architecture/FOUNDATION_PHASE_3.md) · [Proposed architecture](docs/architecture/ARCHITECTURE.md) · [Fable build handoff](docs/FABLE_BUILD_PROMPT.md)
+[Product brief](docs/product/PRODUCT_BRIEF.md) · [Threat model](docs/security/THREAT_MODEL.md) · [Current foundation](docs/architecture/FOUNDATION_PHASE_3B.md) · [Proposed architecture](docs/architecture/ARCHITECTURE.md) · [Fable build handoff](docs/FABLE_BUILD_PROMPT.md)
 
 ## Run the local synthetic prototype
 
@@ -79,11 +79,13 @@ Read the full [threat model](docs/security/THREAT_MODEL.md) before treating any 
 | Path                                                                     | Purpose                                           |
 | ------------------------------------------------------------------------ | ------------------------------------------------- |
 | [`apps/web/`](apps/web/)                                                 | Responsive React/Vite PWA prototype               |
+| [`apps/runtime/`](apps/runtime/)                                         | Disposable API/worker/migrator runtime image      |
 | [`packages/domain/`](packages/domain/)                                   | Pure lifecycle, Check-in, and Concern decisions   |
 | [`packages/application/`](packages/application/)                         | Canonical-session and authorization seam          |
 | [`packages/identity/`](packages/identity/)                               | Synthetic Owner identity and recovery contract    |
 | [`packages/operations/`](packages/operations/)                           | Encrypted metadata and durable-work contracts     |
 | [`packages/persistence/`](packages/persistence/)                         | Disposable Plan-store adapters and contract tests |
+| [`packages/platform/`](packages/platform/)                               | PostgreSQL identity, Plan, and operations seams   |
 | [`packages/documents/`](packages/documents/)                             | Bounded untrusted text-import intake              |
 | [`e2e/`](e2e/)                                                           | WebKit desktop and mobile acceptance checks       |
 | [`CONTEXT.md`](CONTEXT.md)                                               | Canonical product vocabulary                      |
@@ -98,9 +100,9 @@ Read the full [threat model](docs/security/THREAT_MODEL.md) before treating any 
 
 ## Build status
 
-Phase 3 locally exercises six bounded decision contracts with disposable synthetic state. `packages/identity` is the only issuer of canonical Owner session facts and models credential, session, recovery, and Verified Owner Channel changes behind proof-verifier seams. `packages/operations` exercises bounded AES-GCM metadata fixtures, retention, restore-safe snapshots, atomic synthetic outbox commits, retries, dead letter, expiring leases, and stale-worker fencing across memory and PGlite. Import intake now validates digest-bound scanner version, duration, byte-count, verdict, and isolation-profile evidence; the browser still declares its adapter a synthetic fixture, not a malware scanner or sandbox.
+The intermediate Phase 3B milestone adds production-shaped but disposable adapters around the Concern-bounded domain. `packages/identity` now includes pinned SimpleWebAuthn ceremony verification and durable repository seams. `packages/platform` supplies checksum-locked PostgreSQL 18 migrations, separate API/worker role grants, durable identity/recovery, Plan/audit/outbox atomicity, database-time leases, fencing, and a content-free synthetic sink. `packages/operations` adds wrapped per-record metadata keys and signed anti-rollback backup manifests. `packages/documents` can execute exact-byte file classification, ClamAV `INSTREAM`, and bounded Pandoc JSON conversion in the mandatory CI fixture.
 
-It deliberately stops at Concern. The [partial Phase 3 six-slice record](docs/product/NEXT_PHASE_3_SIX.md), [current foundation map](docs/architecture/FOUNDATION_PHASE_3.md), [primary-source decisions](docs/research/PHASE_3_PRIMARY_SOURCES.md), and ADRs 0009–0012 describe exactly what is selected and locally exercised. Executable WebAuthn, PostgreSQL, wrapped-key backup, scanner/sandbox, and integrated scheduler adapters remain [Phase 3B completion planning](docs/product/NEXT_PHASE_3B_SIX.md). Real data, external delivery, Guardian authority, and Release remain behind later gates.
+It deliberately stops at Concern, and Phase 3B remains in progress. The [Phase 3B evidence map](docs/architecture/FOUNDATION_PHASE_3B.md), [six-slice implementation record](docs/product/NEXT_PHASE_3B_SIX.md), [primary-source decisions](docs/research/PHASE_3_PRIMARY_SOURCES.md), and ADRs 0009–0012 state the exact proof and limits. Browser WebAuthn/cookies, authenticated database restore and atomic key rotation, topology failure/capacity, integrated scheduled-command crash testing, and rootless adversarial import isolation remain in the [Phase 3B closure six](docs/product/PHASE_3B_CLOSURE_SIX.md). Real data, external delivery, Guardian authority, and Release remain behind later gates.
 
 Fable can continue from the [bounded build handoff](docs/FABLE_BUILD_PROMPT.md), but must not treat this prototype as release authority. Run `refresh-docs` only after a real release candidate can supply truthful screenshots, commands, downloads, and platform claims.
 

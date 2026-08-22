@@ -1,0 +1,85 @@
+name: vidha-phase3b-fixture
+
+services:
+  postgres:
+    image: postgres:18.3-alpine3.23@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7
+    environment:
+      POSTGRES_DB: vidha_fixture
+      POSTGRES_PASSWORD: disposable_fixture_only
+      POSTGRES_USER: vidha_owner
+      PGDATA: /var/lib/postgresql/18/docker
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vidha_owner -d vidha_fixture']
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    tmpfs:
+      - /var/lib/postgresql/18/docker
+    volumes:
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [core]
+
+  api:
+    image: vidha-phase3b:local
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    environment: &runtime_environment
+      DATABASE_URL: postgres://vidha_api:disposable_api_fixture_only@postgres:5432/vidha_fixture
+      VIDHA_ENVIRONMENT_ID: environment_2222222222222222222222222222222222222222222222222222222222222222
+      VIDHA_INSTALLATION_ID: installation_3333333333333333333333333333333333333333333333333333333333333333
+      VIDHA_MODE: live
+      VIDHA_ROLE: api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:8080/readyz').then(r=>{if(!r.ok)process.exit(1)})",
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    ports:
+      - 127.0.0.1:4179:8080
+    networks: [core]
+
+  worker:
+    image: vidha-phase3b:local
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    environment:
+      <<: *runtime_environment
+      DATABASE_URL: postgres://vidha_worker:disposable_worker_fixture_only@postgres:5432/vidha_fixture
+      VIDHA_ROLE: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    networks: [core]
+
+  migrate:
+    image: vidha-phase3b:local
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    environment:
+      DATABASE_URL: postgres://vidha_owner:disposable_fixture_only@postgres:5432/vidha_fixture
+      VIDHA_ENVIRONMENT_ID: environment_2222222222222222222222222222222222222222222222222222222222222222
+      VIDHA_INSTALLATION_ID: installation_3333333333333333333333333333333333333333333333333333333333333333
+      VIDHA_MODE: live
+      VIDHA_ROLE: migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [core]
+
+networks:
+  core:
+    internal: true

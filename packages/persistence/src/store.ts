@@ -38,6 +38,7 @@ export interface PortablePlanStore extends PlanTransactionStore {
 export type PlanStoreErrorCode =
   | 'ALREADY_EXISTS'
   | 'IDEMPOTENCY_CONFLICT'
+  | 'INVALID_CONFIGURATION'
   | 'INVALID_SNAPSHOT'
   | 'INVALID_TRANSITION'
   | 'NOT_FOUND'

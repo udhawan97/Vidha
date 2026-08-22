@@ -1,6 +1,6 @@
 # Owner identity, recovery, and revocation contract
 
-**Status:** Accepted target with synthetic in-memory contract evidence only. No real Owner Credential, recovery proof, Verified Owner Channel, session cookie, notification, or identity proofing exists.
+**Status:** Accepted target with synthetic in-memory and disposable PostgreSQL evidence plus a pinned WebAuthn ceremony adapter. No real Owner Credential, recovery channel, Verified Owner Channel destination, session cookie, notification, or identity proofing exists.
 
 | Event                                  | Required proof                                                                                         | Identity effect                                                              | Session effect                                                | Notice intent                   |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------- |
@@ -24,5 +24,5 @@
 - Every identity command carries an expected security revision and external idempotency value. Only SHA-256 command and semantic digests enter state; matching retries return `duplicate` with no repeated notice intent, cross-intent key reuse fails, and serialized concurrent mutations cannot overwrite a newer revision.
 - Identity time uses safe integers and an injected clock. Cooling-off expires only at the exact stored boundary; no wall-clock catch-up compresses it.
 - Completing recovery replaces authority but issues no session. A new assertion is required afterward.
-- The production WebAuthn adapter must verify the exact challenge purpose, origin, RP ID, signature, user presence, and user verification. An application `userPresence: true` field does not substitute for cryptographic UP/UV.
-- Real recovery stays disabled until factor independence, cancellation, rate limits, storage, one-time consumption, content-free notifications, and abuse review pass with disposable accounts.
+- The WebAuthn adapter verifies exact challenge purpose, origin, RP ID, signature, user presence, and user verification through pinned SimpleWebAuthn. Its one-time bootstrap, ceremony, credential-counter, and assertion-proof stores are disposable adapters; no route or cookie surface is enabled. An application `userPresence: true` field does not substitute for cryptographic UP/UV.
+- The PostgreSQL recovery proof adapter stores only independent proof digests, atomically consumes the pair, expires attempts, and applies a bounded retry lock. Real recovery stays disabled until wired cancellation, abuse, migration/restore, content-free notification, and browser-session evidence pass with disposable accounts.

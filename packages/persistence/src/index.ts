@@ -1,6 +1,12 @@
 export {
   PLAN_STORE_SCHEMA_VERSION,
   PlanStoreError,
+  assertLive,
+  assertPlanTransition,
+  assertPortablePlanState,
+  assertSnapshot,
+  auditRecord,
+  cloneState,
   type AuditRecord,
   type PlanStoreErrorCode,
   type PlanStoreSnapshot,
