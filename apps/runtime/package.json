@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@vidha/operations": "workspace:*",
-    "@vidha/platform": "workspace:*"
+    "@vidha/platform": "workspace:*",
+    "pg": "8.23.0"
   },
   "devDependencies": {
     "esbuild": "0.28.2"

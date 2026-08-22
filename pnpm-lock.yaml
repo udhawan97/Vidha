@@ -50,6 +50,9 @@ importers:
       '@vidha/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
     devDependencies:
       esbuild:
         specifier: 0.28.2
