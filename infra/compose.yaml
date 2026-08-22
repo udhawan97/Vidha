@@ -46,7 +46,7 @@ services:
       retries: 20
     ports:
       - 127.0.0.1:4179:8080
-    networks: [core]
+    networks: [core, edge]
 
   worker:
     image: vidha-phase3b:local
@@ -83,3 +83,4 @@ services:
 networks:
   core:
     internal: true
+  edge:
