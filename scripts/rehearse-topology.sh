@@ -13,6 +13,12 @@ export VIDHA_API_HOST_PORT=0
 compose=(docker compose --project-name "$vidha_project" -f "$repo_root/infra/compose.yaml")
 cleanup_required=false
 
+report_failure() {
+  vidha_status=$?
+  echo "Topology rehearsal failed at line ${BASH_LINENO[0]}: ${BASH_COMMAND}" >&2
+  return "$vidha_status"
+}
+
 cleanup_on_exit() {
   vidha_status=$?
   trap - EXIT
@@ -26,6 +32,7 @@ cleanup_on_exit() {
   fi
   exit "$vidha_status"
 }
+trap report_failure ERR
 trap cleanup_on_exit EXIT
 
 existing_resources=$(
@@ -64,12 +71,24 @@ test "$(docker inspect --format '{{.Config.User}}' "$api_id")" = node
 test "$(docker inspect --format '{{.Config.User}}' "$worker_id")" = node
 test "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/18/docker"}}{{.Type}}{{end}}{{end}}' "$postgres_id")" = tmpfs
 
-roles=$(
-  "${compose[@]}" exec -T postgres \
-    psql -U vidha_owner -d vidha_fixture -Atc \
-    "SELECT string_agg(DISTINCT usename, ',' ORDER BY usename) FROM pg_stat_activity WHERE usename IN ('vidha_api','vidha_worker')"
-)
-test "$roles" = 'vidha_api,vidha_worker'
+roles=''
+roles_observed=false
+for _attempt in $(seq 1 30); do
+  roles=$(
+    "${compose[@]}" exec -T postgres \
+      psql -U vidha_owner -d vidha_fixture -Atc \
+      "SELECT string_agg(DISTINCT usename, ',' ORDER BY usename) FROM pg_stat_activity WHERE usename IN ('vidha_api','vidha_worker')"
+  )
+  if [ "$roles" = 'vidha_api,vidha_worker' ]; then
+    roles_observed=true
+    break
+  fi
+  sleep 1
+done
+if [ "$roles_observed" != true ]; then
+  echo "The API and worker roles were not both active; observed: ${roles:-none}." >&2
+  exit 1
+fi
 if "${compose[@]}" exec -T postgres \
   env PGPASSWORD=disposable_api_fixture_only \
   psql -h 127.0.0.1 -U vidha_api -d vidha_fixture -v ON_ERROR_STOP=1 -c \
@@ -165,6 +184,7 @@ test -z "$remaining_containers"
 test -z "$remaining_networks"
 test -z "$remaining_volumes"
 cleanup_required=false
+trap - ERR
 trap - EXIT
 
 printf '%s\n' '{"apiReady":true,"dataRootDestroyed":true,"disposableOwnerControl":true,"leastPrivilegeDenialsVerified":true,"networkPartitionObserved":true,"nonRootApplicationRoles":true,"teardownVerified":true,"workerRecovered":true}'
