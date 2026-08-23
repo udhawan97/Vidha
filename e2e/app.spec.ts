@@ -173,15 +173,96 @@ test('restores decoded imported text and offers text and HTML copies', async ({
   );
 });
 
+test('reviews distinct file types before keeping session-only Attachments', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  await page.getByLabel('Add Attachment candidates').setInputFiles([
+    {
+      buffer: Buffer.from('%PDF synthetic fixture'),
+      mimeType: 'application/pdf',
+      name: 'care-sheet.pdf',
+    },
+    {
+      buffer: Buffer.from('BEGIN:VCARD\nEND:VCARD'),
+      mimeType: 'text/vcard',
+      name: 'helper.vcf',
+    },
+  ]);
+
+  await expect(
+    page.getByRole('heading', { name: 'Keep 2 files with this Envelope?' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Filename classification only.', { exact: false }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Keep as Attachments' }).click();
+
+  await expect(page.getByText('care-sheet.pdf')).toBeVisible();
+  await expect(page.getByText('helper.vcf')).toBeVisible();
+  await expect(page.getByText('No file was uploaded or sent.')).toBeVisible();
+
+  const attachmentDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download care-sheet.pdf' }).click();
+  const attachment = await attachmentDownload;
+  await expect(attachment.suggestedFilename()).toBe('care-sheet.pdf');
+  await expect(await readDownload(attachment)).toBe('%PDF synthetic fixture');
+});
+
+test('provides an Owner guide with role, consequence, and file boundaries', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Guide' }).click();
+
+  await expect(
+    page.getByRole('heading', {
+      name: 'Build a handoff someone can actually follow.',
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      name: 'This build rehearses; it does not relay.',
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Guardian Attestation first', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('HTML, SVG, scripts, executables', { exact: false }),
+  ).toBeVisible();
+});
+
+test('keeps every primary view inside the documented responsive widths', async ({
+  page,
+}) => {
+  for (const width of [320, 375, 414, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const view of ['Overview', 'Envelopes', 'Guide']) {
+      await page.getByRole('button', { name: view, exact: true }).click();
+      const viewport = await page.locator('body').evaluate((body) => ({
+        clientWidth: body.clientWidth,
+        scrollWidth: body.scrollWidth,
+      }));
+      expect(
+        viewport.scrollWidth,
+        `${view} should not overflow at ${width}px`,
+      ).toBeLessThanOrEqual(viewport.clientWidth);
+    }
+  }
+});
+
 test('has no serious or critical automated accessibility violations', async ({
   page,
 }) => {
-  const results = await new AxeBuilder({ page }).analyze();
-  const materialViolations = results.violations.filter(({ impact }) =>
-    ['serious', 'critical'].includes(impact ?? ''),
-  );
+  for (const view of ['Overview', 'Envelopes', 'Guide']) {
+    await page.getByRole('button', { name: view, exact: true }).click();
+    const results = await new AxeBuilder({ page }).analyze();
+    const materialViolations = results.violations.filter(({ impact }) =>
+      ['serious', 'critical'].includes(impact ?? ''),
+    );
 
-  expect(materialViolations).toEqual([]);
+    expect(materialViolations, `${view} accessibility`).toEqual([]);
+  }
 });
 
 test('uses the motion-aware working-concept icon with a reduced-motion fallback', async ({

@@ -1,4 +1,14 @@
 export {
+  AttachmentIntakeError,
+  SUPPORTED_ATTACHMENT_FORMATS,
+  prepareAttachmentCandidate,
+  type AttachmentCandidate,
+  type AttachmentIntakeErrorCode,
+  type AttachmentKind,
+  type AttachmentLimits,
+  type SupportedAttachmentFormat,
+} from './attachmentIntake';
+export {
   ImportIntakeError,
   createImportIntake,
   utf8TextConverter,

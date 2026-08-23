@@ -20,7 +20,7 @@ async function armDemo(user: ReturnType<typeof userEvent.setup>) {
   expect(await screen.findByText('Lifecycle: armed')).toBeVisible();
 }
 
-describe('Vidha Phase 2 foundation app', () => {
+describe('Vidha synthetic foundation app', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -107,6 +107,66 @@ describe('Vidha Phase 2 foundation app', () => {
     expect(
       screen.getByRole('button', { name: 'Restore imported text' }),
     ).toBeEnabled();
+  });
+
+  it('stages multiple file types as reviewable Attachment candidates', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    await user.upload(screen.getByLabelText('Add Attachment candidates'), [
+      new File(['%PDF-synthetic'], 'care-sheet.pdf', {
+        type: 'application/pdf',
+      }),
+      new File(['synthetic contact'], 'helper.vcf', {
+        type: 'text/vcard',
+      }),
+    ]);
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Keep 2 files with this Envelope?',
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/no malware scan, safe preview, upload, encryption/i),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'Keep as Attachments' }),
+    );
+
+    expect(screen.getByText('care-sheet.pdf')).toBeVisible();
+    expect(screen.getByText('helper.vcf')).toBeVisible();
+    expect(screen.getByText('No file was uploaded or sent.')).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Download care-sheet.pdf' }),
+    ).toBeEnabled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Remove care-sheet.pdf' }),
+    );
+    expect(screen.queryByText('care-sheet.pdf')).not.toBeInTheDocument();
+    expect(screen.getByText('1/8')).toBeVisible();
+  });
+
+  it('explains the full rehearsal and consequence boundaries in the Owner guide', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Guide' }));
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Build a handoff someone can actually follow.',
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', {
+        name: 'This build rehearses; it does not relay.',
+      }),
+    ).toBeVisible();
+    expect(screen.getByText('Guardian Attestation first')).toBeVisible();
+    expect(screen.getByText(/HTML, SVG, scripts, executables/i)).toBeVisible();
   });
 
   it('reassigns a synthetic Recipient with undo and redo controls', async () => {

@@ -253,6 +253,7 @@ export function Overview({
                 <div className="envelope-meta">
                   <span>{envelope.protectionMode}</span>
                   <span>{envelope.releasePolicy}</span>
+                  <span>{`${envelope.attachments.length} Attachment${envelope.attachments.length === 1 ? '' : 's'}`}</span>
                 </div>
               </article>
             ))}

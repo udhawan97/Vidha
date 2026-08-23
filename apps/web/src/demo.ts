@@ -1,4 +1,5 @@
 import { createDraftPlan, type PlanState } from '@vidha/domain';
+import type { AttachmentKind } from '@vidha/documents';
 
 const DAY = 24 * 60 * 60 * 1_000;
 
@@ -8,8 +9,19 @@ export interface DemoEnvelope {
   body: string;
   recipient: string;
   importSource: DemoImportSource | null;
+  attachments: DemoAttachment[];
   protectionMode: 'Standard';
   releasePolicy: 'Guardian attestation first';
+}
+
+export interface DemoAttachment {
+  readonly sourceId: string;
+  readonly filename: string;
+  readonly mediaType: string;
+  readonly kind: AttachmentKind;
+  readonly sizeBytes: number;
+  readonly originalBytes: Uint8Array;
+  readonly warnings: readonly string[];
 }
 
 export interface DemoImportSource {
@@ -42,6 +54,7 @@ This is a synthetic draft for the Vidha demonstration.
 Nothing in this demo is stored after the session ends.`,
     recipient: 'Mira Chen',
     importSource: null,
+    attachments: [],
     protectionMode: 'Standard',
     releasePolicy: 'Guardian attestation first',
   },
@@ -55,6 +68,7 @@ This synthetic note demonstrates a practical handoff.
 Morning walks are short. The evening walk is the one she waits for.`,
     recipient: 'Sam Rivera',
     importSource: null,
+    attachments: [],
     protectionMode: 'Standard',
     releasePolicy: 'Guardian attestation first',
   },

@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="#run-the-local-prototype">Run the local prototype</a> ·
+  <a href="docs/product/OWNER_GUIDE.md">Owner guide</a> ·
   <a href="docs/public-surface/FACT_SHEET.md">See current evidence</a> ·
   <a href="docs/FABLE_BUILD_PROMPT.md">Developer build handoff</a>
 </p>
@@ -58,9 +59,12 @@ Open the local URL printed by Vite. You can:
 - record an explicit synthetic Check-in and inspect the in-memory event history;
 - edit two synthetic Envelopes and reassign their Recipients;
 - quarantine and review a Markdown or plain-text import up to 256 KB;
+- stage up to eight common document, image, audio, video, data, contact, or ZIP files as session-only Attachment candidates, with a 5 MB per-file and 20 MB per-Envelope fixture limit;
+- review, download, or remove exact Attachment bytes without claiming upload, scanning, safe preview, encryption, persistence, or delivery;
 - create checkpoints, restore or download the original source, and export Markdown, plain text, or escaped standalone HTML.
+- open the in-app Owner guide for the four-part rehearsal path, role boundaries, file contract, and the consequences of each intended Protection Mode and Release Policy.
 
-Browser import inspection is a synthetic fixture—not a malware scan or sandbox. Approved content and exact source bytes remain in memory for the current session only.
+Browser import and Attachment handling are synthetic fixtures—not malware scanning, sandboxed conversion, encryption, or delivery. Approved content and exact source bytes remain in memory for the current session only. See the [Owner guide](docs/product/OWNER_GUIDE.md) before using the rehearsal.
 
 ### Verify the repository
 

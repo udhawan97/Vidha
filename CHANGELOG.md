@@ -10,6 +10,7 @@ All notable changes are documented here. Vidha has not published an application 
 - Added the pre-v1 product, security, public-surface, and release documentation.
 - Added a TypeScript monorepo with a pure, deterministic Check-in timeline that deliberately stops at Concern.
 - Added a responsive React/Vite PWA prototype with synthetic data, temporary text editing and import/export, and a prompted update flow.
+- Added an in-app Owner guide and bounded multi-file Attachment-candidate rehearsal across common document, image, audio, video, data, contact, and ZIP formats while keeping upload, scanning, encryption, persistence, delivery, and Release explicitly absent.
 - Added domain, component, WebKit desktop/mobile, accessibility, PWA, build, lint, formatting, and documentation checks.
 - Expanded the synthetic document rehearsal with Recipient reassignment, undo and redo, restorable session checkpoints, browser-decoded text snapshots for import restore, and Markdown, plain-text, and escaped standalone HTML copies.
 - Implemented the next six bounded foundation slices with synthetic identities and disposable state: a provider-neutral authenticated-principal/session input boundary, application authorization, atomic content-free audit/idempotency storage, memory/SQLite/PGlite parity, explicit Plan lifecycle, and quarantined text intake.

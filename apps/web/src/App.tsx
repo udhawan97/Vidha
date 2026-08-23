@@ -10,11 +10,12 @@ import { MemoryPlanStore } from '@vidha/persistence/memory';
 import { useRef, useState } from 'react';
 
 import { DocumentWorkspace } from './components/DocumentWorkspace';
+import { OwnerGuide } from './components/OwnerGuide';
 import { Overview } from './components/Overview';
 import { UpdateNotice } from './components/UpdateNotice';
-import { createDemoPlan, demoEnvelopes } from './demo';
+import { createDemoPlan, demoEnvelopes, type DemoEnvelope } from './demo';
 
-type View = 'overview' | 'workspace';
+type View = 'guide' | 'overview' | 'workspace';
 
 interface DemoClock extends Clock {
   set(at: number): void;
@@ -89,8 +90,15 @@ export function App() {
   const [runtime] = useState(createDemoRuntime);
   const [view, setView] = useState<View>('overview');
   const [plan, setPlan] = useState(runtime.initialPlan);
-  const [envelopes, setEnvelopes] = useState(() =>
-    demoEnvelopes.map((envelope) => ({ ...envelope })),
+  const [envelopes, setEnvelopes] = useState<DemoEnvelope[]>(() =>
+    demoEnvelopes.map((envelope) => ({
+      ...envelope,
+      attachments: envelope.attachments.map((attachment) => ({
+        ...attachment,
+        originalBytes: Uint8Array.from(attachment.originalBytes),
+        warnings: [...attachment.warnings],
+      })),
+    })),
   );
   const [announcement, setAnnouncement] = useState(
     'Synthetic rehearsal loaded.',
@@ -224,6 +232,17 @@ export function App() {
             </span>
             <span>Envelopes</span>
           </button>
+          <button
+            aria-current={view === 'guide' ? 'page' : undefined}
+            className={view === 'guide' ? 'nav-item is-active' : 'nav-item'}
+            onClick={() => setView('guide')}
+            type="button"
+          >
+            <span className="nav-glyph" aria-hidden="true">
+              ↗
+            </span>
+            <span>Guide</span>
+          </button>
         </nav>
         <div className="rail-footnote">
           <span className="demo-pulse" aria-hidden="true" />
@@ -266,6 +285,9 @@ export function App() {
               envelopes={envelopes}
               setEnvelopes={setEnvelopes}
             />
+          </div>
+          <div hidden={view !== 'guide'}>
+            <OwnerGuide />
           </div>
         </main>
       </div>

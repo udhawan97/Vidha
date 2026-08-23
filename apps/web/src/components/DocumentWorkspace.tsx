@@ -7,15 +7,20 @@ import {
   useState,
 } from 'react';
 import {
+  AttachmentIntakeError,
   ImportIntakeError,
+  SUPPORTED_ATTACHMENT_FORMATS,
   createImportIntake,
+  prepareAttachmentCandidate,
   utf8TextConverter,
+  type AttachmentCandidate,
   type ImportScanner,
   type InspectedImport,
 } from '@vidha/documents';
 
 import {
   demoRecipients,
+  type DemoAttachment,
   type DemoEnvelope,
   type DemoImportSource,
 } from '../demo';
@@ -33,6 +38,7 @@ interface DraftSnapshot {
   readonly body: string;
   readonly recipient: string;
   readonly importSource: DemoImportSource | null;
+  readonly attachments: DemoAttachment[];
 }
 
 interface DraftHistory {
@@ -48,8 +54,14 @@ interface SessionCheckpoint {
 
 const MAX_IMPORT_BYTES = 256 * 1024;
 const MAX_IMPORT_LINES = 10_000;
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MAX_ATTACHMENT_TOTAL_BYTES = 20 * 1024 * 1024;
+const MAX_ATTACHMENTS = 8;
 const MAX_UNDO_STEPS = 50;
 const MAX_CHECKPOINTS = 6;
+const ATTACHMENT_ACCEPT = SUPPORTED_ATTACHMENT_FORMATS.map(
+  (format) => `.${format.extension}`,
+).join(',');
 
 const syntheticFixtureScanner: ImportScanner = {
   async scan(source) {
@@ -89,11 +101,22 @@ function snapshotEnvelope(envelope: DemoEnvelope): DraftSnapshot {
     body: envelope.body,
     recipient: envelope.recipient,
     importSource: envelope.importSource,
+    attachments: envelope.attachments.map((attachment) => ({
+      ...attachment,
+      originalBytes: Uint8Array.from(attachment.originalBytes),
+      warnings: [...attachment.warnings],
+    })),
   };
 }
 
 function formatBytes(bytes: number): string {
-  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatCheckpointTime(timestamp: number): string {
@@ -114,6 +137,9 @@ export function DocumentWorkspace({
   const [pendingImport, setPendingImport] = useState<InspectedImport | null>(
     null,
   );
+  const [pendingAttachments, setPendingAttachments] = useState<
+    readonly AttachmentCandidate[]
+  >([]);
   const [historyByEnvelope, setHistoryByEnvelope] = useState<
     Record<string, DraftHistory>
   >({});
@@ -122,6 +148,7 @@ export function DocumentWorkspace({
   >({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  const attachmentRef = useRef<HTMLInputElement>(null);
   const checkpointSequence = useRef(0);
   const activeEnvelope =
     envelopes.find((envelope) => envelope.id === selectedId) ?? envelopes[0];
@@ -268,6 +295,7 @@ export function DocumentWorkspace({
     }
 
     setImportError(null);
+    setPendingAttachments([]);
     try {
       const prepared = await importIntake.prepare({
         bytes: new Uint8Array(await file.arrayBuffer()),
@@ -285,6 +313,109 @@ export function DocumentWorkspace({
           : 'The import could not be inspected.',
       );
     }
+  }
+
+  async function stageAttachmentFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = [...(event.currentTarget.files ?? [])];
+    event.currentTarget.value = '';
+    if (files.length === 0) {
+      return;
+    }
+
+    setImportError(null);
+    setPendingImport(null);
+    const candidates: AttachmentCandidate[] = [];
+    const errors: string[] = [];
+    const existingSourceIds = new Set(
+      selectedEnvelope.attachments.map((attachment) => attachment.sourceId),
+    );
+    let totalBytes = selectedEnvelope.attachments.reduce(
+      (total, attachment) => total + attachment.sizeBytes,
+      0,
+    );
+
+    for (const file of files) {
+      if (
+        selectedEnvelope.attachments.length + candidates.length >=
+        MAX_ATTACHMENTS
+      ) {
+        errors.push(
+          `${file.name}: this rehearsal keeps at most ${MAX_ATTACHMENTS} Attachment candidates per Envelope.`,
+        );
+        continue;
+      }
+      try {
+        const candidate = await prepareAttachmentCandidate(
+          {
+            bytes: new Uint8Array(await file.arrayBuffer()),
+            declaredMediaType: file.type,
+            filename: file.name,
+          },
+          { maxBytes: MAX_ATTACHMENT_BYTES },
+        );
+        if (
+          existingSourceIds.has(candidate.sourceId) ||
+          candidates.some(
+            (existing) => existing.sourceId === candidate.sourceId,
+          )
+        ) {
+          errors.push(
+            `${candidate.filename}: these exact bytes are already staged.`,
+          );
+          continue;
+        }
+        if (totalBytes + candidate.sizeBytes > MAX_ATTACHMENT_TOTAL_BYTES) {
+          errors.push(
+            `${candidate.filename}: the Envelope would exceed the ${formatBytes(MAX_ATTACHMENT_TOTAL_BYTES)} session total.`,
+          );
+          continue;
+        }
+        candidates.push(candidate);
+        totalBytes += candidate.sizeBytes;
+      } catch (error) {
+        errors.push(
+          `${file.name}: ${
+            error instanceof AttachmentIntakeError
+              ? error.message
+              : 'The file could not be staged.'
+          }`,
+        );
+      }
+    }
+
+    setPendingAttachments(candidates);
+    if (errors.length > 0) {
+      setImportError(errors.join(' '));
+    }
+    if (candidates.length > 0) {
+      setSessionStatus(
+        `${candidates.length} Attachment candidate${candidates.length === 1 ? '' : 's'} staged for review`,
+      );
+    }
+  }
+
+  function approvePendingAttachments() {
+    if (pendingAttachments.length === 0) {
+      return;
+    }
+    updateActiveEnvelope({
+      attachments: [
+        ...selectedEnvelope.attachments,
+        ...pendingAttachments.map((candidate) => ({
+          sourceId: candidate.sourceId,
+          filename: candidate.filename,
+          mediaType: candidate.mediaType,
+          kind: candidate.kind,
+          sizeBytes: candidate.sizeBytes,
+          originalBytes: Uint8Array.from(candidate.originalBytes),
+          warnings: [...candidate.warnings],
+        })),
+      ],
+    });
+    setPendingAttachments([]);
+    setSessionStatus(
+      `${pendingAttachments.length} Attachment${pendingAttachments.length === 1 ? '' : 's'} kept in this session`,
+    );
   }
 
   async function approvePendingImport() {
@@ -318,13 +449,26 @@ export function DocumentWorkspace({
     }
   }
 
+  function removeAttachment(sourceId: string) {
+    updateActiveEnvelope({
+      attachments: selectedEnvelope.attachments.filter(
+        (attachment) => attachment.sourceId !== sourceId,
+      ),
+    });
+    setSessionStatus('Attachment removed from this session');
+  }
+
   function downloadDocument(
     content: BlobPart,
     mediaType: string,
     filename: string,
     status: string,
   ) {
-    const blob = new Blob([content], { type: `${mediaType};charset=utf-8` });
+    const blob = new Blob([content], {
+      type: mediaType.startsWith('text/')
+        ? `${mediaType};charset=utf-8`
+        : mediaType,
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -361,11 +505,22 @@ export function DocumentWorkspace({
     );
   }
 
+  function downloadAttachment(attachment: DemoAttachment) {
+    const bytes = new Uint8Array(attachment.originalBytes.byteLength);
+    bytes.set(attachment.originalBytes);
+    downloadDocument(
+      bytes.buffer,
+      attachment.mediaType,
+      attachment.filename,
+      'Attachment bytes prepared for download',
+    );
+  }
+
   return (
     <div className="workspace-view">
       <header className="workspace-heading">
         <div>
-          <p className="eyebrow">Document workspace · Phase 2 foundation</p>
+          <p className="eyebrow">Envelope studio · synthetic rehearsal</p>
           <h1>Write the handoff, not the ceremony.</h1>
           <p>
             These synthetic drafts live only in memory. Do not enter personal or
@@ -381,12 +536,28 @@ export function DocumentWorkspace({
             ref={importRef}
             type="file"
           />
+          <input
+            accept={ATTACHMENT_ACCEPT}
+            aria-label="Add Attachment candidates"
+            className="visually-hidden"
+            multiple
+            onChange={(event) => void stageAttachmentFiles(event)}
+            ref={attachmentRef}
+            type="file"
+          />
           <button
             className="button button-quiet"
             onClick={() => importRef.current?.click()}
             type="button"
           >
-            Import text
+            Import editable text
+          </button>
+          <button
+            className="button button-quiet"
+            onClick={() => attachmentRef.current?.click()}
+            type="button"
+          >
+            Add files
           </button>
           <button
             className="button button-primary"
@@ -481,6 +652,56 @@ export function DocumentWorkspace({
         </section>
       )}
 
+      {pendingAttachments.length === 0 ? null : (
+        <section
+          className="pending-import pending-attachments"
+          aria-labelledby="pending-attachments-title"
+        >
+          <div>
+            <p className="eyebrow">Attachment review</p>
+            <h2 id="pending-attachments-title">
+              Keep {pendingAttachments.length} file
+              {pendingAttachments.length === 1 ? '' : 's'} with this Envelope?
+            </h2>
+            <ul>
+              {pendingAttachments.map((attachment) => (
+                <li key={attachment.sourceId}>
+                  <strong>{attachment.filename}</strong>
+                  <span>
+                    {attachment.kind} · {formatBytes(attachment.sizeBytes)}
+                  </span>
+                  {attachment.warnings.map((warning) => (
+                    <span className="intake-warning" key={warning}>
+                      {warning}
+                    </span>
+                  ))}
+                </li>
+              ))}
+            </ul>
+            <p className="intake-warning">
+              Filename classification only. No malware scan, safe preview,
+              upload, encryption, or delivery occurs in this browser fixture.
+            </p>
+          </div>
+          <div className="pending-import-actions">
+            <button
+              className="button button-quiet"
+              onClick={() => setPendingAttachments([])}
+              type="button"
+            >
+              Discard
+            </button>
+            <button
+              className="button button-primary"
+              onClick={approvePendingAttachments}
+              type="button"
+            >
+              Keep as Attachments
+            </button>
+          </div>
+        </section>
+      )}
+
       <div className="workspace-shell">
         <aside className="document-list" aria-label="Demo Envelopes">
           <div className="document-list-heading">
@@ -498,11 +719,17 @@ export function DocumentWorkspace({
                   : 'document-choice'
               }
               key={envelope.id}
-              onClick={() => setSelectedId(envelope.id)}
+              onClick={() => {
+                setSelectedId(envelope.id);
+                setPendingImport(null);
+                setPendingAttachments([]);
+                setImportError(null);
+              }}
               type="button"
             >
               <strong>{envelope.title}</strong>
               <span>For {envelope.recipient}</span>
+              <span>{`${envelope.attachments.length} Attachment${envelope.attachments.length === 1 ? '' : 's'}`}</span>
             </button>
           ))}
           <div className="list-boundary">
@@ -663,6 +890,58 @@ export function DocumentWorkspace({
                 </button>
               </>
             )}
+          </div>
+          <div className="setting-block attachment-block">
+            <div className="attachment-heading">
+              <p className="setting-label">Attachments</p>
+              <span>
+                {selectedEnvelope.attachments.length}/{MAX_ATTACHMENTS}
+              </span>
+            </div>
+            {selectedEnvelope.attachments.length === 0 ? (
+              <>
+                <span>No file is attached in this session.</span>
+                <button
+                  className="text-action"
+                  onClick={() => attachmentRef.current?.click()}
+                  type="button"
+                >
+                  Add supporting files
+                </button>
+              </>
+            ) : (
+              <ul>
+                {selectedEnvelope.attachments.map((attachment) => (
+                  <li key={attachment.sourceId}>
+                    <div>
+                      <strong>{attachment.filename}</strong>
+                      <span>
+                        {attachment.kind} · {formatBytes(attachment.sizeBytes)}
+                      </span>
+                    </div>
+                    <div className="attachment-actions">
+                      <button
+                        aria-label={`Download ${attachment.filename}`}
+                        className="text-action"
+                        onClick={() => downloadAttachment(attachment)}
+                        type="button"
+                      >
+                        Download
+                      </button>
+                      <button
+                        aria-label={`Remove ${attachment.filename}`}
+                        className="text-action text-action-danger"
+                        onClick={() => removeAttachment(attachment.sourceId)}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <span>No file was uploaded or sent.</span>
           </div>
           <div className="setting-block checkpoint-block">
             <p className="setting-label">Session checkpoints</p>

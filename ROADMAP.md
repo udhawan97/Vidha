@@ -13,6 +13,7 @@ This roadmap describes intent, not shipped capability or a delivery date.
 - Responsive local PWA prototype using synthetic, in-memory data
 - Temporary Markdown/plain-text import, editing, preview, and export
 - Synthetic Recipient reassignment, undo/redo, restorable session checkpoints, browser-decoded import snapshots, and Markdown/plain-text/escaped-HTML copies
+- In-app Owner guidance plus session-only, explicitly reviewed Attachment candidates for bounded document, image, audio, video, data, contact, and ZIP formats; no upload, scan, encryption, persistence, or delivery claim
 - Canonical-session application boundary plus synthetic Owner Credential, session revocation, two-proof recovery, and Verified Owner Channel contracts
 - Disposable in-memory, SQLite, and Postgres-compatible PGlite Plan stores under one atomic audit/idempotency contract
 - Explicit Draft, Armed, Paused, and Disabled lifecycle with rehearsal-before-arm, recent authentication, policy revision, and fresh-interval resume rules
