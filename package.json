@@ -14,6 +14,7 @@
     "test": "pnpm -r --if-present test",
     "test:postgres": "pnpm --filter @vidha/platform test:postgres",
     "test:topology": "pnpm --filter @vidha/platform test:topology",
+    "test:backup": "./scripts/rehearse-backup.sh",
     "test:scanner": "pnpm --filter @vidha/documents test:scanner",
     "test:domain": "pnpm --filter @vidha/domain test",
     "test:e2e": "playwright test",

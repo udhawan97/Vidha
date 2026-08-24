@@ -14,6 +14,7 @@ import { Pool, type PoolClient } from 'pg';
 
 import { PLATFORM_SCHEMA_VERSION, platformMigrations } from './migrations';
 import { PostgresOperationsStore } from './postgresOperations';
+import { PostgresKeyRotationStore } from './postgresKeyRotation';
 import { PostgresPlanStore, type PlanOutboxPlanner } from './postgresPlan';
 
 export type PlatformMode = 'live' | 'restore_safe';
@@ -57,6 +58,7 @@ export interface RecoveryProofStore {
 }
 
 export interface PostgresPlatform {
+  readonly keyRotationStore: PostgresKeyRotationStore;
   readonly operationsStore: PostgresOperationsStore;
   readonly identityRepository: OwnerIdentityRepository;
   readonly mode: PlatformMode;
@@ -110,6 +112,7 @@ export async function createPostgresPlatform(
     };
     return {
       identityRepository: new PostgresOwnerIdentityRepository(pool, assertLive),
+      keyRotationStore: new PostgresKeyRotationStore(pool, input.mode),
       mode: input.mode,
       operationsStore: new PostgresOperationsStore(pool, input.mode),
       pool,

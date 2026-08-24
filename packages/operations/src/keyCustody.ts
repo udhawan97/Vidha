@@ -25,6 +25,32 @@ export interface WrappedMetadataCipher extends MetadataCipher {
   ): Promise<EncryptedMetadataRecord>;
 }
 
+export interface LogicalBackupContext {
+  readonly databaseMajor: number;
+  readonly environmentId: string;
+  readonly installationId: string;
+  readonly schemaVersion: number;
+}
+
+export interface EncryptedLogicalBackup {
+  readonly ciphertext: Uint8Array;
+  readonly initializationVector: string;
+  readonly keyProviderId: string;
+  readonly keyVersion: string;
+  readonly wrappedDataKey: string;
+}
+
+export interface LogicalBackupCipher {
+  encrypt(
+    plaintext: Uint8Array,
+    context: LogicalBackupContext,
+  ): Promise<EncryptedLogicalBackup>;
+  decrypt(
+    backup: EncryptedLogicalBackup,
+    context: LogicalBackupContext,
+  ): Promise<Uint8Array>;
+}
+
 export function createEnvelopeMetadataCipher(input: {
   readonly keyProvider: MetadataKeyProvider;
   readonly randomBytes?: (length: number) => Uint8Array;
@@ -205,17 +231,103 @@ export function createWebCryptoKeyProvider(input: {
   };
 }
 
+export function createLogicalBackupCipher(input: {
+  readonly keyProvider: MetadataKeyProvider;
+  readonly randomBytes?: (length: number) => Uint8Array;
+}): LogicalBackupCipher {
+  validateProviderId(input.keyProvider.providerId);
+  validateKeyVersion(input.keyProvider.currentKeyVersion);
+  const randomBytes =
+    input.randomBytes ??
+    ((length: number) =>
+      globalThis.crypto.getRandomValues(new Uint8Array(length)));
+
+  return {
+    async encrypt(plaintext, backupContext) {
+      validateLogicalBackup(plaintext, backupContext);
+      const dataKey = owned(await input.keyProvider.generateDataKey());
+      requireLength(dataKey, 32, 'Generated logical-backup data keys');
+      const iv = owned(randomBytes(12));
+      requireLength(iv, 12, 'Logical-backup initialization vectors');
+      try {
+        const wrappedDataKey = await input.keyProvider.wrapDataKey({
+          dataKey,
+          keyVersion: input.keyProvider.currentKeyVersion,
+        });
+        const ciphertext = await globalThis.crypto.subtle.encrypt(
+          {
+            name: 'AES-GCM',
+            iv,
+            additionalData: logicalBackupContext(backupContext),
+            tagLength: 128,
+          },
+          await importKey('AES-GCM', dataKey, ['encrypt']),
+          owned(plaintext),
+        );
+        return {
+          ciphertext: new Uint8Array(ciphertext),
+          initializationVector: toBase64(iv),
+          keyProviderId: input.keyProvider.providerId,
+          keyVersion: input.keyProvider.currentKeyVersion,
+          wrappedDataKey: toBase64(wrappedDataKey),
+        };
+      } finally {
+        dataKey.fill(0);
+      }
+    },
+    async decrypt(backup, backupContext) {
+      validateLogicalBackupEnvelope(backup, backupContext);
+      if (backup.keyProviderId !== input.keyProvider.providerId) {
+        invalid('The logical-backup key provider does not match.');
+      }
+      const dataKey = owned(
+        await input.keyProvider.unwrapDataKey({
+          keyVersion: backup.keyVersion,
+          wrappedDataKey: fromBase64(backup.wrappedDataKey),
+        }),
+      );
+      requireLength(dataKey, 32, 'Unwrapped logical-backup data keys');
+      try {
+        const plaintext = new Uint8Array(
+          await globalThis.crypto.subtle.decrypt(
+            {
+              name: 'AES-GCM',
+              iv: fromBase64(backup.initializationVector),
+              additionalData: logicalBackupContext(backupContext),
+              tagLength: 128,
+            },
+            await importKey('AES-GCM', dataKey, ['decrypt']),
+            owned(backup.ciphertext),
+          ),
+        );
+        validateLogicalBackup(plaintext, backupContext);
+        return plaintext;
+      } catch (error) {
+        if (error instanceof OperationsError) throw error;
+        invalid('Logical-backup authentication failed.');
+      } finally {
+        dataKey.fill(0);
+      }
+    },
+  };
+}
+
 export interface BackupManifest {
   readonly applicationCommit: string;
+  readonly backupFormat: 'postgres_custom_v1';
   readonly ciphertextDigest: string;
   readonly createdAt: number;
   readonly databaseMajor: number;
+  readonly encryptionKeyVersion: string;
+  readonly encryptionProviderId: string;
   readonly environmentId: string;
   readonly generation: number;
+  readonly initializationVector: string;
   readonly installationId: string;
   readonly keyVersions: readonly string[];
   readonly parentManifestDigest: string | null;
   readonly schemaVersion: number;
+  readonly wrappedDataKey: string;
 }
 
 export interface BackupInventory {
@@ -245,25 +357,36 @@ export function createAuthenticatedBackupChain(input: {
         'ciphertextDigest' | 'generation' | 'parentManifestDigest'
       > & {
         readonly ciphertext: Uint8Array;
+        readonly persist: (artifact: {
+          readonly manifest: BackupManifest;
+          readonly manifestDigest: string;
+          readonly signature: Uint8Array;
+        }) => Promise<void>;
       },
     ) {
       const previous = await input.inventory.read();
       const manifest: BackupManifest = {
         applicationCommit: details.applicationCommit,
+        backupFormat: details.backupFormat,
         ciphertextDigest: await digestBytes(details.ciphertext),
         createdAt: details.createdAt,
         databaseMajor: details.databaseMajor,
+        encryptionKeyVersion: details.encryptionKeyVersion,
+        encryptionProviderId: details.encryptionProviderId,
         environmentId: details.environmentId,
         generation: (previous?.generation ?? 0) + 1,
+        initializationVector: details.initializationVector,
         installationId: details.installationId,
         keyVersions: [...details.keyVersions].sort(),
         parentManifestDigest: previous?.manifestDigest ?? null,
         schemaVersion: details.schemaVersion,
+        wrappedDataKey: details.wrappedDataKey,
       };
       validateManifest(manifest);
       const bytes = canonicalManifest(manifest);
       const signature = await input.signer.sign(bytes);
       const manifestDigest = await digestBytes(bytes);
+      await details.persist({ manifest, manifestDigest, signature });
       await input.inventory.write({
         generation: manifest.generation,
         manifestDigest,
@@ -385,14 +508,18 @@ function validateContext(
 function validateManifest(manifest: BackupManifest): void {
   if (
     !/^[a-f0-9]{40,64}$/u.test(manifest.applicationCommit) ||
+    manifest.backupFormat !== 'postgres_custom_v1' ||
     !/^[a-f0-9]{64}$/u.test(manifest.ciphertextDigest) ||
     !Number.isSafeInteger(manifest.createdAt) ||
     !Number.isSafeInteger(manifest.databaseMajor) ||
     manifest.databaseMajor < 18 ||
+    !/^key_[a-z0-9_-]{1,32}$/u.test(manifest.encryptionKeyVersion) ||
+    !/^[a-z][a-z0-9_-]{2,63}$/u.test(manifest.encryptionProviderId) ||
     !/^environment_[a-f0-9]{64}$/u.test(manifest.environmentId) ||
     !Number.isSafeInteger(manifest.generation) ||
     manifest.generation <= 0 ||
     !/^installation_[a-f0-9]{64}$/u.test(manifest.installationId) ||
+    !isBase64WithLength(manifest.initializationVector, 12) ||
     !Number.isSafeInteger(manifest.schemaVersion) ||
     manifest.schemaVersion <= 0 ||
     (manifest.parentManifestDigest !== null &&
@@ -400,9 +527,76 @@ function validateManifest(manifest: BackupManifest): void {
     manifest.keyVersions.length === 0 ||
     manifest.keyVersions.some(
       (version) => !/^key_[a-z0-9_-]{1,32}$/u.test(version),
-    )
+    ) ||
+    !isBase64WithLength(manifest.wrappedDataKey, 40)
   ) {
     invalid('The authenticated backup manifest is malformed.');
+  }
+}
+
+function validateLogicalBackup(
+  plaintext: Uint8Array,
+  backupContext: LogicalBackupContext,
+): void {
+  validateLogicalBackupContext(backupContext);
+  if (
+    plaintext.byteLength < 5 ||
+    plaintext.byteLength > 67_108_864 ||
+    plaintext[0] !== 0x50 ||
+    plaintext[1] !== 0x47 ||
+    plaintext[2] !== 0x44 ||
+    plaintext[3] !== 0x4d ||
+    plaintext[4] !== 0x50
+  ) {
+    invalid('Logical backups must be bounded PostgreSQL custom archives.');
+  }
+}
+
+function validateLogicalBackupEnvelope(
+  backup: EncryptedLogicalBackup,
+  backupContext: LogicalBackupContext,
+): void {
+  validateLogicalBackupContext(backupContext);
+  validateProviderId(backup.keyProviderId);
+  validateKeyVersion(backup.keyVersion);
+  if (
+    backup.ciphertext.byteLength < 21 ||
+    backup.ciphertext.byteLength > 67_108_880 ||
+    !isBase64WithLength(backup.initializationVector, 12) ||
+    !isBase64WithLength(backup.wrappedDataKey, 40)
+  ) {
+    invalid('The encrypted logical-backup envelope is malformed.');
+  }
+}
+
+function validateLogicalBackupContext(value: LogicalBackupContext): void {
+  if (
+    !Number.isSafeInteger(value.databaseMajor) ||
+    value.databaseMajor < 18 ||
+    !/^environment_[a-f0-9]{64}$/u.test(value.environmentId) ||
+    !/^installation_[a-f0-9]{64}$/u.test(value.installationId) ||
+    !Number.isSafeInteger(value.schemaVersion) ||
+    value.schemaVersion <= 0
+  ) {
+    invalid('The logical-backup context is invalid.');
+  }
+}
+
+function logicalBackupContext(
+  value: LogicalBackupContext,
+): Uint8Array<ArrayBuffer> {
+  return owned(
+    new TextEncoder().encode(
+      JSON.stringify({ ...value, purpose: 'vidha-postgres-backup-v1' }),
+    ),
+  );
+}
+
+function isBase64WithLength(value: string, length: number): boolean {
+  try {
+    return fromBase64(value).byteLength === length;
+  } catch {
+    return false;
   }
 }
 

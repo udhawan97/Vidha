@@ -4,7 +4,13 @@ import {
   type IdentityCommand,
 } from '@vidha/identity';
 import { applyPlanCommand, createDraftPlan } from '@vidha/domain';
-import { OperationsError, type SafetyJobIntent } from '@vidha/operations';
+import {
+  OperationsError,
+  createEnvelopeMetadataCipher,
+  createWebCryptoKeyProvider,
+  type EncryptedMetadataRecord,
+  type SafetyJobIntent,
+} from '@vidha/operations';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 
@@ -118,6 +124,8 @@ suite('disposable PostgreSQL 18 platform', () => {
   beforeEach(async () => {
     await platform.pool.query(`
       TRUNCATE TABLE
+        restore_promotions,
+        metadata_key_rotations,
         synthetic_sink_receipts,
         safety_jobs,
         encrypted_metadata,
@@ -614,6 +622,131 @@ suite('disposable PostgreSQL 18 platform', () => {
         limit: 1,
       }),
     ).rejects.toMatchObject({ code: 'RESTORE_SAFE_MODE' });
+  });
+
+  it('atomically rotates persisted wrapped keys and replays a lost acknowledgement', async () => {
+    const sourceProvider = createWebCryptoKeyProvider({
+      currentKeyVersion: 'key_source-1',
+      keys: { 'key_source-1': new Uint8Array(32).fill(1) },
+      providerId: 'file_fixture',
+    });
+    const targetProvider = createWebCryptoKeyProvider({
+      currentKeyVersion: 'key_target-2',
+      keys: { 'key_target-2': new Uint8Array(32).fill(2) },
+      providerId: 'kms_fixture',
+    });
+    const sourceCipher = createEnvelopeMetadataCipher({
+      keyProvider: sourceProvider,
+    });
+    const records: EncryptedMetadataRecord[] = [];
+    for (const character of ['a', 'b']) {
+      const recordId = `metadata_${character.repeat(64)}`;
+      records.push({
+        recordId,
+        schemaVersion: 2,
+        ...(await sourceCipher.encrypt({
+          recordId,
+          schemaVersion: 2,
+          plaintext: new TextEncoder().encode(`synthetic-${character}`),
+        })),
+        retainUntil: null,
+        updatedAt: START,
+      });
+    }
+    for (const record of records) {
+      await apiPlatform.operationsStore.writeMetadata(record);
+    }
+
+    for (const boundary of [
+      'after_selection',
+      'after_first_write',
+      'before_commit',
+    ] as const) {
+      await expect(
+        apiPlatform.keyRotationStore.rotate(
+          {
+            at: START,
+            rotationId: `rotation_${'4'.repeat(64)}`,
+            sourceCipher,
+            targetProvider,
+          },
+          async (current) => {
+            if (current === boundary) throw new Error(`interrupt:${boundary}`);
+          },
+        ),
+      ).rejects.toThrow(`interrupt:${boundary}`);
+      await expect(apiPlatform.keyRotationStore.history()).resolves.toEqual([]);
+      for (const record of records) {
+        await expect(
+          apiPlatform.operationsStore.readMetadata(record.recordId),
+        ).resolves.toMatchObject({
+          ciphertext: record.ciphertext,
+          keyProviderId: 'file_fixture',
+          keyVersion: 'key_source-1',
+        });
+      }
+    }
+
+    await expect(
+      apiPlatform.keyRotationStore.rotate(
+        {
+          at: START,
+          rotationId: `rotation_${'4'.repeat(64)}`,
+          sourceCipher,
+          targetProvider,
+        },
+        async (current) => {
+          if (current === 'after_commit') {
+            throw new Error('interrupt:after_commit');
+          }
+        },
+      ),
+    ).rejects.toThrow('interrupt:after_commit');
+
+    const replay = await apiPlatform.keyRotationStore.rotate({
+      at: START,
+      rotationId: `rotation_${'4'.repeat(64)}`,
+      sourceCipher,
+      targetProvider,
+    });
+    expect(replay).toMatchObject({
+      duplicate: true,
+      rotatedRecords: 2,
+      sourceKeyVersions: ['file_fixture:key_source-1'],
+      targetKeyVersion: 'key_target-2',
+      targetProviderId: 'kms_fixture',
+    });
+    const targetCipher = createEnvelopeMetadataCipher({
+      keyProvider: targetProvider,
+    });
+    for (const record of records) {
+      const rotated = await apiPlatform.operationsStore.readMetadata(
+        record.recordId,
+      );
+      expect(rotated).toMatchObject({
+        ciphertext: record.ciphertext,
+        initializationVector: record.initializationVector,
+        keyProviderId: 'kms_fixture',
+        keyVersion: 'key_target-2',
+      });
+      await expect(targetCipher.decrypt(rotated!)).resolves.toEqual(
+        new TextEncoder().encode(
+          `synthetic-${record.recordId.at(-1) === 'a' ? 'a' : 'b'}`,
+        ),
+      );
+    }
+    await expect(
+      apiPlatform.keyRotationStore.rotate({
+        at: START,
+        rotationId: `rotation_${'4'.repeat(64)}`,
+        sourceCipher,
+        targetProvider: createWebCryptoKeyProvider({
+          currentKeyVersion: 'key_conflict-3',
+          keys: { 'key_conflict-3': new Uint8Array(32).fill(3) },
+          providerId: 'kms_fixture',
+        }),
+      }),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
   });
 
   it('rejects caller-forged store modes against persisted runtime mode', async () => {

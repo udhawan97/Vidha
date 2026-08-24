@@ -13,13 +13,18 @@ function commandKey(character: string): string {
 describe('Phase 3B PostgreSQL schema', () => {
   it('is versioned and positively allowlists Concern-bounded work', () => {
     expect(platformMigrations.map((migration) => migration.version)).toEqual([
-      PLATFORM_SCHEMA_VERSION,
+      ...Array.from(
+        { length: PLATFORM_SCHEMA_VERSION },
+        (_, index) => index + 1,
+      ),
     ]);
     const sql = platformMigrations.map((migration) => migration.sql).join('\n');
     expect(sql).toContain("kind IN ('advance_plan_stage', 'synthetic_notice')");
     expect(sql).toContain('claim_generation');
     expect(sql).toContain('CREATE TABLE plans');
     expect(sql).toContain('CREATE TABLE audit_events');
+    expect(sql).toContain('CREATE TABLE metadata_key_rotations');
+    expect(sql).toContain('CREATE TABLE restore_promotions');
     expect(sql).not.toMatch(
       /guardian_attestation|recipient_delivery|veto_window|delivery_hold|automatic_fallback|release_task/iu,
     );

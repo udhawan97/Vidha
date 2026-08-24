@@ -55,6 +55,8 @@ jobs:
           set -euo pipefail
           ./scripts/rehearse-topology.sh | tee "$RUNNER_TEMP/vidha-topology.json"
           grep --fixed-strings '"dataRootDestroyed":true' "$RUNNER_TEMP/vidha-topology.json"
+      - name: Rehearse authenticated logical backup, key rotation, and restore promotion
+        run: pnpm test:backup
       - name: Install pinned file and Pandoc fixtures
         id: scanner-tools
         shell: bash

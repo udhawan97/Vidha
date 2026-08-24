@@ -4,7 +4,7 @@ export interface PlatformMigration {
   readonly sql: string;
 }
 
-export const PLATFORM_SCHEMA_VERSION = 1;
+export const PLATFORM_SCHEMA_VERSION = 2;
 
 export const platformMigrations: readonly PlatformMigration[] = [
   {
@@ -189,6 +189,66 @@ export const platformMigrations: readonly PlatformMigration[] = [
         END IF;
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vidha_restore') THEN
           GRANT SELECT ON ALL TABLES IN SCHEMA public TO vidha_restore;
+        END IF;
+      END
+      $roles$;
+    `,
+  },
+  {
+    version: 2,
+    name: 'authenticated_backup_and_key_rotation',
+    sql: `
+      CREATE TABLE metadata_key_rotations (
+        rotation_id TEXT PRIMARY KEY CHECK (rotation_id ~ '^rotation_[a-f0-9]{64}$'),
+        request_digest TEXT NOT NULL CHECK (request_digest ~ '^[a-f0-9]{64}$'),
+        target_provider_id TEXT NOT NULL CHECK (target_provider_id ~ '^[a-z][a-z0-9_-]{2,63}$'),
+        target_key_version TEXT NOT NULL CHECK (target_key_version ~ '^key_[a-z0-9_-]{1,32}$'),
+        rotated_records INTEGER NOT NULL CHECK (rotated_records > 0),
+        record_set_digest TEXT NOT NULL CHECK (record_set_digest ~ '^[a-f0-9]{64}$'),
+        completed_at BIGINT NOT NULL,
+        report_json JSONB NOT NULL,
+        CHECK (report_json->>'rotationId' = rotation_id),
+        CHECK (report_json->>'requestDigest' = request_digest),
+        CHECK (report_json->>'targetProviderId' = target_provider_id),
+        CHECK (report_json->>'targetKeyVersion' = target_key_version),
+        CHECK ((report_json->>'rotatedRecords')::integer = rotated_records),
+        CHECK (report_json->>'recordSetDigest' = record_set_digest),
+        CHECK ((report_json->>'completedAt')::bigint = completed_at)
+      );
+
+      CREATE FUNCTION reject_key_rotation_rewrite() RETURNS trigger
+      LANGUAGE plpgsql AS $guard$
+      BEGIN
+        RAISE EXCEPTION 'metadata key rotation history is immutable';
+      END
+      $guard$;
+      CREATE TRIGGER metadata_key_rotation_immutable
+      BEFORE UPDATE OR DELETE ON metadata_key_rotations
+      FOR EACH ROW EXECUTE FUNCTION reject_key_rotation_rewrite();
+
+      CREATE TABLE restore_promotions (
+        promotion_id TEXT PRIMARY KEY CHECK (promotion_id ~ '^promotion_[a-f0-9]{64}$'),
+        report_digest TEXT NOT NULL CHECK (report_digest ~ '^[a-f0-9]{64}$'),
+        promoted_at BIGINT NOT NULL
+      );
+
+      CREATE FUNCTION reject_restore_promotion_rewrite() RETURNS trigger
+      LANGUAGE plpgsql AS $guard$
+      BEGIN
+        RAISE EXCEPTION 'restore promotion history is immutable';
+      END
+      $guard$;
+      CREATE TRIGGER restore_promotion_immutable
+      BEFORE UPDATE OR DELETE ON restore_promotions
+      FOR EACH ROW EXECUTE FUNCTION reject_restore_promotion_rewrite();
+
+      DO $roles$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vidha_api') THEN
+          GRANT SELECT, INSERT ON metadata_key_rotations TO vidha_api;
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vidha_restore') THEN
+          GRANT SELECT ON metadata_key_rotations, restore_promotions TO vidha_restore;
         END IF;
       END
       $roles$;

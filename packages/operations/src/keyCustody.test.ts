@@ -4,6 +4,7 @@ import {
   createAuthenticatedBackupChain,
   createEd25519BackupSigner,
   createEnvelopeMetadataCipher,
+  createLogicalBackupCipher,
   createMemoryBackupInventory,
   createWebCryptoKeyProvider,
   encodeBackupManifest,
@@ -147,17 +148,24 @@ describe('authenticated backup chain', () => {
     const chain = createAuthenticatedBackupChain({ inventory, signer });
     const common = {
       applicationCommit: COMMIT,
+      backupFormat: 'postgres_custom_v1' as const,
       createdAt: START,
       databaseMajor: 18,
+      encryptionKeyVersion: 'key_backup-1',
+      encryptionProviderId: 'backup_fixture',
       environmentId: `environment_${'b'.repeat(64)}`,
+      initializationVector: btoa(String.fromCharCode(...new Uint8Array(12))),
       installationId: `installation_${'c'.repeat(64)}`,
       keyVersions: ['key_kek-1'],
       schemaVersion: 2,
+      wrappedDataKey: btoa(String.fromCharCode(...new Uint8Array(40))),
     };
+    const persist = async () => undefined;
     const firstCiphertext = new TextEncoder().encode('age ciphertext one');
     const first = await chain.create({
       ...common,
       ciphertext: firstCiphertext,
+      persist,
     });
     await expect(
       chain.verify({
@@ -172,6 +180,7 @@ describe('authenticated backup chain', () => {
       ...common,
       createdAt: START + 1,
       ciphertext: secondCiphertext,
+      persist,
     });
     expect(second.manifest).toMatchObject({
       generation: 2,
@@ -204,6 +213,69 @@ describe('authenticated backup chain', () => {
         manifest: signedFuture,
         signature: await signer.sign(encodeBackupManifest(signedFuture)),
       }),
+    ).rejects.toMatchObject({ code: 'INVALID_SNAPSHOT' });
+  });
+
+  it('does not advance the external inventory when artifact persistence fails', async () => {
+    const inventory = createMemoryBackupInventory();
+    const chain = createAuthenticatedBackupChain({
+      inventory,
+      signer: await createEd25519BackupSigner(),
+    });
+    await expect(
+      chain.create({
+        applicationCommit: COMMIT,
+        backupFormat: 'postgres_custom_v1',
+        ciphertext: new TextEncoder().encode('encrypted fixture'),
+        createdAt: START,
+        databaseMajor: 18,
+        encryptionKeyVersion: 'key_backup-1',
+        encryptionProviderId: 'backup_fixture',
+        environmentId: `environment_${'b'.repeat(64)}`,
+        initializationVector: btoa(String.fromCharCode(...new Uint8Array(12))),
+        installationId: `installation_${'c'.repeat(64)}`,
+        keyVersions: ['key_kek-1'],
+        persist: async () => {
+          throw new Error('injected artifact interruption');
+        },
+        schemaVersion: 2,
+        wrappedDataKey: btoa(String.fromCharCode(...new Uint8Array(40))),
+      }),
+    ).rejects.toThrow('injected artifact interruption');
+    await expect(inventory.read()).resolves.toBeNull();
+  });
+});
+
+describe('logical PostgreSQL backup encryption', () => {
+  it('binds a custom archive to its restore context and fails closed on key loss', async () => {
+    const backupProvider = provider('backup_fixture', 'key_backup-1', {
+      'key_backup-1': new Uint8Array(32).fill(4),
+    });
+    const cipher = createLogicalBackupCipher({
+      keyProvider: backupProvider,
+      randomBytes: (length) => new Uint8Array(length).fill(6),
+    });
+    const context = {
+      databaseMajor: 18,
+      environmentId: `environment_${'b'.repeat(64)}`,
+      installationId: `installation_${'c'.repeat(64)}`,
+      schemaVersion: 2,
+    };
+    const archive = new Uint8Array([
+      0x50, 0x47, 0x44, 0x4d, 0x50, 0x01, 0x0f, 0x00,
+    ]);
+    const encrypted = await cipher.encrypt(archive, context);
+
+    await expect(cipher.decrypt(encrypted, context)).resolves.toEqual(archive);
+    await expect(
+      cipher.decrypt(encrypted, { ...context, schemaVersion: 3 }),
+    ).rejects.toMatchObject({ code: 'INVALID_SNAPSHOT' });
+    await expect(
+      createLogicalBackupCipher({
+        keyProvider: provider('backup_fixture', 'key_backup-2', {
+          'key_backup-2': new Uint8Array(32).fill(5),
+        }),
+      }).decrypt(encrypted, context),
     ).rejects.toMatchObject({ code: 'INVALID_SNAPSHOT' });
   });
 });
