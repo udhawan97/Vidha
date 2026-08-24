@@ -35,12 +35,6 @@ for container_name in "$source_name" "$restore_name"; do
     "$postgres_image" >/dev/null
 done
 
-docker exec -i "$restore_name" psql -v ON_ERROR_STOP=1 -U postgres -d vidha_fixture >/dev/null <<'SQL'
-CREATE ROLE vidha_restore_writer LOGIN PASSWORD 'disposable_restore_fixture_only';
-GRANT CONNECT ON DATABASE vidha_fixture TO vidha_restore_writer;
-GRANT USAGE, CREATE ON SCHEMA public TO vidha_restore_writer;
-SQL
-
 for container_name in "$source_name" "$restore_name"; do
   for attempt in $(seq 1 60); do
     if docker exec "$container_name" pg_isready -U postgres -d vidha_fixture >/dev/null 2>&1; then
@@ -58,6 +52,12 @@ CREATE ROLE vidha_worker LOGIN PASSWORD 'vidha-worker-test';
 CREATE ROLE vidha_restore NOLOGIN;
 SQL
 done
+
+docker exec -i "$restore_name" psql -v ON_ERROR_STOP=1 -U postgres -d vidha_fixture >/dev/null <<'SQL'
+CREATE ROLE vidha_restore_writer LOGIN PASSWORD 'disposable_restore_fixture_only';
+GRANT CONNECT ON DATABASE vidha_fixture TO vidha_restore_writer;
+GRANT USAGE, CREATE ON SCHEMA public TO vidha_restore_writer;
+SQL
 
 source_port="$(docker port "$source_name" 5432/tcp | sed -n 's/.*://p' | tail -1)"
 restore_port="$(docker port "$restore_name" 5432/tcp | sed -n 's/.*://p' | tail -1)"
