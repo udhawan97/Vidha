@@ -633,7 +633,7 @@ h2 {
   gap: 18px;
   padding: 19px 0;
   border-top: 1px solid var(--line);
-  grid-template-columns: 38px minmax(0, 1fr) minmax(180px, auto);
+  grid-template-columns: 38px minmax(0, 1fr) minmax(180px, auto) 88px;
 }
 
 .envelope-index {
@@ -661,6 +661,32 @@ h2 {
   justify-items: end;
   gap: 4px;
   text-align: right;
+}
+
+.envelope-review {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  cursor: pointer;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tide-deep);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.envelope-review span:last-child {
+  color: var(--thread);
+  font-family: 'Newsreader Variable', Georgia, serif;
+  font-size: 1.15rem;
+  transition: transform 160ms ease;
+}
+
+.envelope-review:hover span:last-child {
+  transform: translateX(3px);
 }
 
 .people-list {
@@ -1720,6 +1746,11 @@ h2 {
     justify-items: start;
     grid-column: 2;
     text-align: left;
+  }
+
+  .envelope-review {
+    justify-content: flex-start;
+    grid-column: 2;
   }
 
   .activity-list li > div {

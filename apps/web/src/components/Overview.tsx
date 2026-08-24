@@ -12,6 +12,7 @@ interface OverviewProps {
   readonly onCheckIn: () => void;
   readonly onDisable: () => void;
   readonly onPause: () => void;
+  readonly onOpenEnvelope: (envelopeId: string) => void;
   readonly onRehearse: () => void;
   readonly onResume: () => void;
 }
@@ -96,6 +97,7 @@ export function Overview({
   onCheckIn,
   onDisable,
   onPause,
+  onOpenEnvelope,
   onRehearse,
   onResume,
 }: OverviewProps) {
@@ -116,6 +118,55 @@ export function Overview({
     onDisable();
     setConfirmingDisable(false);
   }
+
+  const lifecycleControls = (
+    <div className="lifecycle-controls" aria-label="Plan lifecycle controls">
+      <span>Plan controls</span>
+      {plan.lifecycle === 'draft' ? (
+        plan.hasRehearsed ? (
+          <button
+            className="button button-primary"
+            onClick={onArm}
+            type="button"
+          >
+            Arm rehearsal
+          </button>
+        ) : (
+          <button
+            className="button button-primary"
+            onClick={onRehearse}
+            type="button"
+          >
+            Rehearse Draft
+          </button>
+        )
+      ) : plan.lifecycle === 'armed' ? (
+        <button className="button button-quiet" onClick={onPause} type="button">
+          Pause rehearsal
+        </button>
+      ) : plan.lifecycle === 'paused' ? (
+        <button
+          className="button button-quiet"
+          onClick={onResume}
+          type="button"
+        >
+          Resume with fresh interval
+        </button>
+      ) : null}
+      {plan.lifecycle === 'disabled' ? null : (
+        <button
+          className="button button-text-danger"
+          onClick={() => setConfirmingDisable(true)}
+          type="button"
+        >
+          Disable rehearsal
+        </button>
+      )}
+      {plan.lifecycle === 'disabled' ? (
+        <p>Disabled is terminal in this synthetic foundation.</p>
+      ) : null}
+    </div>
+  );
 
   return (
     <div className="overview-view">
@@ -148,6 +199,7 @@ export function Overview({
           </div>
         )}
 
+        {isArmed ? null : lifecycleControls}
         <div className="status-actions">
           <span className={`lifecycle-badge lifecycle-${plan.lifecycle}`}>
             Lifecycle: {plan.lifecycle}
@@ -176,59 +228,7 @@ export function Overview({
             Synthetic rehearsal · no messages are sent
           </p>
         </div>
-        <div
-          className="lifecycle-controls"
-          aria-label="Plan lifecycle controls"
-        >
-          <span>Plan controls</span>
-          {plan.lifecycle === 'draft' ? (
-            plan.hasRehearsed ? (
-              <button
-                className="button button-primary"
-                onClick={onArm}
-                type="button"
-              >
-                Arm rehearsal
-              </button>
-            ) : (
-              <button
-                className="button button-primary"
-                onClick={onRehearse}
-                type="button"
-              >
-                Rehearse Draft
-              </button>
-            )
-          ) : plan.lifecycle === 'armed' ? (
-            <button
-              className="button button-quiet"
-              onClick={onPause}
-              type="button"
-            >
-              Pause rehearsal
-            </button>
-          ) : plan.lifecycle === 'paused' ? (
-            <button
-              className="button button-quiet"
-              onClick={onResume}
-              type="button"
-            >
-              Resume with fresh interval
-            </button>
-          ) : null}
-          {plan.lifecycle === 'disabled' ? null : (
-            <button
-              className="button button-text-danger"
-              onClick={() => setConfirmingDisable(true)}
-              type="button"
-            >
-              Disable rehearsal
-            </button>
-          )}
-          {plan.lifecycle === 'disabled' ? (
-            <p>Disabled is terminal in this synthetic foundation.</p>
-          ) : null}
-        </div>
+        {isArmed ? lifecycleControls : null}
       </section>
 
       <div className="overview-columns">
@@ -255,6 +255,15 @@ export function Overview({
                   <span>{envelope.releasePolicy}</span>
                   <span>{`${envelope.attachments.length} Attachment${envelope.attachments.length === 1 ? '' : 's'}`}</span>
                 </div>
+                <button
+                  aria-label={`Review ${envelope.title}`}
+                  className="envelope-review"
+                  onClick={() => onOpenEnvelope(envelope.id)}
+                  type="button"
+                >
+                  <span>Review</span>
+                  <span aria-hidden="true">→</span>
+                </button>
               </article>
             ))}
           </div>

@@ -89,6 +89,9 @@ function nextStageTime(plan: PlanState): number | null {
 export function App() {
   const [runtime] = useState(createDemoRuntime);
   const [view, setView] = useState<View>('overview');
+  const [selectedEnvelopeId, setSelectedEnvelopeId] = useState(
+    demoEnvelopes[0]?.id ?? '',
+  );
   const [plan, setPlan] = useState(runtime.initialPlan);
   const [envelopes, setEnvelopes] = useState<DemoEnvelope[]>(() =>
     demoEnvelopes.map((envelope) => ({
@@ -275,6 +278,10 @@ export function App() {
               onCheckIn={checkIn}
               onDisable={() => changeLifecycle('disabled')}
               onPause={() => changeLifecycle('paused')}
+              onOpenEnvelope={(envelopeId) => {
+                setSelectedEnvelopeId(envelopeId);
+                setView('workspace');
+              }}
               onRehearse={rehearsePlan}
               onResume={() => changeLifecycle('armed')}
               plan={plan}
@@ -283,6 +290,8 @@ export function App() {
           <div hidden={view !== 'workspace'}>
             <DocumentWorkspace
               envelopes={envelopes}
+              onSelectEnvelope={setSelectedEnvelopeId}
+              selectedEnvelopeId={selectedEnvelopeId}
               setEnvelopes={setEnvelopes}
             />
           </div>

@@ -28,6 +28,8 @@ import { buildPortableHtml, exportFilename } from '../documentExport';
 
 interface DocumentWorkspaceProps {
   readonly envelopes: DemoEnvelope[];
+  readonly onSelectEnvelope: (envelopeId: string) => void;
+  readonly selectedEnvelopeId: string;
   readonly setEnvelopes: Dispatch<SetStateAction<DemoEnvelope[]>>;
 }
 
@@ -128,9 +130,10 @@ function formatCheckpointTime(timestamp: number): string {
 
 export function DocumentWorkspace({
   envelopes,
+  onSelectEnvelope,
+  selectedEnvelopeId,
   setEnvelopes,
 }: DocumentWorkspaceProps) {
-  const [selectedId, setSelectedId] = useState(envelopes[0]?.id ?? '');
   const [editorMode, setEditorMode] = useState<EditorMode>('write');
   const [sessionStatus, setSessionStatus] = useState('Synthetic session draft');
   const [importError, setImportError] = useState<string | null>(null);
@@ -151,7 +154,8 @@ export function DocumentWorkspace({
   const attachmentRef = useRef<HTMLInputElement>(null);
   const checkpointSequence = useRef(0);
   const activeEnvelope =
-    envelopes.find((envelope) => envelope.id === selectedId) ?? envelopes[0];
+    envelopes.find((envelope) => envelope.id === selectedEnvelopeId) ??
+    envelopes[0];
 
   useEffect(() => {
     if (activeEnvelope === undefined) {
@@ -720,7 +724,7 @@ export function DocumentWorkspace({
               }
               key={envelope.id}
               onClick={() => {
-                setSelectedId(envelope.id);
+                onSelectEnvelope(envelope.id);
                 setPendingImport(null);
                 setPendingAttachments([]);
                 setImportError(null);

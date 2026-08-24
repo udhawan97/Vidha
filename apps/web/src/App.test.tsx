@@ -185,6 +185,23 @@ describe('Vidha synthetic foundation app', () => {
     expect(recipient).toHaveValue('Sam Rivera');
   });
 
+  it('opens the selected Envelope directly from the overview', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      screen.getByRole('button', { name: 'Review Juniper’s ordinary week' }),
+    );
+
+    expect(screen.getByLabelText('Document title')).toHaveValue(
+      'Juniper’s ordinary week',
+    );
+    expect(screen.getByRole('button', { name: 'Envelopes' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
   it('pauses, resumes with a fresh interval, and confirms terminal disable', async () => {
     const user = userEvent.setup();
     render(<App />);

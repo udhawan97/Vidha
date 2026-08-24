@@ -126,6 +126,36 @@ test('keeps Recipient history and checkpoints for the page session', async ({
   await expect(page.getByLabel('Recipient')).toHaveValue('Mira Chen');
 });
 
+test('opens the intended Envelope from the overview review action', async ({
+  page,
+}) => {
+  await page
+    .getByRole('button', { name: 'Review Juniper’s ordinary week' })
+    .click();
+
+  await expect(page.getByLabel('Document title')).toHaveValue(
+    'Juniper’s ordinary week',
+  );
+  await expect(page.getByRole('button', { name: 'Envelopes' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+});
+
+test('keeps the Draft next action above mobile navigation', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const nextAction = await page
+    .getByRole('button', { name: 'Rehearse Draft' })
+    .boundingBox();
+  const navigation = await page.locator('.app-rail').boundingBox();
+
+  expect(nextAction).not.toBeNull();
+  expect(navigation).not.toBeNull();
+  expect(nextAction!.y + nextAction!.height).toBeLessThan(navigation!.y);
+});
+
 test('restores decoded imported text and offers text and HTML copies', async ({
   page,
 }) => {
