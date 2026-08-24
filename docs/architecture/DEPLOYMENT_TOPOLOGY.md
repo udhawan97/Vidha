@@ -19,7 +19,7 @@ In the disposable Compose fixture, PostgreSQL and worker traffic stays on an int
 
 ## Restore behavior
 
-A restore enters `restore_safe` before any application role starts. Read-only inspection and invariant checks are allowed. Metadata writes, scheduled-job claims, outbox dispatch, scanner updates, conversion, and every provider adapter remain disabled until explicit promotion. The intermediate Phase 3B milestone signs and chains synthetic backup manifests and rejects PostgreSQL mutations/claims in restore-safe adapters; a real logical backup, isolated least-privilege restore, invariant report, rollback rejection, and promotion remain Phase 3B closure targets.
+A restore enters `restore_safe` before any application role starts. Read-only inspection and invariant checks are allowed. Metadata writes, scheduled-job claims, outbox dispatch, scanner updates, conversion, and every provider adapter remain disabled until explicit promotion. Closure-slice-2 source now rehearses a digest-pinned custom logical dump, wrapped-key archive encryption, signed generation chain, external inventory, a dedicated non-superuser restore into an isolated tmpfs database, portable-state and migration invariants, read-only promotion denial, and one immutable explicit-promotion digest. Exact-commit CI acceptance is still required. The providers are disposable in-memory fixtures and the archive is bounded in memory; this is not external key custody, a durable backup service, persistent-volume recovery, or RPO/RTO evidence.
 
 ## Explicit exclusions
 

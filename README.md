@@ -35,11 +35,11 @@ A missed Check-in may begin **Concern** and verification. It never proves death,
 
 The repository currently provides two kinds of evidence. Neither is a release:
 
-| Path                          | Current status            | What it demonstrates                                                                                                                   |
-| ----------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Local browser prototype       | Available from source     | Draft rehearsal, plan lifecycle controls, Check-ins through Concern, an in-memory event record, and a synthetic Envelope workspace     |
-| Phase 3B foundations          | Code and disposable tests | WebAuthn adapter contracts, PostgreSQL seams, fenced durable work, wrapped metadata-key fixtures, and bounded file/ClamAV/Pandoc gates |
-| Hosted service or v1 download | **Unavailable**           | Planned only; no public deployment, installer, supported-browser matrix, or update guarantee exists                                    |
+| Path                          | Current status            | What it demonstrates                                                                                                                                                 |
+| ----------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local browser prototype       | Available from source     | Draft rehearsal, plan lifecycle controls, Check-ins through Concern, an in-memory event record, and a synthetic Envelope workspace                                   |
+| Phase 3B foundations          | Code and disposable tests | WebAuthn contracts, PostgreSQL seams, fenced work, atomic metadata-key rotation, authenticated logical-backup/restore fixtures, and bounded file/ClamAV/Pandoc gates |
+| Hosted service or v1 download | **Unavailable**           | Planned only; no public deployment, installer, supported-browser matrix, or update guarantee exists                                                                  |
 
 The browser prototype deliberately stops at Concern. Guardian Attestations, Veto Window, Delivery Hold, Automatic Fallback, real notifications, Recipient retrieval, and Release are not implemented. Bounded Guardian Attestations are the default intended Release Policy; Automatic Fallback must be explicitly enabled for an individual Envelope.
 
@@ -58,6 +58,7 @@ Open the local URL printed by Vite. You can:
 - advance one schedule stage at a time from On Time through Concern;
 - record an explicit synthetic Check-in and inspect the in-memory event history;
 - edit two synthetic Envelopes and reassign their Recipients;
+- open either demo Envelope directly from its Overview review action;
 - quarantine and review a Markdown or plain-text import up to 256 KB;
 - stage up to eight common document, image, audio, video, data, contact, or ZIP files as session-only Attachment candidates, with a 5 MB per-file and 20 MB per-Envelope fixture limit;
 - review, download, or remove exact Attachment bytes without claiming upload, scanning, safe preview, encryption, persistence, or delivery;
@@ -72,6 +73,8 @@ Browser import and Attachment handling are synthetic fixtures—not malware scan
 pnpm check
 pnpm exec playwright install webkit
 pnpm test:e2e
+# Requires Docker; runs only disposable synthetic PostgreSQL data.
+pnpm test:backup
 ```
 
 The production build contains PWA infrastructure and a prompted service-worker update flow. Browser installation and update behavior have not passed the v1 release gate.
@@ -120,9 +123,9 @@ The [Phase 3B evidence map](docs/architecture/FOUNDATION_PHASE_3B.md) explains w
 <details>
 <summary><strong>Current implementation boundary</strong></summary>
 
-Phase 3B adds disposable executable evidence for exact WebAuthn RP/origin checks, one-time ceremonies and proofs, digest-only session storage, revisioned recovery locks, PostgreSQL plan/audit/outbox atomicity, database-time leasing and fencing, wrapped metadata-key fixtures, signed backup manifests, and source-pinned file/ClamAV/Pandoc gates.
+Phase 3B adds disposable executable evidence for exact WebAuthn RP/origin checks, one-time ceremonies and proofs, digest-only session storage, revisioned recovery locks, PostgreSQL plan/audit/outbox atomicity, database-time leasing and fencing, atomic persisted metadata-key rewrap, signed authenticated logical-backup generations, isolated restore-safe inspection and explicit promotion, and source-pinned file/ClamAV/Pandoc gates.
 
-It does not provide browser authentication routes or cookies, real identities or recovery factors, production key custody, authenticated database restore, rootless import isolation, external providers, durable personal-content storage, Guardian authority, or Release.
+It does not provide browser authentication routes or cookies, real identities or recovery factors, production key custody, streaming or durable database backup, persistent-volume recovery, rootless import isolation, external providers, durable personal-content storage, Guardian authority, or Release.
 
 </details>
 
