@@ -145,7 +145,7 @@ suite('disposable PostgreSQL 18 platform', () => {
     await expect(platform.readiness()).resolves.toEqual({
       databaseMajor: 18,
       mode: 'live',
-      schemaVersion: 1,
+      schemaVersion: 2,
     });
     const client = await platform.pool.connect();
     try {
@@ -747,6 +747,13 @@ suite('disposable PostgreSQL 18 platform', () => {
         }),
       }),
     ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+    await expect(
+      apiPlatform.pool.query(
+        `UPDATE metadata_key_rotations SET completed_at = completed_at + 1
+         WHERE rotation_id = $1`,
+        [`rotation_${'4'.repeat(64)}`],
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
   });
 
   it('rejects caller-forged store modes against persisted runtime mode', async () => {

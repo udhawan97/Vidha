@@ -68,9 +68,13 @@ export class PostgresKeyRotationStore {
     try {
       await client.query('BEGIN');
       await assertDatabaseMode(client, this.mode);
+      await client.query(
+        `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+        [input.rotationId],
+      );
       const prior = await client.query<{ report_json: unknown }>(
         `SELECT report_json FROM metadata_key_rotations
-         WHERE rotation_id = $1 FOR UPDATE`,
+         WHERE rotation_id = $1`,
         [input.rotationId],
       );
       if (prior.rows[0] !== undefined) {
