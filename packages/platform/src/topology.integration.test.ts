@@ -222,7 +222,7 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       interruptedBoundaries: MIGRATION_REHEARSAL_BOUNDARIES,
       postCommitReplayVerified: true,
       rollbackVerified: true,
-      schemaVersion: 1,
+      schemaVersion: 2,
     });
   });
 
