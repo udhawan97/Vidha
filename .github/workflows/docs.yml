@@ -106,7 +106,9 @@ jobs:
             sleep 2
           done
           pnpm test:scanner
-      - name: Install WebKit
-        run: pnpm exec playwright install --with-deps webkit
+      - name: Install browser engines
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - name: Rehearse browser WebAuthn and opaque session boundary
+        run: pnpm test:webauthn
       - name: Run desktop and mobile browser acceptance
         run: pnpm test:e2e
