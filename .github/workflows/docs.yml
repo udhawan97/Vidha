@@ -68,14 +68,20 @@ jobs:
           curl -fsSL https://github.com/file/file/archive/refs/tags/FILE5_48.tar.gz -o "$tools_root/file.tar.gz"
           echo '76cefc3a662ab0e9f45db941b0a56e71705abad0690da19a5c32379cc6de3488  '"$tools_root/file.tar.gz" | sha256sum --check
           tar -xzf "$tools_root/file.tar.gz" -C "$tools_root"
-          sudo apt-get update
-          sudo apt-get install --yes autoconf automake libtool make gcc
-          pushd "$tools_root/file-FILE5_48"
-          autoreconf --force --install
-          ./configure --prefix="$tools_root/file-install" --disable-shared
-          make --jobs=2
-          make install
-          popd
+          node_reference=$(jq -r '.nodeImage.reference + "@" + .nodeImage.digest' infra/toolchain.lock.json)
+          docker run --rm \
+            --mount "type=bind,source=$tools_root,destination=$tools_root" \
+            --workdir "$tools_root/file-FILE5_48" \
+            --entrypoint=/bin/sh \
+            "$node_reference" \
+            -eu -c '
+              apt-get update
+              apt-get install --yes --no-install-recommends autoconf automake gcc libc6-dev libtool make zlib1g-dev
+              autoreconf --force --install
+              ./configure --prefix="'"$tools_root"'/file-install" --disable-shared --enable-static
+              make --jobs=2
+              make install
+            '
 
           curl -fsSL https://github.com/jgm/pandoc/releases/download/3.10.2/pandoc-3.10.2-linux-amd64.tar.gz -o "$tools_root/pandoc.tar.gz"
           echo 'c7edd535941c48be6a362081a748272837de81ae11777202d9c341d3d8261c9a  '"$tools_root/pandoc.tar.gz" | sha256sum --check
