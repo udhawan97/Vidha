@@ -83,6 +83,7 @@ jobs:
 
           echo "file_bin=$tools_root/file-install/bin/file" >> "$GITHUB_OUTPUT"
           echo "pandoc_bin=$tools_root/pandoc-3.10.2/bin/pandoc" >> "$GITHUB_OUTPUT"
+          echo "tools_root=$tools_root" >> "$GITHUB_OUTPUT"
       - name: Run executable scanner and converter gate
         env:
           VIDHA_CLAMD_HOST: 127.0.0.1
@@ -92,7 +93,55 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --detach --name vidha-clamd --publish 3310:3310 clamav/clamav:1.5.4@sha256:15167977085b01d083812d42aa70d390c2e3fcaaf647dfe82a47328fa6d48c9c
+          clamav_reference=$(jq -r '.clamav | "clamav/clamav:" + .version + "@" + .imageDigest' infra/toolchain.lock.json)
+          signature_directory="$RUNNER_TEMP/vidha-clamd-signatures"
+          config_directory="$RUNNER_TEMP/vidha-clamd-config"
+          mkdir -p "$signature_directory" "$config_directory"
+          docker run --rm \
+            --network=none \
+            --read-only \
+            --cap-drop=all \
+            --security-opt=no-new-privileges \
+            --mount "type=bind,source=$signature_directory,destination=/vidha-signatures" \
+            --entrypoint=/bin/sh \
+            "$clamav_reference" \
+            -eu -c 'copied=0; for source in /var/lib/clamav/*.cvd /var/lib/clamav/*.cld /var/lib/clamav/*.cdb /var/lib/clamav/*.hdb /var/lib/clamav/*.ldb /var/lib/clamav/*.mdb /var/lib/clamav/*.ndb; do if [ -f "$source" ]; then cp "$source" /vidha-signatures/; copied=1; fi; done; test "$copied" -eq 1'
+          (
+            cd "$signature_directory"
+            find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum
+          ) > "$RUNNER_TEMP/vidha-clamd-signatures.before"
+          signature_set_identity="sha256-$(sha256sum "$RUNNER_TEMP/vidha-clamd-signatures.before" | cut -d' ' -f1)"
+          sudo chmod -R a-w "$signature_directory"
+          cat > "$config_directory/clamd.conf" <<'EOF'
+          Foreground yes
+          LogFile /dev/null
+          LogFileMaxSize 0
+          TCPSocket 3310
+          TCPAddr 0.0.0.0
+          DatabaseDirectory /vidha-signatures
+          TemporaryDirectory /tmp
+          User clamav
+          StreamMaxLength 1M
+          MaxScanSize 1M
+          MaxFileSize 1M
+          MaxRecursion 2
+          MaxFiles 64
+          ExitOnOOM yes
+          EOF
+          chmod 444 "$config_directory/clamd.conf"
+          docker run --detach \
+            --name vidha-clamd \
+            --publish 127.0.0.1:3310:3310 \
+            --read-only \
+            --cap-drop=all \
+            --security-opt=no-new-privileges \
+            --user=clamav \
+            --tmpfs=/tmp:rw,noexec,nosuid,nodev,size=67108864 \
+            --mount "type=bind,source=$signature_directory,destination=/vidha-signatures,readonly" \
+            --mount "type=bind,source=$config_directory,destination=/vidha-config,readonly" \
+            --entrypoint=clamd \
+            "$clamav_reference" \
+            --config-file=/vidha-config/clamd.conf
           cleanup() { docker rm --force vidha-clamd >/dev/null 2>&1 || true; }
           trap cleanup EXIT
           for attempt in $(seq 1 90); do
@@ -105,7 +154,30 @@ jobs:
             fi
             sleep 2
           done
-          pnpm test:scanner
+          VIDHA_SIGNATURE_SET_IDENTITY="$signature_set_identity" pnpm test:scanner
+          (
+            cd "$signature_directory"
+            find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum
+          ) > "$RUNNER_TEMP/vidha-clamd-signatures.after"
+          cmp "$RUNNER_TEMP/vidha-clamd-signatures.before" "$RUNNER_TEMP/vidha-clamd-signatures.after"
+      - name: Rehearse rootless import isolation and adversarial corpus
+        env:
+          VIDHA_FILE_BIN: ${{ steps.scanner-tools.outputs.file_bin }}
+          VIDHA_PANDOC_BIN: ${{ steps.scanner-tools.outputs.pandoc_bin }}
+          VIDHA_SCANNER_TOOLS_ROOT: ${{ steps.scanner-tools.outputs.tools_root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes fuse-overlayfs podman uidmap
+          runner_user=$(id -un)
+          if ! grep --quiet "^${runner_user}:" /etc/subuid; then
+            sudo usermod --add-subuids 200000-265535 "$runner_user"
+          fi
+          if ! grep --quiet "^${runner_user}:" /etc/subgid; then
+            sudo usermod --add-subgids 200000-265535 "$runner_user"
+          fi
+          pnpm test:isolation
       - name: Install browser engines
         run: pnpm exec playwright install --with-deps chromium firefox webkit
       - name: Rehearse browser WebAuthn and opaque session boundary

@@ -10,6 +10,7 @@ import {
 } from './importIntake';
 
 const encoder = new TextEncoder();
+const SIGNATURE_SET_IDENTITY = `sha256-${'1'.repeat(64)}`;
 
 function scanner(verdict: ScanVerdict = 'clean'): ImportScanner {
   return {
@@ -17,6 +18,7 @@ function scanner(verdict: ScanVerdict = 'clean'): ImportScanner {
       return {
         scannerId: 'synthetic-scanner',
         engineVersion: 'fixture-v1',
+        signatureSetIdentity: SIGNATURE_SET_IDENTITY,
         signatureSetVersion: 'fixture-signatures-v1',
         sourceId: source.sourceId,
         scannedBytes: source.sizeBytes,
@@ -92,6 +94,7 @@ describe('untrusted import intake', () => {
           return {
             scannerId: 'deferred-scanner',
             engineVersion: 'fixture-v1',
+            signatureSetIdentity: SIGNATURE_SET_IDENTITY,
             signatureSetVersion: 'fixture-signatures-v1',
             sourceId: source.sourceId,
             scannedBytes: source.sizeBytes,
@@ -258,6 +261,7 @@ describe('untrusted import intake', () => {
             return {
               scannerId: 'fixture-scanner',
               engineVersion: 'fixture-v1',
+              signatureSetIdentity: SIGNATURE_SET_IDENTITY,
               signatureSetVersion: 'fixture-signatures-v1',
               sourceId:
                 invalidField === 'source'

@@ -1,6 +1,6 @@
 # Proposed architecture
 
-**Status:** Phase 3B is in progress. Its intermediate milestone implements the pure Concern-bounded domain plus disposable PostgreSQL, WebAuthn ceremony, wrapped-key metadata, durable identity/recovery, Plan/audit/outbox, and file/ClamAV/Pandoc adapters described in the current foundation record. Browser authentication, production key custody and restore, rootless import isolation, real notifications, Guardian authority, and Release remain unimplemented.
+**Status:** Phase 3B is in progress. Its intermediate milestone implements the pure Concern-bounded domain plus disposable PostgreSQL, WebAuthn ceremony, wrapped-key metadata, durable identity/recovery, Plan/audit/outbox, and file/ClamAV/Pandoc adapters described in the current foundation record. The file tools now have a rootless disposable OCI/adversarial gate, but browser authentication, production key custody and restore, production upload isolation and signature updating, real notifications, Guardian authority, and Release remain unimplemented.
 
 ## Architectural objective
 

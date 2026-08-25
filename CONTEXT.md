@@ -62,6 +62,10 @@ _Avoid_: Arbitrary file, Attachment
 An original file preserved with an Envelope for preview or download without a promise that its native format can be edited in Vidha.
 _Avoid_: Editable Document
 
+**Signature Set Identity**:
+The immutable SHA-256 manifest identity of the exact malware-scanner database files used for one inspection. It is recorded alongside, but is not interchangeable with, the scanner's human-readable database version.
+_Avoid_: Safe-file proof, latest signatures, scanner version
+
 **Protection Mode**:
 The security and recovery contract applied to every Editable Document and Attachment in one Envelope. An Envelope uses either Standard Mode or Sealed Mode; format and editability do not weaken that choice.
 _Avoid_: File type, sensitivity guess

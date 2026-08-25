@@ -1,0 +1,12 @@
+# Rootless import fixture license inventory
+
+**Status:** Bounded fixture inventory, not legal advice or a distribution clearance. The exact source and image identities are also machine-readable in `sbom.spdx.json` and `infra/toolchain.lock.json`.
+
+| Component        | Pinned fixture                                  | Declared upstream license | Upstream license route                                        | Vidha boundary                                                                                                                                  |
+| ---------------- | ----------------------------------------------- | ------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node.js OCI base | `node:24.13.1-bookworm-slim@sha256:a81a03dd...` | MIT                       | <https://github.com/nodejs/node/blob/main/LICENSE>            | Runs the disposable isolation probes; it is not a shipped Vidha runtime image.                                                                  |
+| ClamAV           | `clamav/clamav:1.5.4@sha256:15167977...`        | GPL-2.0-only              | <https://github.com/Cisco-Talos/clamav/blob/main/COPYING.txt> | Invoked as a separate rootless `clamd` process over `INSTREAM`; Vidha does not link `libclamav`. Optional UnRAR is not enabled by this fixture. |
+| file             | `FILE5_48`, source SHA-256 `76cefc3a...`        | BSD-2-Clause              | <https://github.com/file/file/blob/master/COPYING>            | Invoked as a separate classifier executable mounted read-only.                                                                                  |
+| Pandoc           | `3.10.2`, archive SHA-256 `c7edd535...`         | GPL-2.0-or-later          | <https://github.com/jgm/pandoc/blob/main/COPYRIGHT>           | Invoked as a separate converter executable mounted read-only; no filters or rendered HTML are accepted.                                         |
+
+The CI fixture records the rootless Podman version and immutable local image IDs used by the exact run. Podman is runner-provided test infrastructure rather than a component of a Vidha artifact. Any future distribution, image rebuild, optional ClamAV component, or linking change requires a fresh license review.

@@ -14,21 +14,24 @@ const pandocExecutable = process.env.VIDHA_PANDOC_BIN;
 const clamdSocket = process.env.VIDHA_CLAMD_SOCKET;
 const clamdHost = process.env.VIDHA_CLAMD_HOST;
 const clamdPort = process.env.VIDHA_CLAMD_PORT;
+const signatureSetIdentity = process.env.VIDHA_SIGNATURE_SET_IDENTITY;
 if (
   required &&
   (fileExecutable === undefined ||
     pandocExecutable === undefined ||
+    signatureSetIdentity === undefined ||
     (clamdSocket === undefined &&
       (clamdHost === undefined || clamdPort === undefined)))
 ) {
   throw new Error(
-    'VIDHA_FILE_BIN, VIDHA_PANDOC_BIN, and either a clamd socket or host/port are required.',
+    'VIDHA_FILE_BIN, VIDHA_PANDOC_BIN, VIDHA_SIGNATURE_SET_IDENTITY, and either a clamd socket or host/port are required.',
   );
 }
 
 const suite =
   fileExecutable === undefined ||
   pandocExecutable === undefined ||
+  signatureSetIdentity === undefined ||
   (clamdSocket === undefined &&
     (clamdHost === undefined || clamdPort === undefined))
     ? describe.skip
@@ -41,6 +44,7 @@ suite('pinned executable import tools', () => {
       ...(clamdHost === undefined ? {} : { host: clamdHost }),
       maxBytes: 1_048_576,
       ...(clamdPort === undefined ? {} : { port: Number(clamdPort) }),
+      signatureSetIdentity: signatureSetIdentity ?? '',
       ...(clamdSocket === undefined ? {} : { socketPath: clamdSocket }),
       timeoutMs: 10_000,
     });
@@ -74,6 +78,7 @@ suite('pinned executable import tools', () => {
     const inspected = await intake.inspect(prepared);
     expect(inspected.scan.verdict).toBe('clean');
     expect(inspected.scan.engineVersion).not.toBe('unavailable');
+    expect(inspected.scan.signatureSetIdentity).toBe(signatureSetIdentity);
     expect(inspected.scan.signatureSetVersion).toMatch(/^clamav-db-[0-9]+$/u);
     await expect(intake.approve(inspected)).resolves.toMatchObject({
       text: 'SyntheticDisposable evidence only.',
@@ -85,6 +90,7 @@ suite('pinned executable import tools', () => {
       ...(clamdHost === undefined ? {} : { host: clamdHost }),
       maxBytes: 1_048_576,
       ...(clamdPort === undefined ? {} : { port: Number(clamdPort) }),
+      signatureSetIdentity: signatureSetIdentity ?? '',
       ...(clamdSocket === undefined ? {} : { socketPath: clamdSocket }),
       timeoutMs: 10_000,
     });

@@ -71,6 +71,7 @@ const syntheticFixtureScanner: ImportScanner = {
     return {
       scannerId: 'synthetic-fixture-inspection-no-malware-scan',
       engineVersion: 'fixture-v1',
+      signatureSetIdentity: `sha256-${'0'.repeat(64)}`,
       signatureSetVersion: 'not-applicable',
       sourceId: source.sourceId,
       scannedBytes: source.sizeBytes,

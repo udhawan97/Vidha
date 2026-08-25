@@ -28,6 +28,7 @@ export interface QuarantinedImport {
 export interface ImportScanResult {
   readonly scannerId: string;
   readonly engineVersion: string;
+  readonly signatureSetIdentity: string;
   readonly signatureSetVersion: string;
   readonly sourceId: string;
   readonly scannedBytes: number;
@@ -269,9 +270,11 @@ function validateScanEvidence(
   policy: ImportInspectionPolicy,
 ): void {
   const boundedIdentifier = /^[a-z0-9][a-z0-9._-]{0,95}$/u;
+  const signatureSetIdentity = /^sha256-[a-f0-9]{64}$/u;
   if (
     !boundedIdentifier.test(scan.scannerId) ||
     !boundedIdentifier.test(scan.engineVersion) ||
+    !signatureSetIdentity.test(scan.signatureSetIdentity) ||
     !boundedIdentifier.test(scan.signatureSetVersion) ||
     scan.sourceId !== source.sourceId ||
     scan.scannedBytes !== source.sizeBytes ||
@@ -298,6 +301,7 @@ function sameScanEvidence(
   return (
     left.scannerId === right.scannerId &&
     left.engineVersion === right.engineVersion &&
+    left.signatureSetIdentity === right.signatureSetIdentity &&
     left.signatureSetVersion === right.signatureSetVersion &&
     left.sourceId === right.sourceId &&
     left.scannedBytes === right.scannedBytes &&

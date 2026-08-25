@@ -1,0 +1,99 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "vidha-rootless-import-isolation-fixture",
+  "documentNamespace": "https://github.com/udhawan97/Vidha/spdx/rootless-import-isolation-fixture-v1",
+  "creationInfo": {
+    "created": "2026-08-25T00:00:00Z",
+    "creators": ["Tool: Vidha bounded fixture inventory v1"]
+  },
+  "packages": [
+    {
+      "name": "Node.js OCI fixture base",
+      "SPDXID": "SPDXRef-Package-NodeImage",
+      "versionInfo": "24.13.1-bookworm-slim",
+      "downloadLocation": "docker://node:24.13.1-bookworm-slim@sha256:a81a03dd965b4052269a57fac857004022b522a4bf06e7a739e25e18bce45af2",
+      "filesAnalyzed": false,
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "a81a03dd965b4052269a57fac857004022b522a4bf06e7a739e25e18bce45af2"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "name": "ClamAV OCI scanner fixture",
+      "SPDXID": "SPDXRef-Package-ClamAVImage",
+      "versionInfo": "1.5.4",
+      "downloadLocation": "docker://clamav/clamav:1.5.4@sha256:15167977085b01d083812d42aa70d390c2e3fcaaf647dfe82a47328fa6d48c9c",
+      "filesAnalyzed": false,
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "15167977085b01d083812d42aa70d390c2e3fcaaf647dfe82a47328fa6d48c9c"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "GPL-2.0-only",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "name": "file",
+      "SPDXID": "SPDXRef-Package-File",
+      "versionInfo": "5.48",
+      "downloadLocation": "https://github.com/file/file/archive/refs/tags/FILE5_48.tar.gz",
+      "filesAnalyzed": false,
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "76cefc3a662ab0e9f45db941b0a56e71705abad0690da19a5c32379cc6de3488"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "BSD-2-Clause",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "name": "Pandoc",
+      "SPDXID": "SPDXRef-Package-Pandoc",
+      "versionInfo": "3.10.2",
+      "downloadLocation": "https://github.com/jgm/pandoc/releases/download/3.10.2/pandoc-3.10.2-linux-amd64.tar.gz",
+      "filesAnalyzed": false,
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "c7edd535941c48be6a362081a748272837de81ae11777202d9c341d3d8261c9a"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "GPL-2.0-or-later",
+      "copyrightText": "NOASSERTION"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-NodeImage"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-ClamAVImage"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-File"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-Pandoc"
+    }
+  ]
+}

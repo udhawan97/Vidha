@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:isolation": "VIDHA_REQUIRE_ROOTLESS_ISOLATION=1 vitest run src/rootlessIsolation.integration.test.ts",
     "test:scanner": "VIDHA_REQUIRE_SCANNER=1 vitest run src/executablePipeline.integration.test.ts",
     "typecheck": "tsc --noEmit"
   }
