@@ -35,11 +35,11 @@ A missed Check-in may begin **Concern** and verification. It never proves death,
 
 The repository currently provides two kinds of evidence. Neither is a release:
 
-| Path                          | Current status            | What it demonstrates                                                                                                                                                                  |
-| ----------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local browser prototype       | Available from source     | Draft rehearsal, plan lifecycle controls, Check-ins through Concern, an in-memory event record, and a synthetic Envelope workspace                                                    |
-| Phase 3B foundations          | Code and disposable tests | Loopback WebAuthn/session rehearsal, PostgreSQL seams, fenced work, atomic metadata-key rotation, authenticated logical-backup/restore fixtures, and bounded file/ClamAV/Pandoc gates |
-| Hosted service or v1 download | **Unavailable**           | Planned only; no public deployment, installer, supported-browser matrix, or update guarantee exists                                                                                   |
+| Path                          | Current status            | What it demonstrates                                                                                                                                                                                                          |
+| ----------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local browser prototype       | Available from source     | Draft rehearsal, plan lifecycle controls, Check-ins through Concern, an in-memory event record, and a synthetic Envelope workspace                                                                                            |
+| Phase 3B foundations          | Code and disposable tests | Loopback WebAuthn/session rehearsal, PostgreSQL atomic scheduled-command crash/catch-up seams, fenced work, atomic metadata-key rotation, authenticated logical-backup/restore fixtures, and bounded file/ClamAV/Pandoc gates |
+| Hosted service or v1 download | **Unavailable**           | Planned only; no public deployment, installer, supported-browser matrix, or update guarantee exists                                                                                                                           |
 
 The browser prototype deliberately stops at Concern. Guardian Attestations, Veto Window, Delivery Hold, Automatic Fallback, real notifications, Recipient retrieval, and Release are not implemented. Bounded Guardian Attestations are the default intended Release Policy; Automatic Fallback must be explicitly enabled for an individual Envelope.
 
@@ -124,7 +124,7 @@ The [Phase 3B evidence map](docs/architecture/FOUNDATION_PHASE_3B.md) explains w
 <details>
 <summary><strong>Current implementation boundary</strong></summary>
 
-Phase 3B adds disposable executable evidence for exact WebAuthn RP/origin checks, one-time ceremonies and proofs, an opt-in loopback HTTP/session boundary, digest-only session storage, revisioned recovery locks, PostgreSQL plan/audit/outbox atomicity, database-time leasing and fencing, atomic persisted metadata-key rewrap, signed authenticated logical-backup generations, isolated restore-safe inspection and explicit promotion, and source-pinned file/ClamAV/Pandoc gates.
+Phase 3B adds disposable executable evidence for exact WebAuthn RP/origin checks, one-time ceremonies and proofs, an opt-in loopback HTTP/session boundary, digest-only session storage, revisioned recovery locks, PostgreSQL Plan/audit/outbox/claimed-job atomicity, canonical scheduled `ADVANCE_TIME`, one-stage outage catch-up through Concern, database-time leasing and fencing, atomic persisted metadata-key rewrap, signed authenticated logical-backup generations, isolated restore-safe inspection and explicit promotion, and source-pinned file/ClamAV/Pandoc gates.
 
 The identity route is disabled by default and restricted to `127.0.0.1` with an exact `http://localhost:<port>` origin. Its virtual-authenticator and HTTP-boundary gates do not provide real identities or authenticators, identity proofing, Safari or supported-browser results, a public origin, production sessions, recovery factors, production key custody, streaming or durable database backup, persistent-volume recovery, rootless import isolation, external providers, durable personal-content storage, Guardian authority, or Release.
 

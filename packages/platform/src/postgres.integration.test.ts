@@ -17,7 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 
 import { createPostgresPlatform, type PostgresPlatform } from './postgres';
-import { platformMigrations } from './migrations';
+import { PLATFORM_SCHEMA_VERSION, platformMigrations } from './migrations';
 import { PostgresOperationsStore } from './postgresOperations';
 import {
   PostgresPlanStore,
@@ -234,7 +234,7 @@ suite('disposable PostgreSQL 18 platform', () => {
     await expect(platform.readiness()).resolves.toEqual({
       databaseMajor: 18,
       mode: 'live',
-      schemaVersion: 3,
+      schemaVersion: PLATFORM_SCHEMA_VERSION,
     });
     const client = await platform.pool.connect();
     try {

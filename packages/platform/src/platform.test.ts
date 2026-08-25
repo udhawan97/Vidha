@@ -20,6 +20,9 @@ describe('Phase 3B PostgreSQL schema', () => {
     ]);
     const sql = platformMigrations.map((migration) => migration.sql).join('\n');
     expect(sql).toContain("kind IN ('advance_plan_stage', 'synthetic_notice')");
+    expect(platformMigrations.map((migration) => migration.name)).toContain(
+      'integrated_scheduled_plan_execution',
+    );
     expect(sql).toContain('claim_generation');
     expect(sql).toContain('CREATE TABLE plans');
     expect(sql).toContain('CREATE TABLE audit_events');

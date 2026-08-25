@@ -2,14 +2,18 @@ import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { hostname } from 'node:os';
 
-import type { SafetyJob } from '@vidha/operations';
 import {
+  createSyntheticConcernOutboxPlanner,
   createPostgresPlatform,
   type PlatformMode,
-  type PostgresOperationsStore,
 } from '@vidha/platform';
 
 import { createIdentityRehearsalHandler } from './identityApi';
+import {
+  WORKER_CLAIM_LIMIT,
+  runWorkerClaim,
+  serializeWorkerTelemetry,
+} from './worker';
 
 const role = required('VIDHA_ROLE');
 if (role !== 'api' && role !== 'worker' && role !== 'migrate') {
@@ -19,10 +23,11 @@ const mode = required('VIDHA_MODE');
 if (mode !== 'live' && mode !== 'restore_safe') {
   throw new Error('VIDHA_MODE must be live or restore_safe.');
 }
+const installationId = required('VIDHA_INSTALLATION_ID');
 const platform = await createPostgresPlatform({
   connectionString: required('DATABASE_URL'),
   environmentId: required('VIDHA_ENVIRONMENT_ID'),
-  installationId: required('VIDHA_INSTALLATION_ID'),
+  installationId,
   manageSchema: role === 'migrate',
   mode: mode as PlatformMode,
   onPoolError: reportPostgresPoolError,
@@ -111,6 +116,11 @@ function startApi(): void {
 
 function startWorker(): void {
   const store = platform.operationsStore;
+  const scheduledPlans = platform.createPlanStore(
+    createSyntheticConcernOutboxPlanner({
+      channelRef: `channel_${sha256(`synthetic-channel:${installationId}`)}`,
+    }),
+  );
   const workerId = `worker_${sha256(`${hostname()}:${role}`).slice(0, 57)}`;
   let running = false;
   const poll = async () => {
@@ -121,10 +131,19 @@ function startWorker(): void {
         workerId,
         at: Date.now(),
         leaseMs: 30_000,
-        limit: 10,
+        limit: WORKER_CLAIM_LIMIT,
       });
-      for (const claim of claims)
-        await executeFixture(store, claim.job, claim.leaseId);
+      for (const claim of claims) {
+        await runWorkerClaim({
+          claim,
+          clock: { now: () => Date.now() },
+          operations: store,
+          report: (event) =>
+            process.stderr.write(`${serializeWorkerTelemetry(event)}\n`),
+          retryDelayMs: 60_000,
+          scheduledPlans,
+        });
+      }
     } catch {
       process.stderr.write('{"event":"worker_poll_failed"}\n');
     } finally {
@@ -139,32 +158,6 @@ function startWorker(): void {
   };
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
-}
-
-async function executeFixture(
-  store: PostgresOperationsStore,
-  job: SafetyJob,
-  leaseId: string,
-): Promise<void> {
-  if (job.kind === 'synthetic_notice') {
-    const payloadDigest = sha256(
-      JSON.stringify({
-        jobId: job.jobId,
-        kind: job.kind,
-        template: job.template,
-      }),
-    );
-    await store.acceptSyntheticSink({ jobId: job.jobId, payloadDigest });
-    await store.complete({ jobId: job.jobId, leaseId, at: Date.now() });
-    return;
-  }
-  await store.fail({
-    jobId: job.jobId,
-    leaseId,
-    at: Date.now(),
-    failureCode: 'application_adapter_unavailable',
-    retryAt: Date.now() + 60_000,
-  });
 }
 
 function required(name: string): string {

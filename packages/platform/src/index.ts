@@ -32,8 +32,12 @@ export {
   type RestorePromotionReport,
 } from './postgresRestore';
 export {
+  SCHEDULED_PLAN_EXECUTION_BOUNDARIES,
   PostgresPlanStore,
   createSyntheticConcernOutboxPlanner,
+  rehearseScheduledPlanInterruption,
   type PlanOutboxPlanner,
+  type ScheduledPlanExecutionBoundary,
+  type ScheduledPlanExecutionResult,
   type SyntheticConcernOutboxPlannerInput,
 } from './postgresPlan';

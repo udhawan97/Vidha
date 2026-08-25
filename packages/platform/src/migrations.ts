@@ -4,7 +4,7 @@ export interface PlatformMigration {
   readonly sql: string;
 }
 
-export const PLATFORM_SCHEMA_VERSION = 3;
+export const PLATFORM_SCHEMA_VERSION = 4;
 
 export const platformMigrations: readonly PlatformMigration[] = [
   {
@@ -363,6 +363,25 @@ export const platformMigrations: readonly PlatformMigration[] = [
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vidha_restore') THEN
           GRANT SELECT ON recovery_proof_attempts, recovery_proof_factors
           TO vidha_restore;
+        END IF;
+      END
+      $roles$;
+    `,
+  },
+  {
+    version: 4,
+    name: 'integrated_scheduled_plan_execution',
+    sql: `
+      DO $roles$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vidha_worker') THEN
+          GRANT SELECT ON plans, processed_commands TO vidha_worker;
+          GRANT UPDATE (state_json) ON plans TO vidha_worker;
+          GRANT INSERT ON processed_commands, audit_events TO vidha_worker;
+          GRANT INSERT (
+            job_id, kind, semantic_key, status, available_at, lease_id,
+            lease_owner, lease_expires_at, claim_generation, state_json
+          ) ON safety_jobs TO vidha_worker;
         END IF;
       END
       $roles$;

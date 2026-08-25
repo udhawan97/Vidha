@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
+import { applyPlanCommand, createDraftPlan } from '@vidha/domain';
 import { OperationsError, type SafetyJobIntent } from '@vidha/operations';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool, type PoolClient } from 'pg';
@@ -16,6 +17,12 @@ import {
   PostgresOperationsStore,
   rehearseClaimInterruptions,
 } from './postgresOperations';
+import {
+  SCHEDULED_PLAN_EXECUTION_BOUNDARIES,
+  PostgresPlanStore,
+  createSyntheticConcernOutboxPlanner,
+  rehearseScheduledPlanInterruption,
+} from './postgresPlan';
 import {
   TOPOLOGY_CAPACITY_PROFILE,
   rehearseTopologyCapacity,
@@ -206,6 +213,9 @@ suite('disposable PostgreSQL topology rehearsal', () => {
         (boundary) => `migration:${boundary}`,
       ),
       ...CLAIM_REHEARSAL_BOUNDARIES.map((boundary) => `claim:${boundary}`),
+      ...SCHEDULED_PLAN_EXECUTION_BOUNDARIES.map(
+        (boundary) => `scheduled-plan:${boundary}`,
+      ),
     ]);
     // node-postgres can surface a killed backend through the rejected operation,
     // a client or pool error event, or both. Any event remains exact-client scoped.
@@ -222,7 +232,7 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       interruptedBoundaries: MIGRATION_REHEARSAL_BOUNDARIES,
       postCommitReplayVerified: true,
       rollbackVerified: true,
-      schemaVersion: 3,
+      schemaVersion: 4,
     });
   });
 
@@ -337,7 +347,289 @@ suite('disposable PostgreSQL topology rehearsal', () => {
       }),
     ).resolves.toMatchObject({ status: 'completed', leaseVersion: 4 });
   });
+
+  it('atomically advances one scheduled stage across crashes, stale policy, and retry exhaustion', async () => {
+    const start = Date.now() - 86_400_000;
+    const planId = 'plan_scheduled_crash_fixture';
+    const channelRef = `channel_${'a'.repeat(64)}`;
+    const planner = createSyntheticConcernOutboxPlanner({
+      channelRef,
+      maxAttempts: 8,
+    });
+    const apiStore = apiPlatform.createPlanStore(planner);
+    const workerStore = new PostgresPlanStore(workerPool, 'live', planner);
+    await expect(
+      workerPool.query('SELECT event_id FROM audit_events LIMIT 1'),
+    ).rejects.toMatchObject({ code: '42501' });
+    await initializeArmedPlan(apiStore, planId, start);
+    const operations = new PostgresOperationsStore(workerPool);
+    const firstJob = (await apiPlatform.operationsStore.inspectJobs()).find(
+      (job) => job.kind === 'advance_plan_stage' && job.planRef === planId,
+    );
+    expect(firstJob).toBeDefined();
+    const jobsBeforeCrashMatrix = new Set(
+      (await apiPlatform.operationsStore.inspectJobs()).map((job) => job.jobId),
+    );
+    let lostAcknowledgementLeaseId: string | undefined;
+
+    for (const boundary of SCHEDULED_PLAN_EXECUTION_BOUNDARIES) {
+      const claims = await operations.claimDue({
+        workerId: 'worker_scheduled_crash_fixture',
+        at: 0,
+        leaseMs: 1_000,
+        limit: 10,
+      });
+      const claim = claims.find(
+        (candidate) => candidate.job.jobId === firstJob!.jobId,
+      );
+      expect(claim).toBeDefined();
+      await expect(
+        rehearseScheduledPlanInterruption({
+          boundary,
+          controlPool: ownerPlatform.pool,
+          expectTermination: (client, interrupted) =>
+            terminationErrors.register(client, `scheduled-plan:${interrupted}`),
+          jobId: claim!.job.jobId,
+          leaseId: claim!.leaseId,
+          planOutbox: planner,
+          workerPool,
+        }),
+      ).resolves.toEqual({ committed: boundary === 'after_commit' });
+
+      const state = await apiStore.read(planId);
+      const job = (await apiPlatform.operationsStore.inspectJobs()).find(
+        (candidate) => candidate.jobId === firstJob!.jobId,
+      );
+      const command = await ownerPlatform.pool.query<{
+        command_fingerprint: string;
+      }>(
+        `SELECT command_fingerprint FROM processed_commands
+         WHERE plan_id = $1 AND command_key = $2`,
+        [planId, firstJob!.commandKey],
+      );
+      const newlyStaged = (
+        await apiPlatform.operationsStore.inspectJobs()
+      ).filter((candidate) => !jobsBeforeCrashMatrix.has(candidate.jobId));
+      if (boundary === 'after_commit') {
+        lostAcknowledgementLeaseId = claim!.leaseId;
+        expect(state?.cycle.stage).toBe('reminder');
+        expect(job?.status).toBe('completed');
+        expect(await apiStore.audit(planId)).toHaveLength(4);
+        expect(command.rows).toEqual([{ command_fingerprint: 'ADVANCE_TIME' }]);
+        expect(newlyStaged).toHaveLength(2);
+        expect(newlyStaged).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              kind: 'advance_plan_stage',
+              planRef: planId,
+              status: 'pending',
+            }),
+            expect.objectContaining({
+              kind: 'synthetic_notice',
+              status: 'pending',
+              template: 'synthetic_rehearsal',
+            }),
+          ]),
+        );
+      } else {
+        expect(state?.cycle.stage).toBe('on_time');
+        expect(job?.status).toBe('leased');
+        expect(await apiStore.audit(planId)).toHaveLength(3);
+        expect(command.rows).toEqual([]);
+        expect(newlyStaged).toEqual([]);
+        await delay(1_050);
+      }
+    }
+    expect(lostAcknowledgementLeaseId).toBeDefined();
+    await expect(
+      workerStore.advanceScheduled({
+        jobId: firstJob!.jobId,
+        leaseId: lostAcknowledgementLeaseId!,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_LEASE' });
+
+    const overdueClaim = (
+      await operations.claimDue({
+        workerId: 'worker_scheduled_catchup_fixture',
+        at: 0,
+        leaseMs: 1_000,
+        limit: 10,
+      })
+    ).find(
+      (claim) =>
+        claim.job.kind === 'advance_plan_stage' && claim.job.planRef === planId,
+    );
+    expect(overdueClaim).toBeDefined();
+    await expect(
+      workerStore.advanceScheduled({
+        jobId: overdueClaim!.job.jobId,
+        leaseId: overdueClaim!.leaseId,
+      }),
+    ).resolves.toMatchObject({
+      outcome: 'advanced',
+      state: { cycle: { stage: 'overdue' } },
+    });
+
+    const concernClaim = (
+      await operations.claimDue({
+        workerId: 'worker_scheduled_catchup_fixture',
+        at: 0,
+        leaseMs: 1_000,
+        limit: 10,
+      })
+    ).find(
+      (claim) =>
+        claim.job.kind === 'advance_plan_stage' && claim.job.planRef === planId,
+    );
+    expect(concernClaim).toBeDefined();
+    await expect(
+      workerStore.advanceScheduled({
+        jobId: concernClaim!.job.jobId,
+        leaseId: concernClaim!.leaseId,
+      }),
+    ).resolves.toMatchObject({
+      outcome: 'advanced',
+      state: { cycle: { stage: 'concern' } },
+    });
+    expect(await apiStore.audit(planId)).toHaveLength(6);
+    expect(
+      (await apiPlatform.operationsStore.inspectJobs()).filter(
+        (job) =>
+          job.kind === 'advance_plan_stage' &&
+          job.planRef === planId &&
+          job.status === 'pending',
+      ),
+    ).toEqual([]);
+
+    const stalePlanId = 'plan_stale_policy_fixture';
+    await initializeArmedPlan(apiStore, stalePlanId, start);
+    await ownerPlatform.pool.query(
+      `UPDATE plans SET state_json = jsonb_set(
+         state_json, '{policyRevision}',
+         to_jsonb((state_json->>'policyRevision')::integer + 1)
+       ) WHERE plan_id = $1`,
+      [stalePlanId],
+    );
+    const staleClaim = (
+      await operations.claimDue({
+        workerId: 'worker_stale_policy_fixture',
+        at: 0,
+        leaseMs: 1_000,
+        limit: 10,
+      })
+    ).find(
+      (claim) =>
+        claim.job.kind === 'advance_plan_stage' &&
+        claim.job.planRef === stalePlanId,
+    );
+    expect(staleClaim).toBeDefined();
+    await expect(
+      workerStore.advanceScheduled({
+        jobId: staleClaim!.job.jobId,
+        leaseId: staleClaim!.leaseId,
+      }),
+    ).resolves.toMatchObject({
+      job: {
+        lastFailureCode: 'stale_schedule',
+        status: 'dead_letter',
+      },
+      outcome: 'stale_schedule',
+      state: { cycle: { stage: 'on_time' }, policyRevision: 2 },
+    });
+    expect(await apiStore.audit(stalePlanId)).toHaveLength(3);
+
+    const orphan: SafetyJobIntent = {
+      kind: 'advance_plan_stage',
+      jobId: `job_${'b'.repeat(64)}`,
+      planRef: 'plan_missing_fixture',
+      commandKey: `cmd_${'c'.repeat(64)}`,
+      dueAt: start,
+      maxAttempts: 2,
+    };
+    await apiPlatform.operationsStore.enqueue(orphan);
+    for (const attempt of [1, 2]) {
+      const claim = (
+        await operations.claimDue({
+          workerId: 'worker_retry_exhaustion_fixture',
+          at: 0,
+          leaseMs: 1_000,
+          limit: 10,
+        })
+      ).find((candidate) => candidate.job.jobId === orphan.jobId);
+      expect(claim?.job.attempts).toBe(attempt);
+      await expect(
+        workerStore.advanceScheduled({
+          jobId: claim!.job.jobId,
+          leaseId: claim!.leaseId,
+        }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      await operations.fail({
+        jobId: claim!.job.jobId,
+        leaseId: claim!.leaseId,
+        at: start,
+        failureCode: 'plan_unavailable',
+        retryAt: start + 1,
+      });
+    }
+    expect(
+      (await apiPlatform.operationsStore.inspectJobs()).find(
+        (job) => job.jobId === orphan.jobId,
+      ),
+    ).toMatchObject({
+      attempts: 2,
+      lastFailureCode: 'plan_unavailable',
+      status: 'dead_letter',
+    });
+  }, 30_000);
 });
+
+async function initializeArmedPlan(
+  store: PostgresPlanStore,
+  planId: string,
+  at: number,
+): Promise<void> {
+  await store.initialize(
+    createDraftPlan({
+      planId,
+      ownerId: 'owner_scheduled_fixture',
+      at,
+      policy: {
+        checkInIntervalMs: 14_400_000,
+        reminderLeadMs: 3_600_000,
+        gracePeriodMs: 7_200_000,
+      },
+    }),
+  );
+  await store.transact(
+    planId,
+    `cmd_${'d'.repeat(64)}`,
+    'REHEARSE_PLAN:policy:1',
+    () => undefined,
+    (state) =>
+      applyPlanCommand(state, {
+        type: 'REHEARSE_PLAN',
+        at,
+        authenticated: true,
+        expectedPolicyRevision: 1,
+        idempotencyKey: `cmd_${'d'.repeat(64)}`,
+      }),
+  );
+  await store.transact(
+    planId,
+    `cmd_${'e'.repeat(64)}`,
+    'ARM_PLAN:policy:1',
+    () => undefined,
+    (state) =>
+      applyPlanCommand(state, {
+        type: 'ARM_PLAN',
+        at,
+        authenticated: true,
+        recentlyAuthenticated: true,
+        expectedPolicyRevision: 1,
+        idempotencyKey: `cmd_${'e'.repeat(64)}`,
+      }),
+  );
+}
 
 function connectionForDatabase(base: string, database: string): string {
   const url = new URL(base);
