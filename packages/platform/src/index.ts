@@ -4,7 +4,8 @@ export {
   type CreatePostgresPlatformInput,
   type PlatformMode,
   type PostgresPlatform,
-  type RecoveryProofStore,
+  type RecoveryProofAbusePolicy,
+  type RecoveryProofIssuer,
 } from './postgres';
 export {
   PLATFORM_SCHEMA_VERSION,

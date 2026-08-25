@@ -133,10 +133,33 @@ export interface OwnerIdentityState {
 }
 
 export interface OwnerIdentityRepositoryTransaction {
+  applyRecoveryProofAction?(action: RecoveryProofAction): Promise<boolean>;
   list(): Promise<readonly OwnerIdentityState[]>;
   read(ownerId: string): Promise<OwnerIdentityState | null>;
   write(state: OwnerIdentityState): Promise<void>;
 }
+
+export type RecoveryProofAction =
+  | {
+      readonly type: 'accept';
+      readonly attemptId: string;
+      readonly issuedChannelProof: string;
+      readonly ownerId: string;
+      readonly savedCodeProof: string;
+      readonly validThrough: number;
+    }
+  | {
+      readonly type: 'consume';
+      readonly attemptId: string;
+      readonly issuedChannelProof: string;
+      readonly ownerId: string;
+      readonly savedCodeProof: string;
+    }
+  | {
+      readonly type: 'cancel';
+      readonly attemptId: string;
+      readonly ownerId: string;
+    };
 
 export interface OwnerIdentityRepository {
   transaction<T>(
@@ -239,6 +262,13 @@ export class IdentityError extends Error {
     super(message);
     this.name = 'IdentityError';
     this.code = code;
+  }
+}
+
+class DurableRecoveryProofDenied extends IdentityError {
+  constructor(message: string) {
+    super('AUTHENTICATION_DENIED', message);
+    this.name = 'DurableRecoveryProofDenied';
   }
 }
 
@@ -422,77 +452,91 @@ export function createOwnerIdentityCoordinator({
       return null;
     },
     async execute(command) {
-      return await repository.transaction(async (transaction) => {
-        const at = validNow(clock);
-        const states = stateMap(await transaction.list());
-        const state = requireState(states, command.ownerId);
-        const commandKey = await deriveCommandKey(command.idempotencyKey);
-        const fingerprint = await identityCommandFingerprint(command);
-        const processed = state.processedCommands.find(
-          (candidate) => candidate.commandKey === commandKey,
-        );
-        if (processed !== undefined) {
-          if (processed.fingerprint !== fingerprint) {
-            throw new IdentityError(
-              'IDEMPOTENCY_CONFLICT',
-              'An identity command key cannot be reused for different intent.',
-            );
+      const outcome = await repository.transaction(async (transaction) => {
+        try {
+          const at = validNow(clock);
+          const states = stateMap(await transaction.list());
+          const state = requireState(states, command.ownerId);
+          const commandKey = await deriveCommandKey(command.idempotencyKey);
+          const fingerprint = await identityCommandFingerprint(command);
+          const processed = state.processedCommands.find(
+            (candidate) => candidate.commandKey === commandKey,
+          );
+          if (processed !== undefined) {
+            if (processed.fingerprint !== fingerprint) {
+              throw new IdentityError(
+                'IDEMPOTENCY_CONFLICT',
+                'An identity command key cannot be reused for different intent.',
+              );
+            }
+            if (processed.resultRevision !== state.securityRevision) {
+              throw new IdentityError(
+                'STALE_SECURITY_REVISION',
+                'The identity retry result is no longer the current security revision.',
+              );
+            }
+            return {
+              state: cloneState(state),
+              noticeIntents: [],
+              duplicate: true,
+            } satisfies IdentityResult;
           }
-          if (processed.resultRevision !== state.securityRevision) {
+          validatePositiveSafeInteger(
+            command.expectedSecurityRevision,
+            'Expected security revision',
+          );
+          if (command.expectedSecurityRevision !== state.securityRevision) {
             throw new IdentityError(
               'STALE_SECURITY_REVISION',
-              'The identity retry result is no longer the current security revision.',
+              'The identity command targets a stale security revision.',
             );
           }
-          return {
-            state: cloneState(state),
-            noticeIntents: [],
-            duplicate: true,
-          };
-        }
-        validatePositiveSafeInteger(
-          command.expectedSecurityRevision,
-          'Expected security revision',
-        );
-        if (command.expectedSecurityRevision !== state.securityRevision) {
-          throw new IdentityError(
-            'STALE_SECURITY_REVISION',
-            'The identity command targets a stale security revision.',
+          if (command.type === 'ADD_CREDENTIAL') {
+            assertCredentialAvailable(states, command.newCredentialId);
+          } else if (command.type === 'COMPLETE_RECOVERY') {
+            assertCredentialAvailable(states, command.newCredentialId);
+          }
+          const decided = await executeIdentityCommand(
+            state,
+            command,
+            at,
+            policy,
+            verifier,
+            transaction,
+            async (sessionId) =>
+              await verifyOwnerSession(states, command.ownerId, sessionId, at),
           );
+          const next: OwnerIdentityState = {
+            ...decided.state,
+            securityRevision: state.securityRevision + 1,
+            processedCommands: [
+              ...state.processedCommands,
+              {
+                commandKey,
+                fingerprint,
+                resultRevision: state.securityRevision + 1,
+              },
+            ],
+          };
+          await transaction.write(next);
+          return {
+            state: cloneState(next),
+            noticeIntents: decided.noticeIntents.map((intent) => ({
+              ...intent,
+            })),
+            duplicate: false,
+          } satisfies IdentityResult;
+        } catch (error) {
+          if (error instanceof DurableRecoveryProofDenied) {
+            return { durableRecoveryProofDenied: error.message } as const;
+          }
+          throw error;
         }
-        if (command.type === 'ADD_CREDENTIAL') {
-          assertCredentialAvailable(states, command.newCredentialId);
-        } else if (command.type === 'COMPLETE_RECOVERY') {
-          assertCredentialAvailable(states, command.newCredentialId);
-        }
-        const decided = await executeIdentityCommand(
-          state,
-          command,
-          at,
-          policy,
-          verifier,
-          async (sessionId) =>
-            await verifyOwnerSession(states, command.ownerId, sessionId, at),
-        );
-        const next: OwnerIdentityState = {
-          ...decided.state,
-          securityRevision: state.securityRevision + 1,
-          processedCommands: [
-            ...state.processedCommands,
-            {
-              commandKey,
-              fingerprint,
-              resultRevision: state.securityRevision + 1,
-            },
-          ],
-        };
-        await transaction.write(next);
-        return {
-          state: cloneState(next),
-          noticeIntents: decided.noticeIntents.map((intent) => ({ ...intent })),
-          duplicate: false,
-        };
       });
+      if ('durableRecoveryProofDenied' in outcome) {
+        denied(outcome.durableRecoveryProofDenied);
+      }
+      return outcome;
     },
     async read(ownerId) {
       return await repository.read(ownerId);
@@ -556,6 +600,7 @@ async function executeIdentityCommand(
   at: number,
   policy: IdentityPolicy,
   verifier: CredentialProofVerifier,
+  transaction: OwnerIdentityRepositoryTransaction,
   ownerSession: (sessionId: string) => Promise<AuthenticationSession>,
 ): Promise<IdentityResult> {
   switch (command.type) {
@@ -696,29 +741,28 @@ async function executeIdentityCommand(
           'Recovery is already pending.',
         );
       }
-      const [savedCodeVerified, issuedChannelVerified] = await Promise.all([
-        verifier.verifyRecovery({
+      const readyAt = safeAdd(at, policy.recoveryCoolingOffMs);
+      if (
+        !(await authorizeRecoveryProofs(transaction, verifier, {
+          type: 'accept',
           attemptId: command.attemptId,
-          factor: 'saved_code',
+          issuedChannelProof: command.issuedChannelProof,
           ownerId: command.ownerId,
-          proof: command.savedCodeProof,
-        }),
-        verifier.verifyRecovery({
-          attemptId: command.attemptId,
-          factor: 'issued_channel',
-          ownerId: command.ownerId,
-          proof: command.issuedChannelProof,
-        }),
-      ]);
-      if (!savedCodeVerified || !issuedChannelVerified) {
-        denied('Both independently modeled recovery proofs are required.');
+          savedCodeProof: command.savedCodeProof,
+          validThrough: readyAt,
+        }))
+      ) {
+        denyRecoveryProofs(
+          transaction,
+          'Both independently modeled recovery proofs are required.',
+        );
       }
       const next = {
         ...state,
         recovery: {
           attemptId: command.attemptId,
           startedAt: at,
-          readyAt: safeAdd(at, policy.recoveryCoolingOffMs),
+          readyAt,
         },
       };
       return result(appendEvent(next, 'RECOVERY_STARTED', at), [
@@ -736,6 +780,19 @@ async function executeIdentityCommand(
         throw new IdentityError(
           'RECOVERY_NOT_PENDING',
           'Recovery is not pending.',
+        );
+      }
+      if (
+        transaction.applyRecoveryProofAction !== undefined &&
+        !(await transaction.applyRecoveryProofAction({
+          type: 'cancel',
+          attemptId: state.recovery.attemptId,
+          ownerId: command.ownerId,
+        }))
+      ) {
+        throw new IdentityError(
+          'INVALID_COMMAND',
+          'The durable recovery proof attempt could not be cancelled.',
         );
       }
       return result(
@@ -763,32 +820,31 @@ async function executeIdentityCommand(
           'Recovery cooling-off is still active.',
         );
       }
-      const [savedCodeVerified, issuedChannelVerified, registrationVerified] =
-        await Promise.all([
-          verifier.verifyRecovery({
-            attemptId: command.attemptId,
-            factor: 'saved_code',
-            ownerId: command.ownerId,
-            proof: command.savedCodeProof,
-          }),
-          verifier.verifyRecovery({
-            attemptId: command.attemptId,
-            factor: 'issued_channel',
-            ownerId: command.ownerId,
-            proof: command.issuedChannelProof,
-          }),
-          verifier.verifyRegistration({
-            credentialId: command.newCredentialId,
-            ownerId: command.ownerId,
-            proof: command.registrationProof,
-          }),
-        ]);
+      const recoveryVerified = await authorizeRecoveryProofs(
+        transaction,
+        verifier,
+        {
+          type: 'consume',
+          attemptId: command.attemptId,
+          issuedChannelProof: command.issuedChannelProof,
+          ownerId: command.ownerId,
+          savedCodeProof: command.savedCodeProof,
+        },
+      );
+      if (!recoveryVerified) {
+        denyRecoveryProofs(
+          transaction,
+          'Recovery completion proofs were not accepted.',
+        );
+      }
       if (
-        !savedCodeVerified ||
-        !issuedChannelVerified ||
-        !registrationVerified
+        !(await verifier.verifyRegistration({
+          credentialId: command.newCredentialId,
+          ownerId: command.ownerId,
+          proof: command.registrationProof,
+        }))
       ) {
-        denied('Recovery completion proofs were not accepted.');
+        denied('Recovery credential registration proof was not accepted.');
       }
       if (
         state.credentials.some(
@@ -951,6 +1007,49 @@ async function executeIdentityCommand(
       );
     }
   }
+}
+
+async function authorizeRecoveryProofs(
+  transaction: OwnerIdentityRepositoryTransaction,
+  verifier: CredentialProofVerifier,
+  action: {
+    readonly attemptId: string;
+    readonly issuedChannelProof: string;
+    readonly ownerId: string;
+    readonly savedCodeProof: string;
+  } & (
+    | { readonly type: 'accept'; readonly validThrough: number }
+    | { readonly type: 'consume' }
+  ),
+): Promise<boolean> {
+  if (transaction.applyRecoveryProofAction !== undefined) {
+    return await transaction.applyRecoveryProofAction(action);
+  }
+  const [savedCodeVerified, issuedChannelVerified] = await Promise.all([
+    verifier.verifyRecovery({
+      attemptId: action.attemptId,
+      factor: 'saved_code',
+      ownerId: action.ownerId,
+      proof: action.savedCodeProof,
+    }),
+    verifier.verifyRecovery({
+      attemptId: action.attemptId,
+      factor: 'issued_channel',
+      ownerId: action.ownerId,
+      proof: action.issuedChannelProof,
+    }),
+  ]);
+  return savedCodeVerified && issuedChannelVerified;
+}
+
+function denyRecoveryProofs(
+  transaction: OwnerIdentityRepositoryTransaction,
+  message: string,
+): never {
+  if (transaction.applyRecoveryProofAction !== undefined) {
+    throw new DurableRecoveryProofDenied(message);
+  }
+  denied(message);
 }
 
 async function requireRecentSession(

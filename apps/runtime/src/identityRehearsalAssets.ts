@@ -63,12 +63,13 @@ export const identityRehearsalHtml = `<!doctype html>
               autocomplete="off"
               spellcheck="false"
               placeholder="Paste the disposable fixture capability"
+              disabled
             />
-            <button type="button" id="bootstrap">Create credential</button>
+            <button type="button" id="bootstrap" disabled>Create credential</button>
           </div>
 
           <div class="session-actions" aria-label="Session rehearsal actions">
-            <button type="button" class="secondary" id="authenticate">
+            <button type="button" class="secondary" id="authenticate" disabled>
               Authenticate
             </button>
             <button type="button" class="secondary" id="check-session" disabled>
@@ -80,8 +81,21 @@ export const identityRehearsalHtml = `<!doctype html>
           </div>
 
           <output id="status" class="status" aria-live="polite">
-            Waiting for a bounded action.
+            Checking the local rehearsal state…
           </output>
+
+          <section class="recovery-brake" aria-labelledby="recovery-brake-title">
+            <p class="brake-label">Recovery boundary · held closed</p>
+            <h3 id="recovery-brake-title">No fallback shortcut.</h3>
+            <p>
+              Lost this disposable credential? There is no in-place reset. End
+              this run, let <code>pnpm test:webauthn</code> remove its run-owned
+              database, then rerun it to create a fresh disposable fixture. The
+              abuse matrix is tested below this interface; this page exposes no
+              recovery completion, email or SMS fallback, or Verified Owner
+              Channel delivery.
+            </p>
+          </section>
         </form>
       </section>
 
@@ -355,6 +369,54 @@ input:focus-visible {
   background: #fbefed;
 }
 
+.recovery-brake {
+  position: relative;
+  margin-top: 26px;
+  padding: 22px 22px 22px 58px;
+  overflow: hidden;
+  border: 1px solid #dfc58e;
+  border-radius: 16px;
+  background: #fffaf0;
+}
+
+.recovery-brake::before {
+  position: absolute;
+  top: -18px;
+  bottom: -18px;
+  left: 25px;
+  width: 8px;
+  border: 2px solid #fffaf0;
+  border-radius: 999px;
+  background: #d6922f;
+  box-shadow: 0 0 0 1px #b8751f;
+  content: "";
+  transform: rotate(12deg);
+}
+
+.recovery-brake h3 {
+  margin: 0 0 7px;
+  color: #4d3215;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.18rem;
+  font-weight: 600;
+}
+
+.recovery-brake p:last-child {
+  margin: 0;
+  color: #6c5438;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.brake-label {
+  margin: 0 0 8px;
+  color: #8a571d;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .non-claim {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -441,6 +503,8 @@ const checkSession = document.querySelector('#check-session');
 const revokeSession = document.querySelector('#revoke-session');
 const status = document.querySelector('#status');
 let csrfToken = null;
+let credentialReady = false;
+let hydrated = false;
 
 bootstrap.addEventListener('click', async () => {
   await run('Creating a disposable credential…', async () => {
@@ -460,6 +524,7 @@ bootstrap.addEventListener('click', async () => {
       response: credentialResponse(credential),
     });
     capability.value = '';
+    credentialReady = true;
     setStep('bootstrap', 'complete');
     setStep('authenticate', 'current');
     return 'Credential ready. Authenticate to issue an opaque server session.';
@@ -617,14 +682,49 @@ function setStatus(message, error = false) {
 }
 
 function setBusy(busy) {
-  bootstrap.disabled = busy;
-  authenticate.disabled = busy;
-  checkSession.disabled = busy || !csrfToken;
-  revokeSession.disabled = busy || !csrfToken;
+  capability.disabled = busy || !hydrated || credentialReady;
+  bootstrap.disabled = busy || !hydrated || credentialReady;
+  authenticate.disabled = busy || !hydrated || !credentialReady;
+  checkSession.disabled = busy || !hydrated || !csrfToken;
+  revokeSession.disabled = busy || !hydrated || !csrfToken;
 }
 
 function setStep(name, state) {
   document.querySelector('[data-step="' + name + '"]').dataset.state = state;
 }
 
-setStep('bootstrap', 'current');`;
+async function hydrate() {
+  if (!('PublicKeyCredential' in window)) {
+    credentialReady = false;
+    setBusy(true);
+    setStatus('This browser does not expose WebAuthn. Use a supported local browser for this rehearsal.', true);
+    return;
+  }
+  try {
+    const rehearsal = await get('/rehearsal/webauthn/status');
+    credentialReady = rehearsal.credentialReady === true;
+    if (rehearsal.sessionActive === true) {
+      const session = await get('/v1/identity/session');
+      csrfToken = session.csrfToken;
+      setStep('bootstrap', 'complete');
+      setStep('authenticate', 'complete');
+      setStep('revoke', 'current');
+      setStatus('Session restored from its HttpOnly cookie. Check it or end it explicitly.');
+    } else if (credentialReady) {
+      setStep('bootstrap', 'complete');
+      setStep('authenticate', 'current');
+      setStatus('Credential ready. Authenticate to issue an opaque server session.');
+    } else {
+      setStep('bootstrap', 'current');
+      setStatus('Paste the disposable capability to create the first credential.');
+    }
+    hydrated = true;
+  } catch {
+    hydrated = false;
+    setStatus('The rehearsal state could not be loaded. All actions remain disabled.', true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+void hydrate();`;

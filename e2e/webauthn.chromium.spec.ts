@@ -42,6 +42,21 @@ test('completes WebAuthn, rotates the opaque cookie, rejects replay, and revokes
   await page.getByLabel('Bootstrap capability').fill(capability);
   await page.getByRole('button', { name: 'Create credential' }).click();
   await expect(page.getByRole('status')).toContainText('Credential ready');
+  await page.reload();
+  await expect(page.getByRole('status')).toContainText('Credential ready');
+  await expect(page.getByLabel('Bootstrap capability')).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Create credential' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Authenticate', exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole('button', { name: 'Check session' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'End session' }),
+  ).toBeDisabled();
 
   await page.getByRole('button', { name: 'Authenticate', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Session active');
@@ -52,6 +67,20 @@ test('completes WebAuthn, rotates the opaque cookie, rejects replay, and revokes
   await expect
     .poll(async () => await page.evaluate(() => document.cookie))
     .not.toContain(cookieName);
+  await page.reload();
+  await expect(page.getByRole('status')).toContainText(
+    'Session restored from its HttpOnly cookie',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Create credential' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Authenticate', exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole('button', { name: 'Check session' }),
+  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'End session' })).toBeEnabled();
 
   const csrfDenied = await page.evaluate(async () => {
     const response = await fetch('/v1/identity/session/revoke', {

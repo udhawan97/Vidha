@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createMemoryOwnerIdentityRepository,
   createOwnerIdentityCoordinator,
   type CredentialProofVerifier,
   type IdentityCommand,
+  type OwnerIdentityRepository,
 } from './identity';
 
 const HOUR = 60 * 60 * 1_000;
@@ -512,6 +514,62 @@ describe('Owner Identity coordinator', () => {
       }),
     ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
     expect((await runtime.coordinator.read(OWNER_ID))?.recovery).toBeNull();
+  });
+
+  it('commits a durable recovery denial without advancing identity state', async () => {
+    const base = createMemoryOwnerIdentityRepository();
+    let durableFailures = 0;
+    const repository: OwnerIdentityRepository = {
+      list: base.list,
+      read: base.read,
+      async transaction(operation) {
+        return await base.transaction(async (transaction) => {
+          let stagedFailures = 0;
+          const result = await operation({
+            ...transaction,
+            async applyRecoveryProofAction() {
+              stagedFailures += 1;
+              return false;
+            },
+          });
+          durableFailures += stagedFailures;
+          return result;
+        });
+      },
+    };
+    const coordinator = createOwnerIdentityCoordinator({
+      clock: { now: () => START },
+      policy: {
+        channelChangeCoolingOffMs: DAY,
+        recentAuthenticationWindowMs: 5 * 60 * 1_000,
+        recoveryCoolingOffMs: 2 * DAY,
+        sessionLifetimeMs: HOUR,
+      },
+      repository,
+      verifier,
+    });
+    await coordinator.initialize({
+      credentialId: FIRST_CREDENTIAL,
+      ownerId: OWNER_ID,
+      verifiedChannelRef: CHANNEL,
+    });
+
+    await expect(
+      coordinator.execute({
+        type: 'BEGIN_RECOVERY',
+        attemptId: `recovery_${hex('durable-denial')}`,
+        expectedSecurityRevision: 1,
+        idempotencyKey: 'durable-recovery-denial',
+        issuedChannelProof: 'verified-issued_channel',
+        ownerId: OWNER_ID,
+        savedCodeProof: 'verified-saved_code',
+      }),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    expect(durableFailures).toBe(1);
+    await expect(coordinator.read(OWNER_ID)).resolves.toMatchObject({
+      recovery: null,
+      securityRevision: 1,
+    });
   });
 
   it('completes recovery by replacing old credentials without issuing a session', async () => {

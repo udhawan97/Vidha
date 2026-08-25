@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   createOwnerIdentityCoordinator,
   type CredentialProofVerifier,
@@ -15,6 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 
 import { createPostgresPlatform, type PostgresPlatform } from './postgres';
+import { platformMigrations } from './migrations';
 import { PostgresOperationsStore } from './postgresOperations';
 import {
   PostgresPlanStore,
@@ -37,6 +40,7 @@ const SECOND_CREDENTIAL = `credential_${'c'.repeat(64)}`;
 const THIRD_CREDENTIAL = `credential_${'d'.repeat(64)}`;
 const CHANNEL = `channel_${'e'.repeat(64)}`;
 const SESSION = `session_${'f'.repeat(64)}`;
+const SECOND_SESSION = `session_${'e'.repeat(64)}`;
 const JOB_ID = `job_${'1'.repeat(64)}`;
 const PLAN_ID = 'plan_postgres_fixture';
 const PLAN_OWNER_ID = 'owner_postgres_fixture';
@@ -53,7 +57,7 @@ const verifier: CredentialProofVerifier = {
     return true;
   },
   async verifyRecovery() {
-    return true;
+    return false;
   },
   async verifyRegistration() {
     return true;
@@ -94,6 +98,11 @@ suite('disposable PostgreSQL 18 platform', () => {
       environmentId: `environment_${'2'.repeat(64)}`,
       installationId: `installation_${'3'.repeat(64)}`,
       mode: 'live',
+      recoveryProofAbusePolicy: {
+        baseLockMs: 40,
+        failureThreshold: 2,
+        maxLockMs: 160,
+      },
     });
     apiPlatform = await createPostgresPlatform({
       connectionString: connectionFor(
@@ -105,6 +114,11 @@ suite('disposable PostgreSQL 18 platform', () => {
       installationId: `installation_${'3'.repeat(64)}`,
       manageSchema: false,
       mode: 'live',
+      recoveryProofAbusePolicy: {
+        baseLockMs: 40,
+        failureThreshold: 2,
+        maxLockMs: 160,
+      },
     });
     workerPool = new Pool({
       connectionString: connectionFor(
@@ -141,11 +155,86 @@ suite('disposable PostgreSQL 18 platform', () => {
     `);
   });
 
+  function recoveryCoordinator(
+    now: () => number,
+    sessionIds: string[],
+    proofVerifier: CredentialProofVerifier = verifier,
+  ) {
+    return createOwnerIdentityCoordinator({
+      clock: { now },
+      policy: {
+        channelChangeCoolingOffMs: 1,
+        recentAuthenticationWindowMs: 60_000,
+        recoveryCoolingOffMs: 1,
+        sessionLifetimeMs: 60_000,
+      },
+      repository: apiPlatform.identityRepository,
+      sessionIdGenerator: () => {
+        const sessionId = sessionIds.shift();
+        if (sessionId === undefined) {
+          throw new Error('A deterministic recovery session was not queued.');
+        }
+        return sessionId;
+      },
+      verifier: proofVerifier,
+    });
+  }
+
+  async function beginRecovery(
+    coordinator: ReturnType<typeof recoveryCoordinator>,
+    attempt: {
+      readonly attemptId: string;
+      readonly issuedChannelProof: string;
+      readonly savedCodeProof: string;
+    },
+    expectedSecurityRevision: number,
+    compromisedFactor?: 'wrong-issued' | 'wrong-saved',
+  ) {
+    return await coordinator.execute({
+      type: 'BEGIN_RECOVERY',
+      attemptId: attempt.attemptId,
+      expectedSecurityRevision,
+      idempotencyKey: `postgres-abuse-${attempt.attemptId}-${compromisedFactor ?? 'valid'}`,
+      issuedChannelProof:
+        compromisedFactor === 'wrong-issued'
+          ? `wrong_${'a'.repeat(64)}`
+          : attempt.issuedChannelProof,
+      ownerId: OWNER_ID,
+      savedCodeProof:
+        compromisedFactor === 'wrong-saved'
+          ? `wrong_${'b'.repeat(64)}`
+          : attempt.savedCodeProof,
+    });
+  }
+
+  async function issueRecoveryPair(input: {
+    readonly attemptId: string;
+    readonly expiresAt: number;
+    readonly issuedChannelProof: string;
+    readonly ownerId: string;
+    readonly savedCodeProof: string;
+  }): Promise<void> {
+    await apiPlatform.recoveryProofIssuer.issue({
+      attemptId: input.attemptId,
+      expiresAt: input.expiresAt,
+      factor: 'saved_code',
+      ownerId: input.ownerId,
+      proof: input.savedCodeProof,
+    });
+    await apiPlatform.recoveryProofIssuer.issue({
+      attemptId: input.attemptId,
+      expiresAt: input.expiresAt,
+      factor: 'issued_channel',
+      ownerId: input.ownerId,
+      proof: input.issuedChannelProof,
+    });
+  }
+
   it('reports the exact database major, migration, and runtime mode', async () => {
     await expect(platform.readiness()).resolves.toEqual({
       databaseMajor: 18,
       mode: 'live',
-      schemaVersion: 2,
+      schemaVersion: 3,
     });
     const client = await platform.pool.connect();
     try {
@@ -161,6 +250,203 @@ suite('disposable PostgreSQL 18 platform', () => {
       await client.query('RESET ROLE');
       client.release();
     }
+  });
+
+  it('migrates legacy paired recovery rows into fail-closed factor records', async () => {
+    const schema = 'phase3b_recovery_migration';
+    const pendingAttempt = `recovery_${'d'.repeat(64)}`;
+    const consumedAttempt = `recovery_${'e'.repeat(64)}`;
+    const client = await platform.pool.connect();
+    try {
+      await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      await client.query(`CREATE SCHEMA ${schema}`);
+      await client.query(`SET search_path TO ${schema}`);
+      await client.query(`
+        CREATE TABLE vidha_migrations (
+          version INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          checksum TEXT NOT NULL,
+          applied_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+        )
+      `);
+      await client.query(platformMigrations[0]!.sql);
+      await client.query(platformMigrations[1]!.sql);
+      await client.query(
+        `INSERT INTO recovery_proof_attempts(
+          attempt_id, owner_id, saved_code_digest, issued_channel_digest,
+          expires_at, failures, locked_until, consumed_at
+        ) VALUES
+          ($1, $3, $4, $5, $6, 2, NULL, NULL),
+          ($2, $3, $5, $4, $6, 0, NULL, $7)`,
+        [
+          pendingAttempt,
+          consumedAttempt,
+          OWNER_ID,
+          '1'.repeat(64),
+          '2'.repeat(64),
+          START + 60_000,
+          START,
+        ],
+      );
+      await client.query(platformMigrations[2]!.sql);
+
+      const attempts = await client.query<{
+        accepted_at: string | null;
+        attempt_id: string;
+        cancelled_at: string | null;
+        consumed_at: string | null;
+        failures: number;
+      }>(
+        `SELECT attempt_id, failures, accepted_at, cancelled_at, consumed_at
+         FROM recovery_proof_attempts ORDER BY attempt_id`,
+      );
+      expect(attempts.rows).toEqual([
+        {
+          accepted_at: null,
+          attempt_id: pendingAttempt,
+          cancelled_at: expect.any(String),
+          consumed_at: null,
+          failures: 2,
+        },
+        {
+          accepted_at: String(START),
+          attempt_id: consumedAttempt,
+          cancelled_at: null,
+          consumed_at: String(START),
+          failures: 0,
+        },
+      ]);
+      const factors = await client.query<{
+        attempt_id: string;
+        factor: string;
+        failures: number;
+        proof_digest: string;
+      }>(
+        `SELECT attempt_id, factor, proof_digest, failures FROM recovery_proof_factors
+         ORDER BY attempt_id, factor`,
+      );
+      expect(factors.rows).toEqual([
+        {
+          attempt_id: pendingAttempt,
+          factor: 'issued_channel',
+          failures: 2,
+          proof_digest: '2'.repeat(64),
+        },
+        {
+          attempt_id: pendingAttempt,
+          factor: 'saved_code',
+          failures: 2,
+          proof_digest: '1'.repeat(64),
+        },
+        {
+          attempt_id: consumedAttempt,
+          factor: 'issued_channel',
+          failures: 0,
+          proof_digest: '1'.repeat(64),
+        },
+        {
+          attempt_id: consumedAttempt,
+          factor: 'saved_code',
+          failures: 0,
+          proof_digest: '2'.repeat(64),
+        },
+      ]);
+    } finally {
+      await client.query('SET search_path TO public');
+      await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      client.release();
+    }
+  });
+
+  it('issues independent factors concurrently and replays identical lost acknowledgements', async () => {
+    const attemptId = `recovery_${'6'.repeat(64)}`;
+    const savedCodeProof = `saved_${'7'.repeat(64)}`;
+    const issuedChannelProof = `issued_${'8'.repeat(64)}`;
+    const expiresAt = Date.now() + 60_000;
+    const savedIssue = {
+      attemptId,
+      expiresAt,
+      factor: 'saved_code' as const,
+      ownerId: OWNER_ID,
+      proof: savedCodeProof,
+    };
+    const issuedIssue = {
+      attemptId,
+      expiresAt,
+      factor: 'issued_channel' as const,
+      ownerId: OWNER_ID,
+      proof: issuedChannelProof,
+    };
+
+    await expect(
+      Promise.all([
+        apiPlatform.recoveryProofIssuer.issue(savedIssue),
+        apiPlatform.recoveryProofIssuer.issue(issuedIssue),
+        apiPlatform.recoveryProofIssuer.issue(savedIssue),
+      ]),
+    ).resolves.toEqual([undefined, undefined, undefined]);
+    await expect(
+      apiPlatform.recoveryProofIssuer.issue(issuedIssue),
+    ).resolves.toBeUndefined();
+    await expect(
+      apiPlatform.recoveryProofIssuer.issue({
+        ...savedIssue,
+        proof: `saved_${'9'.repeat(64)}`,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_COMMAND' });
+    await expect(
+      apiPlatform.recoveryProofIssuer.issue({
+        ...savedIssue,
+        ownerId: `owner_${'9'.repeat(64)}`,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_COMMAND' });
+    await expect(
+      apiPlatform.recoveryProofIssuer.issue({
+        ...savedIssue,
+        expiresAt: expiresAt + 1,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_COMMAND' });
+
+    const attempts = await apiPlatform.pool.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM recovery_proof_attempts WHERE attempt_id = $1',
+      [attemptId],
+    );
+    expect(attempts.rows[0]?.count).toBe('1');
+    const factors = await apiPlatform.pool.query<{
+      factor: string;
+      proof_digest: string;
+    }>(
+      `SELECT factor, proof_digest FROM recovery_proof_factors
+       WHERE attempt_id = $1 ORDER BY factor`,
+      [attemptId],
+    );
+    expect(factors.rows).toEqual([
+      {
+        factor: 'issued_channel',
+        proof_digest: recoveryDigest(
+          attemptId,
+          'issued_channel',
+          issuedChannelProof,
+        ),
+      },
+      {
+        factor: 'saved_code',
+        proof_digest: recoveryDigest(attemptId, 'saved_code', savedCodeProof),
+      },
+    ]);
+    await expect(
+      apiPlatform.pool.query(
+        `UPDATE recovery_proof_factors SET proof_digest = $2
+         WHERE attempt_id = $1 AND factor = 'saved_code'`,
+        [attemptId, '0'.repeat(64)],
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      apiPlatform.pool.query(
+        'UPDATE recovery_proof_attempts SET owner_id = $2 WHERE attempt_id = $1',
+        [attemptId, `owner_${'0'.repeat(64)}`],
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
   });
 
   it('persists digest-only identity state across coordinator instances', async () => {
@@ -238,7 +524,7 @@ suite('disposable PostgreSQL 18 platform', () => {
     ]);
   });
 
-  it('atomically consumes ceremonies, assertion proofs, and independent recovery proofs', async () => {
+  it('atomically consumes ceremonies and assertion proofs', async () => {
     const ceremony = {
       ceremonyId: `ceremony_${'4'.repeat(32)}`,
       ownerId: OWNER_ID,
@@ -302,60 +588,443 @@ suite('disposable PostgreSQL 18 platform', () => {
         at: START,
       }),
     ).resolves.toBeNull();
+  });
 
-    const recoveryNow = Date.now();
-    await apiPlatform.recoveryProofStore.issue({
-      attemptId: `recovery_${'7'.repeat(64)}`,
+  it('accepts and consumes digest-only recovery proofs only through identity commands', async () => {
+    let now = Date.now();
+    const attemptId = `recovery_${'7'.repeat(64)}`;
+    const savedCodeProof = `saved_${'8'.repeat(64)}`;
+    const issuedChannelProof = `issued_${'9'.repeat(64)}`;
+    const coordinator = recoveryCoordinator(() => now, [SESSION]);
+    await coordinator.initialize({
+      credentialId: CREDENTIAL,
       ownerId: OWNER_ID,
-      savedCodeProof: 'saved proof',
-      issuedChannelProof: 'issued proof',
-      expiresAt: recoveryNow + 60_000,
+      verifiedChannelRef: CHANNEL,
     });
+    await coordinator.authenticate({
+      assertion: 'fixture',
+      credentialId: CREDENTIAL,
+      ownerId: OWNER_ID,
+    });
+    await issueRecoveryPair({
+      attemptId,
+      expiresAt: Date.now() + 60_000,
+      issuedChannelProof,
+      ownerId: OWNER_ID,
+      savedCodeProof,
+    });
+
+    const started = await coordinator.execute({
+      type: 'BEGIN_RECOVERY',
+      attemptId,
+      expectedSecurityRevision: 1,
+      idempotencyKey: 'postgres-recovery-begin',
+      issuedChannelProof,
+      ownerId: OWNER_ID,
+      savedCodeProof,
+    });
+    expect(started.noticeIntents).toEqual([
+      { channelRef: CHANNEL, template: 'recovery_started' },
+    ]);
+    now += 1;
+    const completed = await coordinator.execute({
+      type: 'COMPLETE_RECOVERY',
+      attemptId,
+      expectedSecurityRevision: 2,
+      idempotencyKey: 'postgres-recovery-complete',
+      issuedChannelProof,
+      newCredentialId: SECOND_CREDENTIAL,
+      ownerId: OWNER_ID,
+      registrationProof: 'fixture',
+      savedCodeProof,
+    });
+
+    expect(completed.state.recovery).toBeNull();
+    expect(completed.state.sessions).toEqual([
+      expect.objectContaining({ revokedAt: now }),
+    ]);
+    expect(completed.noticeIntents).toEqual([
+      { channelRef: CHANNEL, template: 'recovery_completed' },
+    ]);
+    await expect(coordinator.verify(SESSION, now)).resolves.toBeNull();
+    const attemptRow = await apiPlatform.pool.query<{
+      accepted_at: string | null;
+      cancelled_at: string | null;
+      consumed_at: string | null;
+    }>(
+      `SELECT accepted_at, cancelled_at, consumed_at
+       FROM recovery_proof_attempts WHERE attempt_id = $1`,
+      [attemptId],
+    );
+    expect(attemptRow.rows[0]).toMatchObject({
+      accepted_at: expect.any(String),
+      cancelled_at: null,
+      consumed_at: expect.any(String),
+    });
+    const factorRows = await apiPlatform.pool.query<{
+      factor: string;
+      proof_digest: string;
+    }>(
+      `SELECT factor, proof_digest FROM recovery_proof_factors
+       WHERE attempt_id = $1 ORDER BY factor`,
+      [attemptId],
+    );
+    expect(factorRows.rows).toEqual([
+      {
+        factor: 'issued_channel',
+        proof_digest: recoveryDigest(
+          attemptId,
+          'issued_channel',
+          issuedChannelProof,
+        ),
+      },
+      {
+        factor: 'saved_code',
+        proof_digest: recoveryDigest(attemptId, 'saved_code', savedCodeProof),
+      },
+    ]);
+    const persisted = JSON.stringify({
+      attemptRow: attemptRow.rows[0],
+      factorRows: factorRows.rows,
+      state: completed.state,
+      notices: completed.noticeIntents,
+    });
+    expect(persisted).not.toContain(savedCodeProof);
+    expect(persisted).not.toContain(issuedChannelProof);
+    expect(Object.keys(completed.noticeIntents[0]!).sort()).toEqual([
+      'channelRef',
+      'template',
+    ]);
     await expect(
-      apiPlatform.recoveryProofStore.consumePair({
-        at: Number.MAX_SAFE_INTEGER,
-        attemptId: `recovery_${'7'.repeat(64)}`,
-        issuedChannelProof: 'wrong',
-        lockMs: 25,
-        maxFailures: 2,
-        ownerId: OWNER_ID,
-        savedCodeProof: 'wrong',
-      }),
-    ).resolves.toBe(false);
+      apiPlatform.pool.query(
+        `UPDATE recovery_proof_attempts
+         SET consumed_at = consumed_at + 1 WHERE attempt_id = $1`,
+        [attemptId],
+      ),
+    ).rejects.toMatchObject({ code: 'P0001' });
+  });
+
+  it('keeps an accepted pair retryable after failed completion checks', async () => {
+    let now = Date.now();
+    const attemptId = `recovery_${'5'.repeat(64)}`;
+    const savedCodeProof = `saved_${'4'.repeat(64)}`;
+    const issuedChannelProof = `issued_${'3'.repeat(64)}`;
+    const coordinator = recoveryCoordinator(() => now, [SESSION]);
+    await coordinator.initialize({
+      credentialId: CREDENTIAL,
+      ownerId: OWNER_ID,
+      verifiedChannelRef: CHANNEL,
+    });
+    await issueRecoveryPair({
+      attemptId,
+      expiresAt: Date.now() + 60_000,
+      issuedChannelProof,
+      ownerId: OWNER_ID,
+      savedCodeProof,
+    });
+    await coordinator.execute({
+      type: 'BEGIN_RECOVERY',
+      attemptId,
+      expectedSecurityRevision: 1,
+      idempotencyKey: 'postgres-retry-begin',
+      issuedChannelProof,
+      ownerId: OWNER_ID,
+      savedCodeProof,
+    });
+    now += 1;
+
     await expect(
-      apiPlatform.recoveryProofStore.consumePair({
-        at: Number.MAX_SAFE_INTEGER,
-        attemptId: `recovery_${'7'.repeat(64)}`,
-        issuedChannelProof: 'wrong again',
-        lockMs: 25,
-        maxFailures: 2,
+      coordinator.execute({
+        type: 'COMPLETE_RECOVERY',
+        attemptId,
+        expectedSecurityRevision: 2,
+        idempotencyKey: 'postgres-retry-wrong-factor',
+        issuedChannelProof: `wrong_${'2'.repeat(64)}`,
+        newCredentialId: SECOND_CREDENTIAL,
         ownerId: OWNER_ID,
-        savedCodeProof: 'wrong again',
+        registrationProof: 'fixture',
+        savedCodeProof,
       }),
-    ).resolves.toBe(false);
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    await expect(coordinator.read(OWNER_ID)).resolves.toMatchObject({
+      recovery: { attemptId },
+      securityRevision: 2,
+    });
+    await expect(recoveryAttemptState()).resolves.toMatchObject({
+      consumed_at: null,
+      failures: 1,
+    });
+    const factorFailures = await apiPlatform.pool.query<{
+      factor: string;
+      failures: number;
+    }>(
+      `SELECT factor, failures FROM recovery_proof_factors
+       WHERE attempt_id = $1 ORDER BY factor`,
+      [attemptId],
+    );
+    expect(factorFailures.rows).toEqual([
+      { factor: 'issued_channel', failures: 1 },
+      { factor: 'saved_code', failures: 0 },
+    ]);
+
+    const registrationDenied = recoveryCoordinator(
+      () => now,
+      [SECOND_SESSION],
+      {
+        ...verifier,
+        async verifyRegistration() {
+          return false;
+        },
+      },
+    );
     await expect(
-      apiPlatform.recoveryProofStore.consumePair({
-        at: Number.MAX_SAFE_INTEGER,
-        attemptId: `recovery_${'7'.repeat(64)}`,
-        issuedChannelProof: 'issued proof',
-        lockMs: 25,
-        maxFailures: 2,
+      registrationDenied.execute({
+        type: 'COMPLETE_RECOVERY',
+        attemptId,
+        expectedSecurityRevision: 2,
+        idempotencyKey: 'postgres-retry-registration-denied',
+        issuedChannelProof,
+        newCredentialId: SECOND_CREDENTIAL,
         ownerId: OWNER_ID,
-        savedCodeProof: 'saved proof',
+        registrationProof: 'rejected-fixture',
+        savedCodeProof,
       }),
-    ).resolves.toBe(false);
-    await new Promise((resolve) => setTimeout(resolve, 35));
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    await expect(coordinator.read(OWNER_ID)).resolves.toMatchObject({
+      recovery: { attemptId },
+      securityRevision: 2,
+    });
+    await expect(recoveryAttemptState()).resolves.toMatchObject({
+      consumed_at: null,
+      failures: 1,
+    });
+
     await expect(
-      apiPlatform.recoveryProofStore.consumePair({
-        at: 0,
-        attemptId: `recovery_${'7'.repeat(64)}`,
-        issuedChannelProof: 'issued proof',
-        lockMs: 25,
-        maxFailures: 2,
+      coordinator.execute({
+        type: 'COMPLETE_RECOVERY',
+        attemptId,
+        expectedSecurityRevision: 2,
+        idempotencyKey: 'postgres-retry-complete',
+        issuedChannelProof,
+        newCredentialId: SECOND_CREDENTIAL,
         ownerId: OWNER_ID,
-        savedCodeProof: 'saved proof',
+        registrationProof: 'fixture',
+        savedCodeProof,
       }),
-    ).resolves.toBe(true);
+    ).resolves.toMatchObject({
+      state: { recovery: null, securityRevision: 3 },
+    });
+    await expect(recoveryAttemptState()).resolves.toMatchObject({
+      consumed_at: expect.any(String),
+      failures: 1,
+    });
+
+    async function recoveryAttemptState() {
+      const result = await apiPlatform.pool.query<{
+        consumed_at: string | null;
+        failures: number;
+      }>(
+        `SELECT consumed_at, failures FROM recovery_proof_attempts
+         WHERE attempt_id = $1`,
+        [attemptId],
+      );
+      return result.rows[0];
+    }
+  });
+
+  it('serializes concurrent recovery completion and cancellation through one transaction', async () => {
+    let now = Date.now();
+    const attemptId = `recovery_${'a'.repeat(64)}`;
+    const savedCodeProof = `saved_${'b'.repeat(64)}`;
+    const issuedChannelProof = `issued_${'c'.repeat(64)}`;
+    const cancellationSession = `session_${'d'.repeat(64)}`;
+    const coordinator = recoveryCoordinator(() => now, [cancellationSession]);
+    await coordinator.initialize({
+      credentialId: CREDENTIAL,
+      ownerId: OWNER_ID,
+      verifiedChannelRef: CHANNEL,
+    });
+    await issueRecoveryPair({
+      attemptId,
+      expiresAt: Date.now() + 60_000,
+      issuedChannelProof,
+      ownerId: OWNER_ID,
+      savedCodeProof,
+    });
+    await coordinator.execute({
+      type: 'BEGIN_RECOVERY',
+      attemptId,
+      expectedSecurityRevision: 1,
+      idempotencyKey: 'postgres-race-begin',
+      issuedChannelProof,
+      ownerId: OWNER_ID,
+      savedCodeProof,
+    });
+    now += 1;
+    await coordinator.authenticate({
+      assertion: 'fixture',
+      credentialId: CREDENTIAL,
+      ownerId: OWNER_ID,
+    });
+
+    const settled = await Promise.allSettled([
+      coordinator.execute({
+        type: 'COMPLETE_RECOVERY',
+        attemptId,
+        expectedSecurityRevision: 2,
+        idempotencyKey: 'postgres-race-complete',
+        issuedChannelProof,
+        newCredentialId: SECOND_CREDENTIAL,
+        ownerId: OWNER_ID,
+        registrationProof: 'fixture',
+        savedCodeProof,
+      }),
+      coordinator.execute({
+        type: 'CANCEL_RECOVERY',
+        actorSessionId: cancellationSession,
+        expectedSecurityRevision: 2,
+        idempotencyKey: 'postgres-race-cancel',
+        ownerId: OWNER_ID,
+      }),
+    ]);
+
+    expect(
+      settled.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(settled.filter((result) => result.status === 'rejected')).toEqual([
+      expect.objectContaining({
+        reason: expect.objectContaining({ code: 'STALE_SECURITY_REVISION' }),
+      }),
+    ]);
+    const row = await apiPlatform.pool.query<{
+      cancelled: boolean;
+      consumed: boolean;
+    }>(
+      `SELECT cancelled_at IS NOT NULL AS cancelled,
+        consumed_at IS NOT NULL AS consumed
+       FROM recovery_proof_attempts WHERE attempt_id = $1`,
+      [attemptId],
+    );
+    expect([row.rows[0]?.cancelled, row.rows[0]?.consumed]).toEqual([
+      expect.any(Boolean),
+      expect.any(Boolean),
+    ]);
+    expect(Number(row.rows[0]?.cancelled) + Number(row.rows[0]?.consumed)).toBe(
+      1,
+    );
+    expect((await coordinator.read(OWNER_ID))?.recovery).toBeNull();
+  });
+
+  it('persists independent-factor failures and escalates locks across attempts', async () => {
+    const now = Date.now();
+    const coordinator = recoveryCoordinator(() => now, [SESSION]);
+    await coordinator.initialize({
+      credentialId: CREDENTIAL,
+      ownerId: OWNER_ID,
+      verifiedChannelRef: CHANNEL,
+    });
+    const attempts = ['1', '2', '3', '4', '5', '6'].map((character) => ({
+      attemptId: `recovery_${character.repeat(64)}`,
+      issuedChannelProof: `issued_${character.repeat(64)}`,
+      savedCodeProof: `saved_${character.repeat(64)}`,
+    }));
+    for (const attempt of attempts) {
+      await issueRecoveryPair({
+        ...attempt,
+        expiresAt: Date.now() + 60_000,
+        ownerId: OWNER_ID,
+      });
+    }
+    await expect(
+      beginRecovery(coordinator, attempts[0]!, 1, 'wrong-issued'),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    await expect(
+      beginRecovery(coordinator, attempts[1]!, 1, 'wrong-saved'),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    const independentFailures = await apiPlatform.pool.query<{
+      attempt_id: string;
+      factor: string;
+      failures: number;
+    }>(
+      `SELECT attempt_id, factor, failures FROM recovery_proof_factors
+       WHERE attempt_id = ANY($1::text[]) ORDER BY attempt_id, factor`,
+      [[attempts[0]!.attemptId, attempts[1]!.attemptId]],
+    );
+    expect(independentFailures.rows).toEqual([
+      {
+        attempt_id: attempts[0]!.attemptId,
+        factor: 'issued_channel',
+        failures: 1,
+      },
+      {
+        attempt_id: attempts[0]!.attemptId,
+        factor: 'saved_code',
+        failures: 0,
+      },
+      {
+        attempt_id: attempts[1]!.attemptId,
+        factor: 'issued_channel',
+        failures: 0,
+      },
+      {
+        attempt_id: attempts[1]!.attemptId,
+        factor: 'saved_code',
+        failures: 1,
+      },
+    ]);
+    await expect(
+      beginRecovery(coordinator, attempts[2]!, 1),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    const firstLock = await recoveryLock(attempts[1]!.attemptId);
+    expect((await coordinator.read(OWNER_ID))?.recovery).toBeNull();
+
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    await beginRecovery(coordinator, attempts[2]!, 1);
+    await coordinator.authenticate({
+      assertion: 'fixture',
+      credentialId: CREDENTIAL,
+      ownerId: OWNER_ID,
+    });
+    await coordinator.execute({
+      type: 'CANCEL_RECOVERY',
+      actorSessionId: SESSION,
+      expectedSecurityRevision: 2,
+      idempotencyKey: 'postgres-abuse-cancel',
+      ownerId: OWNER_ID,
+    });
+
+    await expect(
+      beginRecovery(coordinator, attempts[3]!, 3, 'wrong-issued'),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    await expect(
+      beginRecovery(coordinator, attempts[4]!, 3, 'wrong-saved'),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    await expect(
+      beginRecovery(coordinator, attempts[5]!, 3),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    const secondLock = await recoveryLock(attempts[4]!.attemptId);
+    expect(secondLock - firstLock).toBeGreaterThanOrEqual(40);
+    const failures = await apiPlatform.pool.query<{ total: string }>(
+      `SELECT SUM(failures)::text AS total FROM recovery_proof_attempts
+       WHERE owner_id = $1`,
+      [OWNER_ID],
+    );
+    expect(failures.rows[0]?.total).toBe('4');
+
+    await new Promise((resolve) => setTimeout(resolve, 110));
+    await expect(
+      beginRecovery(coordinator, attempts[5]!, 3),
+    ).resolves.toMatchObject({
+      state: { recovery: { attemptId: attempts[5]!.attemptId } },
+    });
+
+    async function recoveryLock(attemptId: string): Promise<number> {
+      const result = await apiPlatform.pool.query<{ locked_until: string }>(
+        'SELECT locked_until::text FROM recovery_proof_attempts WHERE attempt_id = $1',
+        [attemptId],
+      );
+      return Number(result.rows[0]?.locked_until);
+    }
   });
 
   it('uses SKIP LOCKED claims, database-time fencing, and an idempotent synthetic sink', async () => {
@@ -794,6 +1463,19 @@ suite('disposable PostgreSQL 18 platform', () => {
     }
   });
 });
+
+function recoveryDigest(
+  attemptId: string,
+  factor: 'issued_channel' | 'saved_code',
+  proof: string,
+): string {
+  return createHash('sha256')
+    .update(
+      `vidha:recovery-proof:v2\0${attemptId}\0${factor}\0${proof}`,
+      'utf8',
+    )
+    .digest('hex');
+}
 
 function connectionFor(
   base: string,

@@ -239,6 +239,147 @@ async function inspect(
   };
   assertOperationsSnapshot(operationsSnapshot);
 
+  const recoveryRows = await client.query<{
+    accepted_at: string | null;
+    attempt_id: string;
+    cancelled_at: string | null;
+    consumed_at: string | null;
+    expires_at: string;
+    failures: number;
+    locked_until: string | null;
+    owner_id: string;
+  }>(
+    `SELECT attempt_id, owner_id, expires_at, failures, locked_until,
+      accepted_at, cancelled_at, consumed_at
+     FROM recovery_proof_attempts ORDER BY attempt_id`,
+  );
+  for (const recovery of recoveryRows.rows) {
+    const expiresAt = optionalSafeInteger(recovery.expires_at);
+    const lockedUntil = optionalSafeInteger(recovery.locked_until);
+    const acceptedAt = optionalSafeInteger(recovery.accepted_at);
+    const consumedAt = optionalSafeInteger(recovery.consumed_at);
+    if (
+      !/^recovery_[a-f0-9]{64}$/u.test(recovery.attempt_id) ||
+      !/^owner_[a-f0-9]{64}$/u.test(recovery.owner_id) ||
+      expiresAt === false ||
+      expiresAt === null ||
+      expiresAt <= 0 ||
+      !Number.isSafeInteger(recovery.failures) ||
+      recovery.failures < 0 ||
+      lockedUntil === false ||
+      (lockedUntil !== null && recovery.failures === 0) ||
+      acceptedAt === false ||
+      consumedAt === false ||
+      (acceptedAt !== null && acceptedAt > expiresAt) ||
+      (consumedAt !== null && consumedAt > expiresAt) ||
+      (recovery.consumed_at !== null && recovery.accepted_at === null) ||
+      (recovery.cancelled_at !== null && recovery.consumed_at !== null) ||
+      !validRecoveryTimes(recovery)
+    ) {
+      invalid('A restored recovery proof attempt is invalid.');
+    }
+  }
+  const recoveryFactors = await client.query<{
+    attempt_id: string;
+    factor: string;
+    failures: number;
+    proof_digest: string;
+  }>(
+    `SELECT attempt_id, factor, proof_digest, failures FROM recovery_proof_factors
+     ORDER BY attempt_id, factor`,
+  );
+  const factorsByAttempt = new Map<string, Map<string, number>>();
+  for (const factor of recoveryFactors.rows) {
+    if (
+      !/^recovery_[a-f0-9]{64}$/u.test(factor.attempt_id) ||
+      !['issued_channel', 'saved_code'].includes(factor.factor) ||
+      !/^[a-f0-9]{64}$/u.test(factor.proof_digest) ||
+      !Number.isSafeInteger(factor.failures) ||
+      factor.failures < 0
+    ) {
+      invalid('A restored recovery proof factor is invalid.');
+    }
+    const factors = factorsByAttempt.get(factor.attempt_id) ?? new Map();
+    factors.set(factor.factor, factor.failures);
+    factorsByAttempt.set(factor.attempt_id, factors);
+  }
+  for (const recovery of recoveryRows.rows) {
+    const factors = factorsByAttempt.get(recovery.attempt_id);
+    const factorFailures = [...(factors?.values() ?? [])];
+    const failureSum = factorFailures.reduce(
+      (sum, failures) => sum + failures,
+      0,
+    );
+    if (
+      (recovery.failures > 0 && factors?.size !== 2) ||
+      factorFailures.some((failures) => failures > recovery.failures) ||
+      failureSum < recovery.failures ||
+      failureSum > recovery.failures * 2
+    ) {
+      invalid('Restored recovery proof failure counters are inconsistent.');
+    }
+  }
+  if (
+    recoveryRows.rows.some((recovery) => {
+      const factors = factorsByAttempt.get(recovery.attempt_id);
+      return (
+        recovery.accepted_at !== null &&
+        (factors?.size !== 2 ||
+          !factors.has('saved_code') ||
+          !factors.has('issued_channel'))
+      );
+    })
+  ) {
+    invalid('An accepted recovery attempt lacks independent factors.');
+  }
+
+  const identityRows = await client.query<{
+    owner_id: string;
+    state_json: unknown;
+  }>(
+    'SELECT owner_id, state_json FROM owner_identity_states ORDER BY owner_id',
+  );
+  const pendingRecoveryOwners = new Map<string, string>();
+  const attemptsById = new Map(
+    recoveryRows.rows.map((recovery) => [recovery.attempt_id, recovery]),
+  );
+  for (const identity of identityRows.rows) {
+    const pending = restoredRecoveryReference(identity);
+    if (pending === null) continue;
+    if (pendingRecoveryOwners.has(pending.attemptId)) {
+      invalid('A restored recovery attempt is referenced more than once.');
+    }
+    const attempt = attemptsById.get(pending.attemptId);
+    const factors = factorsByAttempt.get(pending.attemptId);
+    if (
+      attempt === undefined ||
+      attempt.owner_id !== pending.ownerId ||
+      Number(attempt.expires_at) < pending.readyAt ||
+      attempt.accepted_at === null ||
+      attempt.cancelled_at !== null ||
+      attempt.consumed_at !== null ||
+      factors?.size !== 2 ||
+      !factors.has('saved_code') ||
+      !factors.has('issued_channel')
+    ) {
+      invalid(
+        'A restored pending Owner recovery lacks its accepted proof attempt.',
+      );
+    }
+    pendingRecoveryOwners.set(pending.attemptId, pending.ownerId);
+  }
+  if (
+    recoveryRows.rows.some(
+      (attempt) =>
+        attempt.accepted_at !== null &&
+        attempt.cancelled_at === null &&
+        attempt.consumed_at === null &&
+        pendingRecoveryOwners.get(attempt.attempt_id) !== attempt.owner_id,
+    )
+  ) {
+    invalid('An active restored recovery attempt lacks its Owner state.');
+  }
+
   const counts = await client.query<Record<string, string>>(`
     SELECT
       (SELECT COUNT(*)::text FROM plans) AS plans,
@@ -246,7 +387,9 @@ async function inspect(
       (SELECT COUNT(*)::text FROM audit_events) AS audit_events,
       (SELECT COUNT(*)::text FROM encrypted_metadata) AS encrypted_metadata,
       (SELECT COUNT(*)::text FROM safety_jobs) AS safety_jobs,
-      (SELECT COUNT(*)::text FROM metadata_key_rotations) AS key_rotations
+      (SELECT COUNT(*)::text FROM metadata_key_rotations) AS key_rotations,
+      (SELECT COUNT(*)::text FROM recovery_proof_attempts) AS recovery_proof_attempts,
+      (SELECT COUNT(*)::text FROM recovery_proof_factors) AS recovery_proof_factors
   `);
   const countRow = counts.rows[0];
   if (countRow === undefined) invalid('Restore invariant counts are absent.');
@@ -274,6 +417,71 @@ async function inspect(
     tableCounts,
   };
   return { ...facts, reportDigest: sha256(JSON.stringify(facts)) };
+}
+
+function validRecoveryTimes(input: {
+  readonly accepted_at: string | null;
+  readonly cancelled_at: string | null;
+  readonly consumed_at: string | null;
+}): boolean {
+  const acceptedAt = optionalSafeInteger(input.accepted_at);
+  const cancelledAt = optionalSafeInteger(input.cancelled_at);
+  const consumedAt = optionalSafeInteger(input.consumed_at);
+  if (acceptedAt === false || cancelledAt === false || consumedAt === false) {
+    return false;
+  }
+  return (
+    (consumedAt === null ||
+      (acceptedAt !== null && consumedAt >= acceptedAt)) &&
+    (cancelledAt === null || acceptedAt === null || cancelledAt >= acceptedAt)
+  );
+}
+
+function restoredRecoveryReference(input: {
+  readonly owner_id: string;
+  readonly state_json: unknown;
+}): {
+  readonly attemptId: string;
+  readonly ownerId: string;
+  readonly readyAt: number;
+} | null {
+  if (
+    typeof input.state_json !== 'object' ||
+    input.state_json === null ||
+    !('ownerId' in input.state_json) ||
+    input.state_json.ownerId !== input.owner_id ||
+    !/^owner_[a-f0-9]{64}$/u.test(input.owner_id) ||
+    !('recovery' in input.state_json)
+  ) {
+    invalid('A restored Owner Identity state is invalid.');
+  }
+  const recovery = input.state_json.recovery;
+  if (recovery === null) return null;
+  if (
+    typeof recovery !== 'object' ||
+    !('attemptId' in recovery) ||
+    typeof recovery.attemptId !== 'string' ||
+    !/^recovery_[a-f0-9]{64}$/u.test(recovery.attemptId) ||
+    !('startedAt' in recovery) ||
+    !Number.isSafeInteger(recovery.startedAt) ||
+    Number(recovery.startedAt) < 0 ||
+    !('readyAt' in recovery) ||
+    !Number.isSafeInteger(recovery.readyAt) ||
+    Number(recovery.readyAt) < Number(recovery.startedAt)
+  ) {
+    invalid('A restored pending Owner recovery is invalid.');
+  }
+  return {
+    attemptId: recovery.attemptId,
+    ownerId: input.owner_id,
+    readyAt: Number(recovery.readyAt),
+  };
+}
+
+function optionalSafeInteger(value: string | null): number | null | false {
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : false;
 }
 
 function validatePromotionInput(

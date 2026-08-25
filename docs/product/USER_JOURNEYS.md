@@ -70,3 +70,12 @@
 2. A restore rehearsal uses a disposable environment and cannot send real notices.
 3. Account deletion previews retention and already-Released material that cannot be recalled.
 4. Self-hosting instructions distinguish application portability from provider-specific credentials and delivery history.
+
+## 9. Recover Owner access
+
+1. The Owner starts recovery with one saved-code proof and one separately issued proof delivered to a preexisting Verified Owner Channel; neither factor is accepted as the other.
+2. Vidha shows the full cooling-off boundary and sends a content-free security notice. Starting recovery does not Check in, cancel Concern, or change a Contingency Plan.
+3. A still-controlled Owner Credential can cancel the pending attempt at any time. Concurrent cancellation and completion resolve through one revisioned transaction rather than whichever request arrives last.
+4. The accepted attempt must remain valid through the full cooling-off boundary. After that boundary, the same attempt, both still-valid proofs, and a new Owner Credential registration are required to complete recovery.
+5. Completion revokes every prior Owner Credential and session, issues no automatic session, and requires the Owner to authenticate again before any ordinary lifecycle action.
+6. If either proof, the new registration, or the durable attempt is unavailable, recovery stops. A Guardian or Recipient never becomes recovery authority by virtue of that role, and email or SMS is not an unannounced shortcut.

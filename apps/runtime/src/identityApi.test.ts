@@ -86,6 +86,21 @@ describe('disposable identity HTTP boundary', () => {
       "default-src 'none'",
     );
     expect(page.bodyText).toContain('synthetic identity only');
+    expect(page.bodyText).toContain('No fallback shortcut.');
+    expect(page.bodyText).toContain('There is no in-place reset.');
+    expect(page.bodyText).toMatch(/Verified Owner\s+Channel delivery\./u);
+
+    await expect(
+      sendJson({ method: 'GET', path: '/rehearsal/webauthn/status' }),
+    ).resolves.toMatchObject({
+      body: {
+        credentialReady: false,
+        recoveryAvailable: false,
+        sessionActive: false,
+        verifiedChannelDeliveryAvailable: false,
+      },
+      status: 200,
+    });
 
     const missingOrigin = await sendJson({
       body: { bootstrapCapability: CAPABILITY, ownerId: OWNER_ID },
@@ -97,9 +112,28 @@ describe('disposable identity HTTP boundary', () => {
       status: 403,
     });
 
+    await expect(
+      sendJson({
+        body: {
+          bootstrapCapability: CAPABILITY,
+          ownerId: `owner_${'f'.repeat(64)}`,
+        },
+        path: '/v1/identity/webauthn/bootstrap/options',
+      }),
+    ).resolves.toMatchObject({
+      body: { status: 'invalid_rehearsal_owner' },
+      status: 400,
+    });
+
     const firstBootstrap = await bootstrapOptions();
     const secondBootstrap = await bootstrapOptions();
     await expectBootstrapVerified(firstBootstrap, 201);
+    await expect(
+      sendJson({ method: 'GET', path: '/rehearsal/webauthn/status' }),
+    ).resolves.toMatchObject({
+      body: { credentialReady: true, sessionActive: false },
+      status: 200,
+    });
     await expectBootstrapVerified(secondBootstrap, 403);
     await expect(bootstrapOptions()).resolves.toMatchObject({
       body: { status: 'authentication_denied' },
@@ -112,6 +146,16 @@ describe('disposable identity HTTP boundary', () => {
     expect(firstSetCookie).toContain('HttpOnly');
     expect(firstSetCookie).toContain('Secure');
     expect(firstSetCookie).toContain('SameSite=Strict');
+    await expect(
+      sendJson({
+        cookie: firstCookie,
+        method: 'GET',
+        path: '/rehearsal/webauthn/status',
+      }),
+    ).resolves.toMatchObject({
+      body: { credentialReady: true, sessionActive: true },
+      status: 200,
+    });
 
     const active = await sendJson({
       cookie: firstCookie,
@@ -166,6 +210,16 @@ describe('disposable identity HTTP boundary', () => {
       status: 200,
     });
     await expectSession(secondCookie, 401);
+    await expect(
+      sendJson({
+        cookie: secondCookie,
+        method: 'GET',
+        path: '/rehearsal/webauthn/status',
+      }),
+    ).resolves.toMatchObject({
+      body: { credentialReady: true, sessionActive: false },
+      status: 200,
+    });
 
     const expiring = await authenticate();
     const thirdCookie = cookie(expiring);

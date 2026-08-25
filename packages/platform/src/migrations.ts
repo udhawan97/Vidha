@@ -4,7 +4,7 @@ export interface PlatformMigration {
   readonly sql: string;
 }
 
-export const PLATFORM_SCHEMA_VERSION = 2;
+export const PLATFORM_SCHEMA_VERSION = 3;
 
 export const platformMigrations: readonly PlatformMigration[] = [
   {
@@ -249,6 +249,120 @@ export const platformMigrations: readonly PlatformMigration[] = [
         END IF;
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vidha_restore') THEN
           GRANT SELECT ON metadata_key_rotations, restore_promotions TO vidha_restore;
+        END IF;
+      END
+      $roles$;
+    `,
+  },
+  {
+    version: 3,
+    name: 'durable_recovery_abuse_matrix',
+    sql: `
+      ALTER TABLE recovery_proof_attempts RENAME TO recovery_proof_attempts_v2;
+
+      CREATE TABLE recovery_proof_attempts (
+        attempt_id TEXT PRIMARY KEY CHECK (attempt_id ~ '^recovery_[a-f0-9]{64}$'),
+        owner_id TEXT NOT NULL CHECK (owner_id ~ '^owner_[a-f0-9]{64}$'),
+        expires_at BIGINT NOT NULL,
+        failures INTEGER NOT NULL DEFAULT 0 CHECK (failures >= 0),
+        locked_until BIGINT NULL,
+        accepted_at BIGINT NULL,
+        cancelled_at BIGINT NULL,
+        consumed_at BIGINT NULL,
+        CHECK (
+          NOT (cancelled_at IS NOT NULL AND consumed_at IS NOT NULL)
+          AND (consumed_at IS NULL OR accepted_at IS NOT NULL)
+          AND (consumed_at IS NULL OR consumed_at >= accepted_at)
+          AND (
+            cancelled_at IS NULL OR accepted_at IS NULL
+            OR cancelled_at >= accepted_at
+          )
+        )
+      );
+
+      CREATE TABLE recovery_proof_factors (
+        attempt_id TEXT NOT NULL REFERENCES recovery_proof_attempts(attempt_id) ON DELETE CASCADE,
+        factor TEXT NOT NULL CHECK (factor IN ('saved_code', 'issued_channel')),
+        proof_digest TEXT NOT NULL CHECK (proof_digest ~ '^[a-f0-9]{64}$'),
+        failures INTEGER NOT NULL DEFAULT 0 CHECK (failures >= 0),
+        PRIMARY KEY (attempt_id, factor)
+      );
+
+      INSERT INTO recovery_proof_attempts(
+        attempt_id, owner_id, expires_at, failures, locked_until,
+        accepted_at, cancelled_at, consumed_at
+      )
+      SELECT
+        attempt_id, owner_id, expires_at, failures, locked_until,
+        consumed_at,
+        CASE
+          WHEN consumed_at IS NULL
+          THEN floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint
+          ELSE NULL
+        END,
+        consumed_at
+      FROM recovery_proof_attempts_v2;
+
+      INSERT INTO recovery_proof_factors(attempt_id, factor, proof_digest, failures)
+      SELECT attempt_id, 'saved_code', saved_code_digest, failures
+      FROM recovery_proof_attempts_v2
+      UNION ALL
+      SELECT attempt_id, 'issued_channel', issued_channel_digest, failures
+      FROM recovery_proof_attempts_v2;
+
+      DROP TABLE recovery_proof_attempts_v2;
+
+      CREATE INDEX recovery_proof_attempts_owner_lock_idx
+      ON recovery_proof_attempts(owner_id, locked_until);
+
+      CREATE FUNCTION reject_recovery_attempt_rewrite() RETURNS trigger
+      LANGUAGE plpgsql AS $guard$
+      BEGIN
+        IF OLD.attempt_id IS DISTINCT FROM NEW.attempt_id
+          OR OLD.owner_id IS DISTINCT FROM NEW.owner_id
+          OR OLD.expires_at IS DISTINCT FROM NEW.expires_at
+          OR (OLD.accepted_at IS NOT NULL AND OLD.accepted_at IS DISTINCT FROM NEW.accepted_at)
+          OR (OLD.cancelled_at IS NOT NULL AND OLD.cancelled_at IS DISTINCT FROM NEW.cancelled_at)
+          OR (OLD.consumed_at IS NOT NULL AND OLD.consumed_at IS DISTINCT FROM NEW.consumed_at)
+        THEN
+          RAISE EXCEPTION 'Recovery attempt identity and recorded transitions are immutable.';
+        END IF;
+        RETURN NEW;
+      END
+      $guard$;
+      CREATE TRIGGER recovery_attempt_immutable
+      BEFORE UPDATE ON recovery_proof_attempts
+      FOR EACH ROW EXECUTE FUNCTION reject_recovery_attempt_rewrite();
+
+      CREATE FUNCTION reject_recovery_factor_rewrite() RETURNS trigger
+      LANGUAGE plpgsql AS $guard$
+      BEGIN
+        IF OLD.attempt_id IS DISTINCT FROM NEW.attempt_id
+          OR OLD.factor IS DISTINCT FROM NEW.factor
+          OR OLD.proof_digest IS DISTINCT FROM NEW.proof_digest
+        THEN
+          RAISE EXCEPTION 'Recovery factor identity and digest are immutable.';
+        END IF;
+        RETURN NEW;
+      END
+      $guard$;
+      CREATE TRIGGER recovery_factor_immutable
+      BEFORE UPDATE ON recovery_proof_factors
+      FOR EACH ROW EXECUTE FUNCTION reject_recovery_factor_rewrite();
+
+      DO $roles$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vidha_api') THEN
+          GRANT SELECT ON recovery_proof_attempts, recovery_proof_factors TO vidha_api;
+          GRANT INSERT (attempt_id, owner_id, expires_at),
+            UPDATE (failures, locked_until, accepted_at, cancelled_at, consumed_at)
+          ON recovery_proof_attempts TO vidha_api;
+          GRANT INSERT (attempt_id, factor, proof_digest), UPDATE (failures)
+          ON recovery_proof_factors TO vidha_api;
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vidha_restore') THEN
+          GRANT SELECT ON recovery_proof_attempts, recovery_proof_factors
+          TO vidha_restore;
         END IF;
       END
       $roles$;

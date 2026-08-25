@@ -19,6 +19,7 @@ import {
 } from './identityRehearsalAssets';
 
 const SESSION_COOKIE = '__Host-vidha_session';
+const REHEARSAL_OWNER_ID = `owner_${'a'.repeat(64)}`;
 const MAX_JSON_BYTES = 128 * 1024;
 const CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
@@ -185,6 +186,19 @@ async function handleGet(
     );
     return true;
   }
+  if (request.url === '/rehearsal/webauthn/status') {
+    const state = await identity.read(REHEARSAL_OWNER_ID);
+    const sessionId = readSessionCookie(request);
+    const session =
+      sessionId === null ? null : await identity.verify(sessionId, clock.now());
+    writeJson(response, 200, {
+      credentialReady: state !== null,
+      recoveryAvailable: false,
+      sessionActive: session !== null,
+      verifiedChannelDeliveryAvailable: false,
+    });
+    return true;
+  }
   if (request.url !== '/v1/identity/session') return false;
   const sessionId = readSessionCookie(request);
   const session =
@@ -221,7 +235,7 @@ async function handlePost(
 
   switch (request.url) {
     case '/v1/identity/webauthn/bootstrap/options': {
-      const ownerId = requiredString(body, 'ownerId');
+      const ownerId = rehearsalOwnerId(body);
       const started = await webAuthn.startRegistration({
         bootstrapCapability: requiredString(body, 'bootstrapCapability'),
         origin: origin.origin,
@@ -252,7 +266,7 @@ async function handlePost(
     }
     case '/v1/identity/webauthn/authentication/options': {
       const started = await webAuthn.startAuthentication({
-        ownerId: requiredString(body, 'ownerId'),
+        ownerId: rehearsalOwnerId(body),
         purpose: 'authenticate',
       });
       writeJson(response, 200, {
@@ -321,6 +335,14 @@ async function handlePost(
       return;
     }
   }
+}
+
+function rehearsalOwnerId(body: Readonly<Record<string, unknown>>): string {
+  const ownerId = requiredString(body, 'ownerId');
+  if (ownerId !== REHEARSAL_OWNER_ID) {
+    throw new HttpBoundaryError(400, 'invalid_rehearsal_owner');
+  }
+  return ownerId;
 }
 
 function validateConfiguration(
@@ -605,6 +627,7 @@ function isIdentityPath(url: string | undefined): boolean {
     url === '/rehearsal/webauthn' ||
     url === '/rehearsal/webauthn.css' ||
     url === '/rehearsal/webauthn.js' ||
+    url === '/rehearsal/webauthn/status' ||
     url === '/v1/identity/session' ||
     isIdentityPostPath(url)
   );

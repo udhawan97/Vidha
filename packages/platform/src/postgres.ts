@@ -5,6 +5,7 @@ import {
   type OwnerIdentityRepository,
   type OwnerIdentityRepositoryTransaction,
   type OwnerIdentityState,
+  type RecoveryProofAction,
   type WebAuthnAssertionProof,
   type WebAuthnCeremonyRecord,
   type WebAuthnCredentialRecord,
@@ -38,23 +39,20 @@ export interface MigrationRehearsalReport {
   readonly schemaVersion: number;
 }
 
-export interface RecoveryProofStore {
+export interface RecoveryProofIssuer {
   issue(input: {
     readonly attemptId: string;
     readonly expiresAt: number;
-    readonly issuedChannelProof: string;
+    readonly factor: 'issued_channel' | 'saved_code';
     readonly ownerId: string;
-    readonly savedCodeProof: string;
+    readonly proof: string;
   }): Promise<void>;
-  consumePair(input: {
-    readonly at: number;
-    readonly attemptId: string;
-    readonly issuedChannelProof: string;
-    readonly lockMs: number;
-    readonly maxFailures: number;
-    readonly ownerId: string;
-    readonly savedCodeProof: string;
-  }): Promise<boolean>;
+}
+
+export interface RecoveryProofAbusePolicy {
+  readonly baseLockMs: number;
+  readonly failureThreshold: number;
+  readonly maxLockMs: number;
 }
 
 export interface PostgresPlatform {
@@ -63,7 +61,7 @@ export interface PostgresPlatform {
   readonly identityRepository: OwnerIdentityRepository;
   readonly mode: PlatformMode;
   readonly pool: Pool;
-  readonly recoveryProofStore: RecoveryProofStore;
+  readonly recoveryProofIssuer: RecoveryProofIssuer;
   readonly webAuthnStore: WebAuthnStateStore;
   close(): Promise<void>;
   createPlanStore(planOutbox?: PlanOutboxPlanner): PostgresPlanStore;
@@ -82,7 +80,14 @@ export interface CreatePostgresPlatformInput {
   readonly mode: PlatformMode;
   readonly onPoolError?: (error: Error) => void;
   readonly poolSize?: number;
+  readonly recoveryProofAbusePolicy?: RecoveryProofAbusePolicy;
 }
+
+const DEFAULT_RECOVERY_PROOF_ABUSE_POLICY: RecoveryProofAbusePolicy = {
+  baseLockMs: 60_000,
+  failureThreshold: 3,
+  maxLockMs: 3_600_000,
+};
 
 export async function createPostgresPlatform(
   input: CreatePostgresPlatformInput,
@@ -96,6 +101,9 @@ export async function createPostgresPlatform(
   });
   pool.on('error', input.onPoolError ?? (() => undefined));
   try {
+    const recoveryProofAbusePolicy = validateRecoveryProofAbusePolicy(
+      input.recoveryProofAbusePolicy ?? DEFAULT_RECOVERY_PROOF_ABUSE_POLICY,
+    );
     if (input.manageSchema ?? true) {
       await applyMigrations(pool);
       await configureRuntime(pool, input);
@@ -111,12 +119,16 @@ export async function createPostgresPlatform(
       }
     };
     return {
-      identityRepository: new PostgresOwnerIdentityRepository(pool, assertLive),
+      identityRepository: new PostgresOwnerIdentityRepository(
+        pool,
+        assertLive,
+        recoveryProofAbusePolicy,
+      ),
       keyRotationStore: new PostgresKeyRotationStore(pool, input.mode),
       mode: input.mode,
       operationsStore: new PostgresOperationsStore(pool, input.mode),
       pool,
-      recoveryProofStore: new PostgresRecoveryProofStore(pool, assertLive),
+      recoveryProofIssuer: new PostgresRecoveryProofIssuer(pool, assertLive),
       webAuthnStore: new PostgresWebAuthnStateStore(pool, assertLive),
       async close() {
         await pool.end();
@@ -384,6 +396,7 @@ class PostgresOwnerIdentityRepository implements OwnerIdentityRepository {
   constructor(
     private readonly pool: Pool,
     private readonly assertLive: () => void,
+    private readonly recoveryProofAbusePolicy: RecoveryProofAbusePolicy,
   ) {}
 
   async transaction<T>(
@@ -404,7 +417,15 @@ class PostgresOwnerIdentityRepository implements OwnerIdentityRepository {
         rows.rows.map((row) => [row.owner_id, parseIdentity(row.state_json)]),
       );
       const written = new Set<string>();
+      const recoveryProofAbusePolicy = this.recoveryProofAbusePolicy;
       const transaction: OwnerIdentityRepositoryTransaction = {
+        async applyRecoveryProofAction(action) {
+          return await applyRecoveryProofAction(
+            client,
+            action,
+            recoveryProofAbusePolicy,
+          );
+        },
         async list() {
           return [...staged.values()].map(cloneIdentity);
         },
@@ -618,7 +639,7 @@ class PostgresWebAuthnStateStore implements WebAuthnStateStore {
   }
 }
 
-class PostgresRecoveryProofStore implements RecoveryProofStore {
+class PostgresRecoveryProofIssuer implements RecoveryProofIssuer {
   constructor(
     private readonly pool: Pool,
     private readonly assertLive: () => void,
@@ -627,88 +648,227 @@ class PostgresRecoveryProofStore implements RecoveryProofStore {
   async issue(input: {
     readonly attemptId: string;
     readonly expiresAt: number;
-    readonly issuedChannelProof: string;
+    readonly factor: 'issued_channel' | 'saved_code';
     readonly ownerId: string;
-    readonly savedCodeProof: string;
+    readonly proof: string;
   }): Promise<void> {
     this.assertLive();
-    await this.pool.query(
-      `INSERT INTO recovery_proof_attempts(
-        attempt_id, owner_id, saved_code_digest, issued_channel_digest, expires_at
-      ) VALUES ($1, $2, $3, $4, $5)`,
-      [
-        input.attemptId,
-        input.ownerId,
-        sha256(input.savedCodeProof),
-        sha256(input.issuedChannelProof),
-        input.expiresAt,
-      ],
-    );
-  }
-
-  async consumePair(input: {
-    readonly at: number;
-    readonly attemptId: string;
-    readonly issuedChannelProof: string;
-    readonly lockMs: number;
-    readonly maxFailures: number;
-    readonly ownerId: string;
-    readonly savedCodeProof: string;
-  }): Promise<boolean> {
-    this.assertLive();
-    if (
-      !Number.isSafeInteger(input.at) ||
-      !Number.isSafeInteger(input.lockMs) ||
-      input.lockMs <= 0 ||
-      !Number.isSafeInteger(input.maxFailures) ||
-      input.maxFailures <= 0 ||
-      input.maxFailures > 100
-    ) {
-      throw new IdentityError(
-        'INVALID_COMMAND',
-        'Recovery proof limits and time must be bounded safe integers.',
-      );
-    }
-    return await withTransaction(this.pool, async (client) => {
+    validateRecoveryProofIssue(input);
+    await withTransaction(this.pool, async (client) => {
       const now = await databaseNow(client);
-      const result = await client.query<RecoveryProofRow>(
+      await client.query(
+        `INSERT INTO recovery_proof_attempts(attempt_id, owner_id, expires_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (attempt_id) DO NOTHING`,
+        [input.attemptId, input.ownerId, input.expiresAt],
+      );
+      const existing = await client.query<RecoveryProofAttemptRow>(
         'SELECT * FROM recovery_proof_attempts WHERE attempt_id = $1 FOR UPDATE',
         [input.attemptId],
       );
-      const row = result.rows[0];
+      const attempt = existing.rows[0];
       if (
-        row === undefined ||
-        row.owner_id !== input.ownerId ||
-        row.consumed_at !== null ||
-        number(row.expires_at) < now ||
-        (row.locked_until !== null && number(row.locked_until) >= now)
+        attempt === undefined ||
+        attempt.owner_id !== input.ownerId ||
+        number(attempt.expires_at) !== input.expiresAt
       ) {
-        return false;
-      }
-      const accepted =
-        row.saved_code_digest === sha256(input.savedCodeProof) &&
-        row.issued_channel_digest === sha256(input.issuedChannelProof);
-      if (accepted) {
-        await client.query(
-          'UPDATE recovery_proof_attempts SET consumed_at = $2 WHERE attempt_id = $1',
-          [input.attemptId, now],
+        throw new IdentityError(
+          'INVALID_COMMAND',
+          'Recovery proof factors must share one bounded attempt.',
         );
-        return true;
       }
-      const failures = row.failures + 1;
-      await client.query(
-        `UPDATE recovery_proof_attempts SET
-          failures = $2::integer,
-          locked_until = CASE
-            WHEN $2::integer >= $3::integer THEN $4::bigint
-            ELSE locked_until
-          END
-         WHERE attempt_id = $1`,
-        [input.attemptId, failures, input.maxFailures, now + input.lockMs],
+      const digest = recoveryProofDigest(
+        input.attemptId,
+        input.factor,
+        input.proof,
       );
-      return false;
+      const existingFactor = await client.query<RecoveryProofFactorRow>(
+        `SELECT * FROM recovery_proof_factors
+         WHERE attempt_id = $1 AND factor = $2 FOR UPDATE`,
+        [input.attemptId, input.factor],
+      );
+      const factor = existingFactor.rows[0];
+      if (factor !== undefined) {
+        if (factor.proof_digest === digest) return;
+        throw new IdentityError(
+          'INVALID_COMMAND',
+          'A recovery proof factor cannot be replaced.',
+        );
+      }
+      if (input.expiresAt <= now) {
+        throw new IdentityError(
+          'INVALID_COMMAND',
+          'Recovery proof expiry must be in the future.',
+        );
+      }
+      if (
+        attempt.accepted_at !== null ||
+        attempt.cancelled_at !== null ||
+        attempt.consumed_at !== null
+      ) {
+        throw new IdentityError(
+          'INVALID_COMMAND',
+          'A recovery proof factor cannot be added to a terminal attempt.',
+        );
+      }
+      const inserted = await client.query(
+        `INSERT INTO recovery_proof_factors(
+          attempt_id, factor, proof_digest
+        ) VALUES ($1, $2, $3)`,
+        [input.attemptId, input.factor, digest],
+      );
+      if (inserted.rowCount !== 1) {
+        throw new IdentityError(
+          'INVALID_COMMAND',
+          'The recovery proof factor was not issued.',
+        );
+      }
     });
   }
+}
+
+async function applyRecoveryProofAction(
+  client: PoolClient,
+  action: RecoveryProofAction,
+  policy: RecoveryProofAbusePolicy,
+): Promise<boolean> {
+  const now = await databaseNow(client);
+  if (
+    action.type === 'accept' &&
+    (!Number.isSafeInteger(action.validThrough) || action.validThrough < now)
+  ) {
+    return false;
+  }
+  const result = await client.query<RecoveryProofAttemptRow>(
+    'SELECT * FROM recovery_proof_attempts WHERE attempt_id = $1 FOR UPDATE',
+    [action.attemptId],
+  );
+  const attempt = result.rows[0];
+  if (action.type === 'cancel') {
+    if (attempt === undefined) return true;
+    if (attempt.owner_id !== action.ownerId || attempt.consumed_at !== null) {
+      return false;
+    }
+    if (attempt.cancelled_at === null) {
+      await client.query(
+        'UPDATE recovery_proof_attempts SET cancelled_at = $2 WHERE attempt_id = $1',
+        [action.attemptId, now],
+      );
+    }
+    return true;
+  }
+  if (
+    attempt === undefined ||
+    attempt.owner_id !== action.ownerId ||
+    attempt.cancelled_at !== null ||
+    attempt.consumed_at !== null ||
+    number(attempt.expires_at) < now ||
+    (action.type === 'accept' &&
+      number(attempt.expires_at) < action.validThrough) ||
+    (action.type === 'accept' && attempt.accepted_at !== null) ||
+    (action.type === 'consume' &&
+      (attempt.accepted_at === null || number(attempt.accepted_at) > now))
+  ) {
+    return false;
+  }
+  const ownerLock = await client.query<{ locked_until: string | null }>(
+    `SELECT MAX(locked_until)::text AS locked_until
+     FROM recovery_proof_attempts WHERE owner_id = $1`,
+    [action.ownerId],
+  );
+  const lockedUntil = ownerLock.rows[0]?.locked_until;
+  if (
+    lockedUntil !== null &&
+    lockedUntil !== undefined &&
+    number(lockedUntil) >= now
+  ) {
+    return false;
+  }
+  const factors = await client.query<RecoveryProofFactorRow>(
+    `SELECT * FROM recovery_proof_factors
+     WHERE attempt_id = $1 ORDER BY factor FOR UPDATE`,
+    [action.attemptId],
+  );
+  const suppliedProofs = {
+    issued_channel: action.issuedChannelProof,
+    saved_code: action.savedCodeProof,
+  } as const;
+  const failedFactors = factors.rows
+    .filter(
+      (factor) =>
+        factor.proof_digest !==
+        recoveryProofDigest(
+          action.attemptId,
+          factor.factor,
+          suppliedProofs[factor.factor],
+        ),
+    )
+    .map((factor) => factor.factor);
+  if (
+    factors.rows.length !== 2 ||
+    !factors.rows.some((factor) => factor.factor === 'saved_code') ||
+    !factors.rows.some((factor) => factor.factor === 'issued_channel')
+  ) {
+    return false;
+  }
+  if (failedFactors.length > 0) {
+    await recordRecoveryProofFailure(
+      client,
+      action.attemptId,
+      action.ownerId,
+      failedFactors,
+      now,
+      policy,
+    );
+    return false;
+  }
+  await client.query(
+    action.type === 'accept'
+      ? 'UPDATE recovery_proof_attempts SET accepted_at = $2 WHERE attempt_id = $1'
+      : 'UPDATE recovery_proof_attempts SET consumed_at = $2 WHERE attempt_id = $1',
+    [action.attemptId, now],
+  );
+  return true;
+}
+
+async function recordRecoveryProofFailure(
+  client: PoolClient,
+  attemptId: string,
+  ownerId: string,
+  failedFactors: readonly RecoveryProofFactorRow['factor'][],
+  now: number,
+  policy: RecoveryProofAbusePolicy,
+): Promise<void> {
+  await client.query(
+    'UPDATE recovery_proof_attempts SET failures = failures + 1 WHERE attempt_id = $1',
+    [attemptId],
+  );
+  await client.query(
+    `UPDATE recovery_proof_factors SET failures = failures + 1
+     WHERE attempt_id = $1 AND factor = ANY($2::text[])`,
+    [attemptId, failedFactors],
+  );
+  const result = await client.query<{ total: string }>(
+    `SELECT COALESCE(SUM(failures), 0)::text AS total
+     FROM recovery_proof_attempts WHERE owner_id = $1`,
+    [ownerId],
+  );
+  const total = number(result.rows[0]?.total ?? '');
+  if (total % policy.failureThreshold !== 0) return;
+  const completedThresholds = total / policy.failureThreshold;
+  const multiplier = 2 ** Math.min(completedThresholds - 1, 52);
+  const lockMs = Math.min(policy.baseLockMs * multiplier, policy.maxLockMs);
+  const lockedUntil = now + lockMs;
+  if (!Number.isSafeInteger(lockedUntil)) {
+    throw new IdentityError(
+      'INVALID_COMMAND',
+      'Recovery proof lock time exceeds the safe integer range.',
+    );
+  }
+  await client.query(
+    'UPDATE recovery_proof_attempts SET locked_until = $2 WHERE attempt_id = $1',
+    [attemptId, lockedUntil],
+  );
 }
 
 async function configureRuntime(
@@ -792,14 +952,20 @@ interface WebAuthnProofRow {
   readonly expires_at: string;
 }
 
-interface RecoveryProofRow {
-  readonly owner_id: string;
-  readonly saved_code_digest: string;
-  readonly issued_channel_digest: string;
+interface RecoveryProofAttemptRow {
+  readonly accepted_at: string | null;
+  readonly cancelled_at: string | null;
+  readonly consumed_at: string | null;
   readonly expires_at: string;
   readonly failures: number;
   readonly locked_until: string | null;
-  readonly consumed_at: string | null;
+  readonly owner_id: string;
+}
+
+interface RecoveryProofFactorRow {
+  readonly factor: 'issued_channel' | 'saved_code';
+  readonly failures: number;
+  readonly proof_digest: string;
 }
 
 function mapCeremony(row: WebAuthnCeremonyRow): WebAuthnCeremonyRecord {
@@ -871,6 +1037,57 @@ async function databaseNow(client: PoolClient): Promise<number> {
 
 function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function recoveryProofDigest(
+  attemptId: string,
+  factor: 'issued_channel' | 'saved_code',
+  proof: string,
+): string {
+  return sha256(`vidha:recovery-proof:v2\0${attemptId}\0${factor}\0${proof}`);
+}
+
+function validateRecoveryProofIssue(input: {
+  readonly attemptId: string;
+  readonly expiresAt: number;
+  readonly factor: 'issued_channel' | 'saved_code';
+  readonly ownerId: string;
+  readonly proof: string;
+}): void {
+  validateOpaque(input.attemptId, 'recovery');
+  validateOpaque(input.ownerId, 'owner');
+  if (!Number.isSafeInteger(input.expiresAt) || input.expiresAt <= 0) {
+    throw new IdentityError(
+      'INVALID_COMMAND',
+      'Recovery proof expiry must be a positive safe integer.',
+    );
+  }
+  if (input.proof.length < 32 || input.proof.length > 4_096) {
+    throw new IdentityError(
+      'INVALID_COMMAND',
+      'Synthetic recovery proofs must be bounded high-entropy values.',
+    );
+  }
+}
+
+function validateRecoveryProofAbusePolicy(
+  policy: RecoveryProofAbusePolicy,
+): RecoveryProofAbusePolicy {
+  if (
+    !Number.isSafeInteger(policy.baseLockMs) ||
+    policy.baseLockMs <= 0 ||
+    !Number.isSafeInteger(policy.failureThreshold) ||
+    policy.failureThreshold <= 0 ||
+    policy.failureThreshold > 100 ||
+    !Number.isSafeInteger(policy.maxLockMs) ||
+    policy.maxLockMs < policy.baseLockMs
+  ) {
+    throw new IdentityError(
+      'INVALID_COMMAND',
+      'Recovery abuse limits must be bounded positive safe integers.',
+    );
+  }
+  return { ...policy };
 }
 
 function validateOpaque(value: string, prefix: string): void {

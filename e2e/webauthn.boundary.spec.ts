@@ -54,3 +54,29 @@ test('keeps the disposable identity surface same-origin and non-claiming', async
     status: 'method_not_allowed',
   });
 });
+
+test('keeps every identity action disabled when rehearsal hydration fails', async ({
+  page,
+}) => {
+  await page.route('**/rehearsal/webauthn/status', async (route) => {
+    await route.abort('failed');
+  });
+  await page.goto('/rehearsal/webauthn');
+
+  await expect(page.getByLabel('Bootstrap capability')).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Create credential' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Authenticate', exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Check session' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'End session' }),
+  ).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText(
+    'The rehearsal state could not be loaded. All actions remain disabled.',
+  );
+});

@@ -16,6 +16,7 @@ export {
   type OwnerIdentityState,
   type CredentialRecord,
   type ProcessedIdentityCommand,
+  type RecoveryProofAction,
   type RecoveryAttempt,
   type SessionRecord,
   type VerifiedChannelChange,
