@@ -97,6 +97,7 @@ jobs:
           signature_directory="$RUNNER_TEMP/vidha-clamd-signatures"
           config_directory="$RUNNER_TEMP/vidha-clamd-config"
           mkdir -p "$signature_directory" "$config_directory"
+          chmod 777 "$signature_directory"
           docker run --rm \
             --network=none \
             --read-only \
