@@ -33,8 +33,10 @@ docker run --detach \
   --env PGDATA=/var/lib/postgresql/18/docker \
   "$postgres_image" >/dev/null
 
+# The image's temporary initialization server exposes only its Unix socket.
+# TCP readiness therefore proves the final postmaster has taken authority.
 for attempt in $(seq 1 60); do
-  if docker exec "$postgres_name" pg_isready -U postgres -d vidha_fixture >/dev/null 2>&1; then
+  if docker exec "$postgres_name" pg_isready -h 127.0.0.1 -U postgres -d vidha_fixture >/dev/null 2>&1; then
     break
   fi
   if [ "$attempt" -eq 60 ]; then
