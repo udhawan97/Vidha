@@ -735,7 +735,7 @@ async function applyRecoveryProofAction(
   const now = await databaseNow(client);
   if (
     action.type === 'accept' &&
-    (!Number.isSafeInteger(action.validThrough) || action.validThrough < now)
+    (!Number.isSafeInteger(action.validThrough) || action.validThrough < 0)
   ) {
     return false;
   }
