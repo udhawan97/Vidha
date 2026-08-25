@@ -80,7 +80,8 @@ suite('pinned executable import tools', () => {
     expect(inspected.scan.engineVersion).not.toBe('unavailable');
     expect(inspected.scan.signatureSetIdentity).toBe(signatureSetIdentity);
     expect(inspected.scan.signatureSetVersion).toMatch(/^clamav-db-[0-9]+$/u);
-    await expect(intake.approve(inspected)).resolves.toMatchObject({
+    const reviewable = await intake.review(inspected);
+    await expect(intake.approve(reviewable)).resolves.toMatchObject({
       text: 'SyntheticDisposable evidence only.',
     });
   });

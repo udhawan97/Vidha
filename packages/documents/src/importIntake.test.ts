@@ -6,8 +6,10 @@ import {
   type InspectedImport,
   type ImportScanner,
   type QuarantinedImport,
+  type ReviewableTextImport,
   type ScanVerdict,
 } from './importIntake';
+import { createEditableDocument } from './editableDocument';
 
 const encoder = new TextEncoder();
 const SIGNATURE_SET_IDENTITY = `sha256-${'1'.repeat(64)}`;
@@ -58,7 +60,13 @@ describe('untrusted import intake', () => {
     expect(prepared.originalBytes).toEqual(bytes);
 
     const inspected = await workflow.inspect(prepared);
-    const approved = await workflow.approve(inspected);
+    const reviewable = await workflow.review(inspected);
+    expect(reviewable.state).toBe('reviewable');
+    expect(reviewable.converterId).toBe('vidha-utf8-text-v1');
+    expect(reviewable.conversionWarnings).toEqual([
+      'Markdown formatting will remain editable source text.',
+    ]);
+    const approved = await workflow.approve(reviewable);
     expect(approved.state).toBe('approved');
     expect(approved.text).toBe('# Synthetic note\n\nNothing was sent.');
     expect(approved.originalBytes).toEqual(bytes);
@@ -74,6 +82,66 @@ describe('untrusted import intake', () => {
     expect(prepared.warnings).toEqual([
       'Declared type application/octet-stream does not match supported classification text/plain.',
     ]);
+  });
+
+  it('keeps same-byte intake metadata isolated by preparation identity', async () => {
+    const workflow = intake();
+    const bytes = encoder.encode('same bounded bytes');
+    const plainPrepared = await workflow.prepare({
+      bytes,
+      declaredMediaType: 'text/plain',
+      filename: 'first.txt',
+    });
+    const markdownPrepared = await workflow.prepare({
+      bytes,
+      declaredMediaType: 'text/markdown',
+      filename: 'second.md',
+    });
+
+    expect(plainPrepared.sourceId).toBe(markdownPrepared.sourceId);
+    expect(plainPrepared.intakeId).not.toBe(markdownPrepared.intakeId);
+
+    const plainApproved = await workflow.approve(
+      await workflow.review(await workflow.inspect(plainPrepared)),
+    );
+    const markdownApproved = await workflow.approve(
+      await workflow.review(await workflow.inspect(markdownPrepared)),
+    );
+
+    expect(plainApproved).toMatchObject({
+      filename: 'first.txt',
+      detectedMediaType: 'text/plain',
+      conversionWarnings: [
+        'Plain text has no formatting metadata; line breaks will be preserved.',
+      ],
+    });
+    expect(markdownApproved).toMatchObject({
+      filename: 'second.md',
+      detectedMediaType: 'text/markdown',
+      conversionWarnings: [
+        'Markdown formatting will remain editable source text.',
+      ],
+    });
+  });
+
+  it('reviews CRLF source exactly before canonical newline normalization', async () => {
+    const workflow = intake();
+    const prepared = await workflow.prepare({
+      bytes: encoder.encode('First line\r\nSecond line\r\n'),
+      declaredMediaType: 'text/plain',
+      filename: 'windows-note.txt',
+    });
+    const approved = await workflow.approve(
+      await workflow.review(await workflow.inspect(prepared)),
+    );
+    const document = createEditableDocument({
+      title: 'Windows note',
+      recipientLabel: 'Mira Chen',
+      markdown: approved.text,
+    });
+
+    expect(approved.text).toBe('First line\r\nSecond line\r\n');
+    expect(document.markdown).toBe('First line\nSecond line\n');
   });
 
   it('binds inspection to an intake-owned clone when caller bytes mutate', async () => {
@@ -115,7 +183,8 @@ describe('untrusted import intake', () => {
     const inspection = workflow.inspect(prepared);
     prepared.originalBytes.fill(0x78);
     releaseScan?.();
-    const approved = await workflow.approve(await inspection);
+    const reviewable = await workflow.review(await inspection);
+    const approved = await workflow.approve(reviewable);
 
     expect(approved.text).toBe('original bytes');
   });
@@ -133,8 +202,179 @@ describe('untrusted import intake', () => {
       scan: { scannerId: 'forged-scanner', verdict: 'clean' },
     } as InspectedImport;
 
-    await expect(workflow.approve(forged)).rejects.toMatchObject({
+    await expect(workflow.review(forged)).rejects.toMatchObject({
       code: 'INSPECTION_MISMATCH',
+    });
+  });
+
+  it.each(['text', 'warnings', 'converter'] as const)(
+    'rejects approval when reviewed %s is changed',
+    async (changedField) => {
+      const workflow = intake();
+      const prepared = await workflow.prepare({
+        bytes: encoder.encode('bounded text'),
+        declaredMediaType: 'text/plain',
+        filename: 'bounded.txt',
+      });
+      const reviewable = await workflow.review(
+        await workflow.inspect(prepared),
+      );
+      const changed = {
+        ...reviewable,
+        ...(changedField === 'text' ? { text: 'different text' } : {}),
+        ...(changedField === 'warnings'
+          ? { conversionWarnings: ['Different warning.'] }
+          : {}),
+        ...(changedField === 'converter'
+          ? { converterId: 'different-converter-v1' }
+          : {}),
+      } satisfies ReviewableTextImport;
+
+      await expect(workflow.approve(changed)).rejects.toMatchObject({
+        code: 'INSPECTION_MISMATCH',
+      });
+    },
+  );
+
+  it.each([
+    {
+      name: 'invalid converter identity',
+      converterId: 'INVALID CONVERTER',
+      text: 'bounded',
+      warnings: [] as string[],
+    },
+    {
+      name: 'oversized text',
+      converterId: 'bounded-converter-v1',
+      text: 'x'.repeat(129),
+      warnings: [] as string[],
+    },
+    {
+      name: 'too many lines',
+      converterId: 'bounded-converter-v1',
+      text: '1\n2\n3\n4\n5',
+      warnings: [] as string[],
+    },
+    {
+      name: 'control character',
+      converterId: 'bounded-converter-v1',
+      text: 'bounded\u007ftext',
+      warnings: [] as string[],
+    },
+    {
+      name: 'too many warnings',
+      converterId: 'bounded-converter-v1',
+      text: 'bounded',
+      warnings: Array.from({ length: 17 }, (_, index) => `Warning ${index}`),
+    },
+    {
+      name: 'invalid warning',
+      converterId: 'bounded-converter-v1',
+      text: 'bounded',
+      warnings: ['Invalid\u0000warning'],
+    },
+    {
+      name: 'empty warning',
+      converterId: 'bounded-converter-v1',
+      text: 'bounded',
+      warnings: [''],
+    },
+    {
+      name: 'oversized warning',
+      converterId: 'bounded-converter-v1',
+      text: 'bounded',
+      warnings: ['x'.repeat(501)],
+    },
+    {
+      name: 'non-string warning',
+      converterId: 'bounded-converter-v1',
+      text: 'bounded',
+      warnings: [42] as unknown as string[],
+    },
+  ])('rejects $name from a converter', async (fixture) => {
+    const boundedWorkflow = createImportIntake({
+      converter: {
+        converterId: fixture.converterId,
+        async convert() {
+          return { text: fixture.text, warnings: fixture.warnings };
+        },
+      },
+      inspectionPolicy: {
+        acceptedIsolationProfiles: ['synthetic_fixture'],
+        maxScanDurationMs: 1_000,
+      },
+      limits: { maxBytes: 128, maxLines: 4 },
+      scanner: scanner(),
+    });
+    const prepared = await boundedWorkflow.prepare({
+      bytes: encoder.encode('bounded text'),
+      declaredMediaType: 'text/plain',
+      filename: 'bounded.txt',
+    });
+    await expect(
+      boundedWorkflow.review(await boundedWorkflow.inspect(prepared)),
+    ).rejects.toMatchObject({
+      code: 'CONVERSION_OUTPUT_INVALID',
+    });
+  });
+
+  it('stores one validated snapshot from accessor-backed converter output', async () => {
+    let converterIdReads = 0;
+    let textReads = 0;
+    let warningReads = 0;
+    const workflow = createImportIntake({
+      converter: {
+        get converterId() {
+          converterIdReads += 1;
+          return converterIdReads === 1
+            ? 'bounded-converter-v1'
+            : 'INVALID CONVERTER';
+        },
+        async convert() {
+          return Object.defineProperties(
+            {},
+            {
+              text: {
+                get() {
+                  textReads += 1;
+                  return textReads === 1 ? 'safe text' : 'bad\u007ftext';
+                },
+              },
+              warnings: {
+                get() {
+                  warningReads += 1;
+                  return warningReads === 1
+                    ? ['Bounded warning.']
+                    : ['bad\u0000warning'];
+                },
+              },
+            },
+          ) as { readonly text: string; readonly warnings: readonly string[] };
+        },
+      },
+      inspectionPolicy: {
+        acceptedIsolationProfiles: ['synthetic_fixture'],
+        maxScanDurationMs: 1_000,
+      },
+      limits: { maxBytes: 128, maxLines: 4 },
+      scanner: scanner(),
+    });
+    const prepared = await workflow.prepare({
+      bytes: encoder.encode('bounded text'),
+      declaredMediaType: 'text/plain',
+      filename: 'bounded.txt',
+    });
+    const reviewable = await workflow.review(await workflow.inspect(prepared));
+
+    expect(reviewable).toMatchObject({
+      converterId: 'bounded-converter-v1',
+      text: 'safe text',
+      conversionWarnings: ['Bounded warning.'],
+    });
+    expect({ converterIdReads, textReads, warningReads }).toEqual({
+      converterIdReads: 1,
+      textReads: 1,
+      warningReads: 1,
     });
   });
 
@@ -155,6 +395,7 @@ describe('untrusted import intake', () => {
     );
     const forged = {
       state: 'quarantined',
+      intakeId: 'forged-intake',
       sourceId: `sha256:${[...new Uint8Array(digest)]
         .map((byte) => byte.toString(16).padStart(2, '0'))
         .join('')}`,
@@ -240,7 +481,7 @@ describe('untrusted import intake', () => {
         filename: 'bounded.txt',
       });
       const inspected = await workflow.inspect(prepared);
-      await expect(workflow.approve(inspected)).rejects.toMatchObject({
+      await expect(workflow.review(inspected)).rejects.toMatchObject({
         code: 'SCAN_BLOCKED',
       });
     },

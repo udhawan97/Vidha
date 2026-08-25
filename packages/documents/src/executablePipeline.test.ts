@@ -28,6 +28,7 @@ const START = Date.parse('2026-08-21T12:00:00.000Z');
 const SIGNATURE_SET_IDENTITY = `sha256-${'2'.repeat(64)}`;
 const source: QuarantinedImport = {
   state: 'quarantined',
+  intakeId: 'intake-fixture',
   sourceId: `sha256:${'a'.repeat(64)}`,
   filename: 'fixture.md',
   declaredMediaType: 'text/markdown',

@@ -9,6 +9,18 @@ export {
   type SupportedAttachmentFormat,
 } from './attachmentIntake';
 export {
+  EDITABLE_DOCUMENT_SCHEMA,
+  EDITABLE_DOCUMENT_SCHEMA_VERSION,
+  EditableDocumentError,
+  createEditableDocument,
+  exportEditableDocument,
+  parseEditableDocument,
+  serializeEditableDocument,
+  type EditableDocumentV1,
+  type PortableDocumentCopy,
+  type PortableDocumentFormat,
+} from './editableDocument';
+export {
   ImportIntakeError,
   createImportIntake,
   utf8TextConverter,
@@ -21,6 +33,7 @@ export {
   type ImportScanResult,
   type InspectedImport,
   type QuarantinedImport,
+  type ReviewableTextImport,
   type ScanVerdict,
   type ScanIsolationProfile,
   type SupportedTextMediaType,

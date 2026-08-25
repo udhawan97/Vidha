@@ -160,7 +160,8 @@ suite('rootless adversarial import isolation', () => {
       signatureSetIdentity,
       verdict: 'clean',
     });
-    await expect(intake.approve(inspected)).resolves.toMatchObject({
+    const reviewable = await intake.review(inspected);
+    await expect(intake.approve(reviewable)).resolves.toMatchObject({
       text: 'SyntheticDisposable isolation evidence only.',
     });
   });
@@ -355,6 +356,7 @@ function quarantined(
 ): QuarantinedImport {
   return {
     state: 'quarantined',
+    intakeId: `intake-${filename}`,
     sourceId: `sha256:${'a'.repeat(64)}`,
     filename,
     declaredMediaType: 'text/markdown',

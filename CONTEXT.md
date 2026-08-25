@@ -55,7 +55,7 @@ Private, recipient-specific material prepared by the Owner for possible Release.
 _Avoid_: Will, payload
 
 **Editable Document**:
-Owner-authored content held in Vidha's canonical rich-text and Markdown-compatible form so it can be imported, edited, and exported without depending on one proprietary editor.
+Owner-authored content held in the versioned `vidha.editable-document` schema. Version 1 uses a title, Recipient label, and canonical Markdown-compatible source so portable Markdown and derived semantic HTML do not depend on one proprietary editor. Imported originals and conversion provenance remain separate from this editable copy.
 _Avoid_: Arbitrary file, Attachment
 
 **Attachment**:

@@ -8,14 +8,18 @@ import {
 } from 'react';
 import {
   AttachmentIntakeError,
+  EditableDocumentError,
   ImportIntakeError,
   SUPPORTED_ATTACHMENT_FORMATS,
+  createEditableDocument,
   createImportIntake,
+  exportEditableDocument,
   prepareAttachmentCandidate,
   utf8TextConverter,
   type AttachmentCandidate,
   type ImportScanner,
-  type InspectedImport,
+  type PortableDocumentFormat,
+  type ReviewableTextImport,
 } from '@vidha/documents';
 
 import {
@@ -24,7 +28,6 @@ import {
   type DemoEnvelope,
   type DemoImportSource,
 } from '../demo';
-import { buildPortableHtml, exportFilename } from '../documentExport';
 
 interface DocumentWorkspaceProps {
   readonly envelopes: DemoEnvelope[];
@@ -36,9 +39,7 @@ interface DocumentWorkspaceProps {
 type EditorMode = 'write' | 'preview';
 
 interface DraftSnapshot {
-  readonly title: string;
-  readonly body: string;
-  readonly recipient: string;
+  readonly documentDraft: DemoEnvelope['documentDraft'];
   readonly importSource: DemoImportSource | null;
   readonly attachments: DemoAttachment[];
 }
@@ -100,9 +101,7 @@ function filenameToTitle(filename: string): string {
 
 function snapshotEnvelope(envelope: DemoEnvelope): DraftSnapshot {
   return {
-    title: envelope.title,
-    body: envelope.body,
-    recipient: envelope.recipient,
+    documentDraft: { ...envelope.documentDraft },
     importSource: envelope.importSource,
     attachments: envelope.attachments.map((attachment) => ({
       ...attachment,
@@ -137,10 +136,11 @@ export function DocumentWorkspace({
 }: DocumentWorkspaceProps) {
   const [editorMode, setEditorMode] = useState<EditorMode>('write');
   const [sessionStatus, setSessionStatus] = useState('Synthetic session draft');
+  const [exportFormat, setExportFormat] =
+    useState<PortableDocumentFormat>('markdown');
   const [importError, setImportError] = useState<string | null>(null);
-  const [pendingImport, setPendingImport] = useState<InspectedImport | null>(
-    null,
-  );
+  const [pendingImport, setPendingImport] =
+    useState<ReviewableTextImport | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<
     readonly AttachmentCandidate[]
   >([]);
@@ -202,6 +202,22 @@ export function DocumentWorkspace({
           : envelope,
       ),
     );
+  }
+
+  function updateActiveDocument(
+    patch: Partial<
+      Pick<
+        DemoEnvelope['documentDraft'],
+        'markdown' | 'recipientLabel' | 'title'
+      >
+    >,
+  ) {
+    updateActiveEnvelope({
+      documentDraft: {
+        ...selectedEnvelope.documentDraft,
+        ...patch,
+      },
+    });
   }
 
   function replaceActiveEnvelope(snapshot: DraftSnapshot) {
@@ -279,9 +295,10 @@ export function DocumentWorkspace({
 
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const selection = selectedEnvelope.body.slice(start, end) || 'text';
-    const body = `${selectedEnvelope.body.slice(0, start)}${prefix}${selection}${suffix}${selectedEnvelope.body.slice(end)}`;
-    updateActiveEnvelope({ body });
+    const markdown = selectedEnvelope.documentDraft.markdown;
+    const selection = markdown.slice(start, end) || 'text';
+    const nextMarkdown = `${markdown.slice(0, start)}${prefix}${selection}${suffix}${markdown.slice(end)}`;
+    updateActiveDocument({ markdown: nextMarkdown });
 
     window.requestAnimationFrame(() => {
       textarea.focus();
@@ -308,8 +325,9 @@ export function DocumentWorkspace({
         filename: file.name,
       });
       const inspected = await importIntake.inspect(prepared);
-      setPendingImport(inspected);
-      setSessionStatus('Import quarantined for explicit approval');
+      const reviewable = await importIntake.review(inspected);
+      setPendingImport(reviewable);
+      setSessionStatus('Editable copy ready for explicit review');
     } catch (error) {
       setPendingImport(null);
       setImportError(
@@ -429,9 +447,17 @@ export function DocumentWorkspace({
     }
     try {
       const approved = await importIntake.approve(pendingImport);
-      updateActiveEnvelope({
+      const canonicalDocument = createEditableDocument({
         title: filenameToTitle(approved.filename),
-        body: approved.text,
+        markdown: approved.text,
+        recipientLabel: selectedEnvelope.documentDraft.recipientLabel,
+      });
+      updateActiveEnvelope({
+        documentDraft: {
+          title: canonicalDocument.title,
+          recipientLabel: canonicalDocument.recipientLabel,
+          markdown: canonicalDocument.markdown,
+        },
         importSource: {
           filename: approved.filename,
           mediaType: approved.declaredMediaType || approved.detectedMediaType,
@@ -439,12 +465,15 @@ export function DocumentWorkspace({
           sizeBytes: approved.sizeBytes,
           sourceId: approved.sourceId,
           scannerId: approved.scan.scannerId,
+          converterId: approved.converterId,
+          conversionWarnings: [...approved.conversionWarnings],
+          schemaVersion: 1,
           originalBytes: Uint8Array.from(approved.originalBytes),
           text: approved.text,
         },
       });
       setPendingImport(null);
-      setSessionStatus('Approved decoded text imported into this session');
+      setSessionStatus('Editable copy created from the reviewed source');
     } catch (error) {
       setImportError(
         error instanceof ImportIntakeError
@@ -483,15 +512,39 @@ export function DocumentWorkspace({
     setSessionStatus(status);
   }
 
+  function downloadPortableCopy() {
+    try {
+      setImportError(null);
+      const canonicalDocument = createEditableDocument(
+        selectedEnvelope.documentDraft,
+      );
+      const copy = exportEditableDocument(canonicalDocument, exportFormat);
+      downloadDocument(
+        copy.content,
+        copy.mediaType,
+        copy.filename,
+        `${exportFormat === 'html' ? 'Semantic HTML' : exportFormat === 'markdown' ? 'Markdown' : 'Text'} copy prepared from schema v${copy.schemaVersion}`,
+      );
+    } catch (error) {
+      setImportError(
+        error instanceof EditableDocumentError
+          ? error.message
+          : 'The portable copy could not be prepared.',
+      );
+    }
+  }
+
   function restoreImportedSource() {
     const source = selectedEnvelope.importSource;
     if (source === null) {
       return;
     }
-    updateActiveEnvelope({
+    const canonicalSource = createEditableDocument({
       title: filenameToTitle(source.filename),
-      body: source.text,
+      markdown: source.text,
+      recipientLabel: selectedEnvelope.documentDraft.recipientLabel,
     });
+    updateActiveDocument({ markdown: canonicalSource.markdown });
     setSessionStatus('Imported text snapshot restored');
   }
 
@@ -564,48 +617,29 @@ export function DocumentWorkspace({
           >
             Add files
           </button>
-          <button
-            className="button button-primary"
-            onClick={() =>
-              downloadDocument(
-                selectedEnvelope.body,
-                'text/markdown',
-                exportFilename(selectedEnvelope.title, 'md'),
-                'Markdown export prepared',
-              )
-            }
-            type="button"
-          >
-            Export Markdown
-          </button>
-          <button
-            className="button button-quiet"
-            onClick={() =>
-              downloadDocument(
-                selectedEnvelope.body,
-                'text/plain',
-                exportFilename(selectedEnvelope.title, 'txt'),
-                'Plain-text export prepared',
-              )
-            }
-            type="button"
-          >
-            Export text
-          </button>
-          <button
-            className="button button-quiet"
-            onClick={() =>
-              downloadDocument(
-                buildPortableHtml(selectedEnvelope),
-                'text/html',
-                exportFilename(selectedEnvelope.title, 'html'),
-                'Escaped standalone HTML export prepared',
-              )
-            }
-            type="button"
-          >
-            Export HTML
-          </button>
+          <div className="portable-copy-control">
+            <label>
+              <span>Portable copy</span>
+              <select
+                aria-label="Portable copy format"
+                onChange={(event) =>
+                  setExportFormat(event.target.value as PortableDocumentFormat)
+                }
+                value={exportFormat}
+              >
+                <option value="markdown">Markdown · editable</option>
+                <option value="html">HTML · semantic reading copy</option>
+                <option value="text">Text · keeps Markdown punctuation</option>
+              </select>
+            </label>
+            <button
+              className="button button-primary"
+              onClick={downloadPortableCopy}
+              type="button"
+            >
+              Download copy
+            </button>
+          </div>
         </div>
       </header>
 
@@ -621,22 +655,53 @@ export function DocumentWorkspace({
           aria-labelledby="pending-import-title"
         >
           <div>
-            <p className="eyebrow">Quarantined session intake</p>
-            <h2 id="pending-import-title">Review {pendingImport.filename}</h2>
+            <p className="eyebrow">Editable copy review</p>
+            <h2 id="pending-import-title">
+              Review before replacing this draft
+            </h2>
             <p>
+              <strong>{pendingImport.filename}</strong> ·{' '}
               {formatBytes(pendingImport.sizeBytes)} ·{' '}
-              {pendingImport.detectedMediaType}. Original bytes are held only
-              for this browser session.
+              {pendingImport.detectedMediaType}
             </p>
             <p className="intake-warning">
               Synthetic fixture inspection only · no malware scanner or
               sandboxed converter is active.
             </p>
+            <p className="intake-warning">
+              Inspection evidence · {pendingImport.scan.scannerId}
+            </p>
+            <p className="intake-warning">
+              Conversion evidence · {pendingImport.converterId}
+            </p>
+            <code className="source-digest">{pendingImport.sourceId}</code>
             {pendingImport.warnings.map((warning) => (
               <p className="intake-warning" key={warning}>
                 {warning}
               </p>
             ))}
+            <div className="conversion-review-grid">
+              <div>
+                <span className="review-label">What Vidha will keep</span>
+                <ul>
+                  <li>Exact original bytes for download until refresh</li>
+                  <li>Source digest and conversion provenance</li>
+                  <li>A separate schema v1 Editable Document copy</li>
+                </ul>
+              </div>
+              <div>
+                <span className="review-label">Conversion notes</span>
+                <ul>
+                  {pendingImport.conversionWarnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <details className="conversion-preview">
+              <summary>Preview converted copy</summary>
+              <pre>{pendingImport.text}</pre>
+            </details>
           </div>
           <div className="pending-import-actions">
             <button
@@ -651,7 +716,7 @@ export function DocumentWorkspace({
               onClick={() => void approvePendingImport()}
               type="button"
             >
-              Approve decoded text
+              Create editable copy
             </button>
           </div>
         </section>
@@ -732,8 +797,8 @@ export function DocumentWorkspace({
               }}
               type="button"
             >
-              <strong>{envelope.title}</strong>
-              <span>For {envelope.recipient}</span>
+              <strong>{envelope.documentDraft.title}</strong>
+              <span>For {envelope.documentDraft.recipientLabel}</span>
               <span>{`${envelope.attachments.length} Attachment${envelope.attachments.length === 1 ? '' : 's'}`}</span>
             </button>
           ))}
@@ -752,9 +817,10 @@ export function DocumentWorkspace({
               <input
                 className="document-title-input"
                 onChange={(event) =>
-                  updateActiveEnvelope({ title: event.target.value })
+                  updateActiveDocument({ title: event.target.value })
                 }
-                value={selectedEnvelope.title}
+                maxLength={200}
+                value={selectedEnvelope.documentDraft.title}
               />
             </label>
             <div className="editor-modes" aria-label="Editor mode">
@@ -833,18 +899,19 @@ export function DocumentWorkspace({
               aria-label="Envelope Markdown content"
               className="document-textarea"
               onChange={(event) =>
-                updateActiveEnvelope({ body: event.target.value })
+                updateActiveDocument({ markdown: event.target.value })
               }
+              maxLength={1_000_000}
               ref={textareaRef}
               spellCheck="true"
-              value={selectedEnvelope.body}
+              value={selectedEnvelope.documentDraft.markdown}
             />
           ) : (
             <article
               className="document-preview"
               aria-label="Plain-text preview"
             >
-              {selectedEnvelope.body}
+              {selectedEnvelope.documentDraft.markdown}
             </article>
           )}
         </section>
@@ -857,9 +924,9 @@ export function DocumentWorkspace({
             <select
               id="demo-recipient"
               onChange={(event) =>
-                updateActiveEnvelope({ recipient: event.target.value })
+                updateActiveDocument({ recipientLabel: event.target.value })
               }
-              value={selectedEnvelope.recipient}
+              value={selectedEnvelope.documentDraft.recipientLabel}
             >
               {demoRecipients.map((recipient) => (
                 <option key={recipient}>{recipient}</option>
@@ -879,6 +946,24 @@ export function DocumentWorkspace({
                   {selectedEnvelope.importSource.detectedMediaType}
                 </span>
                 <span>Exact original bytes held until refresh</span>
+                <span>
+                  Schema v{selectedEnvelope.importSource.schemaVersion} ·{' '}
+                  {selectedEnvelope.importSource.converterId}
+                </span>
+                <span>
+                  Synthetic inspection ·{' '}
+                  {selectedEnvelope.importSource.scannerId}
+                </span>
+                <code className="source-digest">
+                  {selectedEnvelope.importSource.sourceId}
+                </code>
+                {selectedEnvelope.importSource.conversionWarnings.map(
+                  (warning) => (
+                    <span className="source-note" key={warning}>
+                      {warning}
+                    </span>
+                  ),
+                )}
                 <button
                   className="text-action"
                   onClick={restoreImportedSource}

@@ -1,6 +1,6 @@
 # Proposed architecture
 
-**Status:** Phase 3B is in progress. Its intermediate milestone implements the pure Concern-bounded domain plus disposable PostgreSQL, WebAuthn ceremony, wrapped-key metadata, durable identity/recovery, Plan/audit/outbox, and file/ClamAV/Pandoc adapters described in the current foundation record. The file tools now have a rootless disposable OCI/adversarial gate, but browser authentication, production key custody and restore, production upload isolation and signature updating, real notifications, Guardian authority, and Release remain unimplemented.
+**Status:** Phase 3B has exact-commit disposable evidence for the pure Concern-bounded domain plus PostgreSQL, WebAuthn ceremony, wrapped-key metadata, durable identity/recovery, Plan/audit/outbox, and file/ClamAV/Pandoc adapters. Phase 3C adds a versioned synthetic Editable Document and explicit conversion-review boundary. Browser authentication, durable content storage, production key custody and restore, production upload isolation and signature updating, real notifications, Guardian authority, and Release remain unimplemented.
 
 ## Architectural objective
 
@@ -40,7 +40,7 @@ packages/
   operations/          implemented wrapped metadata, backup, and durable-work contracts
   platform/            implemented disposable PostgreSQL 18 adapters and migrations
   crypto/              proposed reviewed Standard and Sealed Mode boundaries
-  documents/           implemented bounded TXT/Markdown plus executable intake seam
+  documents/           implemented versioned Editable Documents, portability, and bounded executable intake
   notifications/       proposed provider-neutral outbox and templates
   ui/                  proposed shared components if a second client requires them
 infra/
@@ -122,7 +122,7 @@ The synthetic parity harness compares Node SQLite and PGlite behind one Plan tra
 
 ## Document and file boundary
 
-Use a versioned canonical editor schema that can produce portable Markdown and accessible HTML. Importers are untrusted conversion boundaries:
+The implemented `vidha.editable-document` version 1 schema keeps bounded title, Recipient label, and canonical Markdown together behind one module interface. It deterministically serializes canonical JSON and produces exact Markdown/text plus escaped semantic HTML. Importers remain untrusted conversion boundaries:
 
 1. validate declared and detected type and size;
 2. quarantine and scan the original;

@@ -1,0 +1,7 @@
+# Use versioned canonical Markdown for Editable Documents
+
+Vidha's first Editable Document schema uses the identifier `vidha.editable-document`, schema version `1`, and the bounded fields `title`, `recipientLabel`, and `markdown`. Markdown-compatible source text is canonical; portable Markdown and text copies preserve it exactly, while standalone semantic HTML is a derived, escaped reading copy. Canonical JSON serialization uses a fixed field order and parsing fails closed on unknown fields or schema versions.
+
+An imported source remains separate from the Editable Document. Intake moves through quarantined, inspected, reviewable, and approved states; the Owner sees the converted copy, conversion notes, exact-source preservation consequence, and provenance before approval. Approval is bound to the exact reviewed conversion result. Unsupported browser formats remain Attachment candidates and HTML or DOCX conversion stays unavailable until an isolated converter can provide current format-specific evidence.
+
+This deliberately chooses a smaller, portable source model over a proprietary editor document tree or stored HTML. It limits the first editor's formatting vocabulary, but it avoids hidden editor lock-in, makes deterministic export and migration possible, and keeps untrusted conversion output outside the canonical schema until explicit acceptance. A future richer schema requires a new version and an explicit migration; it cannot silently reinterpret version 1 content.

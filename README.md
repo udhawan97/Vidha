@@ -37,7 +37,7 @@ The repository currently provides two kinds of evidence. Neither is a release:
 
 | Path                          | Current status            | What it demonstrates                                                                                                                                                                                                                             |
 | ----------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Local browser prototype       | Available from source     | Draft rehearsal, plan lifecycle controls, Check-ins through Concern, an in-memory event record, and a synthetic Envelope workspace                                                                                                               |
+| Local browser prototype       | Available from source     | Draft rehearsal, plan lifecycle controls, Check-ins through Concern, an in-memory event record, and a versioned synthetic Editable Document workspace                                                                                            |
 | Phase 3B foundations          | Code and disposable tests | Loopback WebAuthn/session rehearsal, PostgreSQL atomic scheduled-command crash/catch-up seams, fenced work, atomic metadata-key rotation, authenticated logical-backup/restore fixtures, and bounded rootless file/ClamAV/Pandoc isolation gates |
 | Hosted service or v1 download | **Unavailable**           | Planned only; no public deployment, installer, supported-browser matrix, or update guarantee exists                                                                                                                                              |
 
@@ -59,10 +59,10 @@ Open the local URL printed by Vite. You can:
 - record an explicit synthetic Check-in and inspect the in-memory event history;
 - edit two synthetic Envelopes and reassign their Recipients;
 - open either demo Envelope directly from its Overview review action;
-- quarantine and review a Markdown or plain-text import up to 256 KB;
+- quarantine, preview, and explicitly accept a Markdown or plain-text conversion up to 256 KB;
 - stage up to eight common document, image, audio, video, data, contact, or ZIP files as session-only Attachment candidates, with a 5 MB per-file and 20 MB per-Envelope fixture limit;
 - review, download, or remove exact Attachment bytes without claiming upload, scanning, safe preview, encryption, persistence, or delivery;
-- create checkpoints, restore or download the original source, and export Markdown, plain text, or escaped standalone HTML.
+- create checkpoints, inspect conversion provenance, restore or download the original source, and download a portable Markdown, text, or escaped semantic HTML copy from schema v1.
 - open the in-app Owner guide for the four-part rehearsal path, role boundaries, file contract, and the consequences of each intended Protection Mode and Release Policy.
 
 Browser import and Attachment handling are synthetic fixtures—not malware scanning, sandboxed conversion, encryption, or delivery. Approved content and exact source bytes remain in memory for the current session only. See the [Owner guide](docs/product/OWNER_GUIDE.md) before using the rehearsal.

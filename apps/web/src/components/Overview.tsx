@@ -247,8 +247,8 @@ export function Overview({
                   {String(index + 1).padStart(2, '0')}
                 </span>
                 <div>
-                  <h3>{envelope.title}</h3>
-                  <p>For {envelope.recipient}</p>
+                  <h3>{envelope.documentDraft.title}</h3>
+                  <p>For {envelope.documentDraft.recipientLabel}</p>
                 </div>
                 <div className="envelope-meta">
                   <span>{envelope.protectionMode}</span>
@@ -256,7 +256,7 @@ export function Overview({
                   <span>{`${envelope.attachments.length} Attachment${envelope.attachments.length === 1 ? '' : 's'}`}</span>
                 </div>
                 <button
-                  aria-label={`Review ${envelope.title}`}
+                  aria-label={`Review ${envelope.documentDraft.title}`}
                   className="envelope-review"
                   onClick={() => onOpenEnvelope(envelope.id)}
                   type="button"

@@ -88,13 +88,33 @@ describe('Vidha synthetic foundation app', () => {
     await user.upload(input, file);
 
     expect(
-      await screen.findByRole('heading', { name: 'Review sample-note.md' }),
+      await screen.findByRole('heading', {
+        name: 'Review before replacing this draft',
+      }),
     ).toBeVisible();
+    expect(screen.getByText('sample-note.md')).toBeVisible();
     expect(
       screen.getByText(/no malware scanner or sandboxed converter is active/i),
     ).toBeVisible();
+    expect(
+      screen.getByText(
+        /Inspection evidence · synthetic-fixture-inspection-no-malware-scan/i,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/Conversion evidence · vidha-utf8-text-v1/i),
+    ).toBeVisible();
+    expect(screen.getByText(/^sha256:[a-f0-9]{64}$/u)).toBeVisible();
+    expect(
+      screen.getByText('Exact original bytes for download until refresh'),
+    ).toBeVisible();
+    expect(
+      screen.getByText('Markdown formatting will remain editable source text.'),
+    ).toBeVisible();
+    await user.click(screen.getByText('Preview converted copy'));
+    expect(screen.getByText('# A synthetic imported note')).toBeVisible();
     await user.click(
-      screen.getByRole('button', { name: 'Approve decoded text' }),
+      screen.getByRole('button', { name: 'Create editable copy' }),
     );
 
     await waitFor(() => {
@@ -104,9 +124,42 @@ describe('Vidha synthetic foundation app', () => {
     });
     expect(screen.getByDisplayValue('sample note')).toBeVisible();
     expect(screen.getByText('sample-note.md')).toBeVisible();
+    expect(screen.getByText(/Schema v1 · vidha-utf8-text-v1/i)).toBeVisible();
+    expect(
+      screen.getByText(
+        /Synthetic inspection · synthetic-fixture-inspection-no-malware-scan/i,
+      ),
+    ).toBeVisible();
+    expect(screen.getByText(/^sha256:[a-f0-9]{64}$/u)).toBeVisible();
     expect(
       screen.getByRole('button', { name: 'Restore imported text' }),
     ).toBeEnabled();
+  });
+
+  it('discards a reviewed conversion without changing the existing draft', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    const existingDraft = screen.getByLabelText('Envelope Markdown content');
+    const existingMarkdown = (existingDraft as HTMLTextAreaElement).value;
+    await user.upload(
+      screen.getByLabelText('Import Markdown or plain text'),
+      new File(['# Replacement'], 'replacement.md', {
+        type: 'text/markdown',
+      }),
+    );
+    await screen.findByRole('heading', {
+      name: 'Review before replacing this draft',
+    });
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+
+    expect(
+      screen.queryByRole('heading', {
+        name: 'Review before replacing this draft',
+      }),
+    ).not.toBeInTheDocument();
+    expect(existingDraft).toHaveValue(existingMarkdown);
   });
 
   it('stages multiple file types as reviewable Attachment candidates', async () => {
@@ -287,27 +340,48 @@ describe('Vidha synthetic foundation app', () => {
       new File([source], 'source.md', { type: 'text/markdown' }),
     );
     await user.click(
-      await screen.findByRole('button', { name: 'Approve decoded text' }),
+      await screen.findByRole('button', { name: 'Create editable copy' }),
     );
     const editor = screen.getByLabelText('Envelope Markdown content');
+    const title = screen.getByLabelText('Document title');
     await user.clear(editor);
     await user.type(editor, 'Changed in the session');
+    await user.clear(title);
+    await user.type(title, 'Keep this revised title');
     await user.click(
       screen.getByRole('button', { name: 'Restore imported text' }),
     );
 
     expect(editor).toHaveValue(source);
+    expect(title).toHaveValue('Keep this revised title');
   });
 
-  it('offers Markdown, plain-text, and standalone HTML copies', async () => {
+  it('offers one clear portable-copy control for Markdown, text, and HTML', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: 'Envelopes' }));
-    expect(
-      screen.getByRole('button', { name: 'Export Markdown' }),
-    ).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Export text' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Export HTML' })).toBeEnabled();
+    const format = screen.getByRole('combobox', {
+      name: 'Portable copy format',
+    });
+    expect(format).toHaveValue('markdown');
+    expect(screen.getByRole('button', { name: 'Download copy' })).toBeEnabled();
+    await user.selectOptions(format, 'html');
+    expect(format).toHaveValue('html');
+    await user.selectOptions(format, 'text');
+    expect(format).toHaveValue('text');
+  });
+
+  it('validates the mutable draft before creating a portable copy', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    await user.clear(screen.getByLabelText('Document title'));
+    await user.click(screen.getByRole('button', { name: 'Download copy' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /title must be 1-200 visible characters/i,
+    );
   });
 });

@@ -48,12 +48,15 @@ test('imports and edits Markdown only inside the temporary session', async ({
   });
 
   await expect(
-    page.getByRole('heading', { name: 'Review browser-rehearsal.md' }),
+    page.getByRole('heading', {
+      name: 'Review before replacing this draft',
+    }),
   ).toBeVisible();
+  await expect(page.getByText('browser-rehearsal.md')).toBeVisible();
   await expect(
     page.getByText('Synthetic fixture inspection only', { exact: false }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Approve decoded text' }).click();
+  await page.getByRole('button', { name: 'Create editable copy' }).click();
 
   await expect(page.getByLabel('Envelope Markdown content')).toHaveValue(
     '# Browser rehearsal\n\nNothing was sent.',
@@ -156,6 +159,30 @@ test('keeps the Draft next action above mobile navigation', async ({
   expect(nextAction!.y + nextAction!.height).toBeLessThan(navigation!.y);
 });
 
+test('keeps conversion review actions reachable at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  await page.getByLabel('Import Markdown or plain text').setInputFiles({
+    buffer: Buffer.from('# Mobile review\n\nNothing was sent.'),
+    mimeType: 'text/markdown',
+    name: 'mobile-review.md',
+  });
+
+  const accept = page.getByRole('button', { name: 'Create editable copy' });
+  await accept.scrollIntoViewIfNeeded();
+  const acceptBox = await accept.boundingBox();
+  const navigation = await page.locator('.app-rail').boundingBox();
+  const viewport = await page.locator('body').evaluate((body) => ({
+    clientWidth: body.clientWidth,
+    scrollWidth: body.scrollWidth,
+  }));
+
+  expect(acceptBox).not.toBeNull();
+  expect(navigation).not.toBeNull();
+  expect(acceptBox!.y + acceptBox!.height).toBeLessThan(navigation!.y);
+  expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth);
+});
+
 test('restores decoded imported text and offers text and HTML copies', async ({
   page,
 }) => {
@@ -165,8 +192,9 @@ test('restores decoded imported text and offers text and HTML copies', async ({
     mimeType: 'text/markdown',
     name: 'source-copy.md',
   });
-  await page.getByRole('button', { name: 'Approve decoded text' }).click();
+  await page.getByRole('button', { name: 'Create editable copy' }).click();
   await expect(page.getByText('source-copy.md')).toBeVisible();
+  await expect(page.getByText(/^sha256:[a-f0-9]{64}$/u)).toBeVisible();
 
   await page.getByLabel('Envelope Markdown content').fill('Changed later');
   await page.getByRole('button', { name: 'Restore imported text' }).click();
@@ -174,8 +202,18 @@ test('restores decoded imported text and offers text and HTML copies', async ({
     '# Source copy\n\nHarmless imported text.',
   );
 
+  const markdownDownload = page.waitForEvent('download');
+  await page.getByLabel('Portable copy format').selectOption('markdown');
+  await page.getByRole('button', { name: 'Download copy' }).click();
+  const markdownCopy = await markdownDownload;
+  await expect(markdownCopy.suggestedFilename()).toBe('source-copy.md');
+  await expect(await readDownload(markdownCopy)).toBe(
+    '# Source copy\n\nHarmless imported text.',
+  );
+
   const textDownload = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export text' }).click();
+  await page.getByLabel('Portable copy format').selectOption('text');
+  await page.getByRole('button', { name: 'Download copy' }).click();
   const textCopy = await textDownload;
   await expect(textCopy.suggestedFilename()).toBe('source-copy.txt');
   await expect(await readDownload(textCopy)).toBe(
@@ -187,7 +225,8 @@ test('restores decoded imported text and offers text and HTML copies', async ({
     .fill('# Source copy\n\n<script>remains text</script>');
 
   const htmlDownload = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export HTML' }).click();
+  await page.getByLabel('Portable copy format').selectOption('html');
+  await page.getByRole('button', { name: 'Download copy' }).click();
   const htmlCopy = await htmlDownload;
   const html = await readDownload(htmlCopy);
   await expect(htmlCopy.suggestedFilename()).toBe('source-copy.html');

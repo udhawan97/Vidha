@@ -16,6 +16,7 @@ export interface ImportLimits {
 
 export interface QuarantinedImport {
   readonly state: 'quarantined';
+  readonly intakeId: string;
   readonly sourceId: string;
   readonly filename: string;
   readonly declaredMediaType: string;
@@ -48,10 +49,18 @@ export interface InspectedImport extends Omit<QuarantinedImport, 'state'> {
   readonly scan: ImportScanResult;
 }
 
-export interface ApprovedTextImport extends Omit<InspectedImport, 'state'> {
-  readonly state: 'approved';
+export interface ReviewableTextImport extends Omit<InspectedImport, 'state'> {
+  readonly state: 'reviewable';
+  readonly converterId: string;
   readonly text: string;
   readonly conversionWarnings: readonly string[];
+}
+
+export interface ApprovedTextImport extends Omit<
+  ReviewableTextImport,
+  'state'
+> {
+  readonly state: 'approved';
 }
 
 export interface ImportScanner {
@@ -68,6 +77,7 @@ export interface TextImportConverter {
 
 export type ImportIntakeErrorCode =
   | 'ACTIVE_CONTENT'
+  | 'CONVERSION_OUTPUT_INVALID'
   | 'INVALID_LIMITS'
   | 'INVALID_UTF8'
   | 'INSPECTION_EVIDENCE_INVALID'
@@ -90,7 +100,8 @@ export class ImportIntakeError extends Error {
 export interface ImportIntake {
   prepare(upload: UntrustedUpload): Promise<QuarantinedImport>;
   inspect(source: QuarantinedImport): Promise<InspectedImport>;
-  approve(source: InspectedImport): Promise<ApprovedTextImport>;
+  review(source: InspectedImport): Promise<ReviewableTextImport>;
+  approve(source: ReviewableTextImport): Promise<ApprovedTextImport>;
 }
 
 interface CreateImportIntakeInput {
@@ -113,6 +124,10 @@ export function createImportIntake({
     string,
     { readonly source: QuarantinedImport; readonly scan: ImportScanResult }
   >();
+  const reviews = new Map<string, ReviewableTextImport>();
+  const converterId = converter.converterId;
+  const convert = converter.convert.bind(converter);
+  let intakeSequence = 0;
 
   return {
     async prepare(upload) {
@@ -151,6 +166,7 @@ export function createImportIntake({
             ];
       const prepared: QuarantinedImport = {
         state: 'quarantined',
+        intakeId: `intake-${++intakeSequence}`,
         sourceId: `sha256:${await sha256(originalBytes)}`,
         filename,
         declaredMediaType: normalizedDeclaredType,
@@ -159,14 +175,14 @@ export function createImportIntake({
         originalBytes,
         warnings,
       };
-      preparedSources.set(prepared.sourceId, cloneQuarantined(prepared));
+      preparedSources.set(prepared.intakeId, cloneQuarantined(prepared));
       return cloneQuarantined(prepared);
     },
     async inspect(source) {
       const submitted = cloneQuarantined(source);
       await assertSourceDigest(submitted);
-      const prepared = preparedSources.get(submitted.sourceId);
-      if (prepared === undefined) {
+      const prepared = preparedSources.get(submitted.intakeId);
+      if (prepared === undefined || !samePreparedSource(prepared, submitted)) {
         throw new ImportIntakeError(
           'INSPECTION_MISMATCH',
           'Inspection requires bytes prepared by this intake.',
@@ -177,7 +193,7 @@ export function createImportIntake({
         ...(await scanner.scan(cloneQuarantined(ownedSource))),
       };
       validateScanEvidence(scan, ownedSource, inspectionPolicy);
-      inspections.set(ownedSource.sourceId, {
+      inspections.set(ownedSource.intakeId, {
         source: cloneQuarantined(ownedSource),
         scan,
       });
@@ -187,12 +203,13 @@ export function createImportIntake({
         scan: { ...scan },
       };
     },
-    async approve(source) {
+    async review(source) {
       const submitted = cloneInspected(source);
       await assertSourceDigest(submitted);
-      const inspection = inspections.get(submitted.sourceId);
+      const inspection = inspections.get(submitted.intakeId);
       if (
         inspection === undefined ||
+        !samePreparedSource(inspection.source, submitted) ||
         !sameScanEvidence(inspection.scan, submitted.scan)
       ) {
         throw new ImportIntakeError(
@@ -211,12 +228,31 @@ export function createImportIntake({
         state: 'inspected',
         scan: { ...inspection.scan },
       };
-      const converted = await converter.convert(cloneInspected(inspected));
-      return {
+      const converted = await convert(cloneInspected(inspected));
+      const validated = validateConvertedText(converted, converterId, limits);
+      const reviewable: ReviewableTextImport = {
         ...cloneInspected(inspected),
+        state: 'reviewable',
+        converterId: validated.converterId,
+        text: validated.text,
+        conversionWarnings: validated.warnings,
+      };
+      reviews.set(reviewable.intakeId, cloneReviewable(reviewable));
+      return cloneReviewable(reviewable);
+    },
+    async approve(source) {
+      const submitted = cloneReviewable(source);
+      await assertSourceDigest(submitted);
+      const reviewed = reviews.get(submitted.intakeId);
+      if (reviewed === undefined || !sameReview(reviewed, submitted)) {
+        throw new ImportIntakeError(
+          'INSPECTION_MISMATCH',
+          'Approval requires the exact converted copy and warnings reviewed through this intake.',
+        );
+      }
+      return {
+        ...cloneReviewable(reviewed),
         state: 'approved',
-        text: converted.text,
-        conversionWarnings: [...converted.warnings],
       };
     },
   };
@@ -227,10 +263,101 @@ export const utf8TextConverter: TextImportConverter = {
   async convert(source) {
     return {
       text: decodeUtf8(source.originalBytes),
-      warnings: [],
+      warnings: [
+        source.detectedMediaType === 'text/markdown'
+          ? 'Markdown formatting will remain editable source text.'
+          : 'Plain text has no formatting metadata; line breaks will be preserved.',
+      ],
     };
   },
 };
+
+function validateConvertedText(
+  converted: unknown,
+  converterId: unknown,
+  limits: ImportLimits,
+): {
+  readonly converterId: string;
+  readonly text: string;
+  readonly warnings: readonly string[];
+} {
+  if (typeof converted !== 'object' || converted === null) {
+    invalidConversionOutput();
+  }
+  let text: unknown;
+  let warningValues: unknown;
+  try {
+    const candidate = converted as { text?: unknown; warnings?: unknown };
+    text = candidate.text;
+    warningValues = candidate.warnings;
+  } catch {
+    invalidConversionOutput();
+  }
+  if (typeof text !== 'string' || !Array.isArray(warningValues)) {
+    invalidConversionOutput();
+  }
+  let warnings: unknown[];
+  try {
+    warnings = Array.from(warningValues);
+  } catch {
+    invalidConversionOutput();
+  }
+  const encodedBytes = new TextEncoder().encode(text).byteLength;
+  const lineCount = text.length === 0 ? 0 : text.split(/\r\n?|\n/u).length;
+  const boundedIdentifier = /^[a-z0-9][a-z0-9._-]{0,95}$/u;
+  if (
+    typeof converterId !== 'string' ||
+    !boundedIdentifier.test(converterId) ||
+    encodedBytes > limits.maxBytes ||
+    lineCount > limits.maxLines ||
+    hasDisallowedConvertedTextControl(text) ||
+    warnings.length > 16 ||
+    warnings.some(
+      (warning) =>
+        typeof warning !== 'string' ||
+        warning.length === 0 ||
+        warning.length > 500 ||
+        hasDisallowedConvertedControl(warning),
+    )
+  ) {
+    invalidConversionOutput();
+  }
+  return {
+    converterId,
+    text,
+    warnings: warnings as string[],
+  };
+}
+
+function invalidConversionOutput(): never {
+  throw new ImportIntakeError(
+    'CONVERSION_OUTPUT_INVALID',
+    'Converted text and warnings must remain within the bounded Editable Document contract.',
+  );
+}
+
+function hasDisallowedConvertedControl(value: string): boolean {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return (
+      (codePoint < 32 && codePoint !== 9 && codePoint !== 10) ||
+      codePoint === 127
+    );
+  });
+}
+
+function hasDisallowedConvertedTextControl(value: string): boolean {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return (
+      (codePoint < 32 &&
+        codePoint !== 9 &&
+        codePoint !== 10 &&
+        codePoint !== 13) ||
+      codePoint === 127
+    );
+  });
+}
 
 function validateLimits(limits: ImportLimits): void {
   if (
@@ -312,6 +439,38 @@ function sameScanEvidence(
   );
 }
 
+function samePreparedSource(
+  left: Omit<QuarantinedImport, 'state'>,
+  right: Omit<QuarantinedImport, 'state'>,
+): boolean {
+  return (
+    left.intakeId === right.intakeId &&
+    left.sourceId === right.sourceId &&
+    left.filename === right.filename &&
+    left.declaredMediaType === right.declaredMediaType &&
+    left.detectedMediaType === right.detectedMediaType &&
+    left.sizeBytes === right.sizeBytes &&
+    left.warnings.length === right.warnings.length &&
+    left.warnings.every((warning, index) => warning === right.warnings[index])
+  );
+}
+
+function sameReview(
+  left: ReviewableTextImport,
+  right: ReviewableTextImport,
+): boolean {
+  return (
+    sameScanEvidence(left.scan, right.scan) &&
+    samePreparedSource(left, right) &&
+    left.converterId === right.converterId &&
+    left.text === right.text &&
+    left.conversionWarnings.length === right.conversionWarnings.length &&
+    left.conversionWarnings.every(
+      (warning, index) => warning === right.conversionWarnings[index],
+    )
+  );
+}
+
 function detectSupportedTextType(filename: string): SupportedTextMediaType {
   if (/\.(md|markdown)$/iu.test(filename)) {
     return 'text/markdown';
@@ -388,5 +547,19 @@ function cloneInspected(source: InspectedImport): InspectedImport {
     originalBytes: Uint8Array.from(source.originalBytes),
     warnings: [...source.warnings],
     scan: { ...source.scan },
+  };
+}
+
+function cloneReviewable(source: ReviewableTextImport): ReviewableTextImport {
+  const inspected: InspectedImport = {
+    ...source,
+    state: 'inspected',
+  };
+  return {
+    ...cloneInspected(inspected),
+    state: 'reviewable',
+    converterId: source.converterId,
+    text: source.text,
+    conversionWarnings: [...source.conversionWarnings],
   };
 }

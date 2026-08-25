@@ -16,31 +16,31 @@ Vidha is a contingency relay for one adult Owner. It keeps each handoff in a rec
 1. Open **Envelopes** and choose a synthetic Envelope.
 2. Confirm the **Recipient**. A Guardian is a different role and never gains content access by providing a Guardian Attestation.
 3. Write the first action the Recipient should take. Add where they can verify it, what may change, and who else can help.
-4. Import TXT or Markdown only when it should become an **Editable Document**. Review the quarantined source, then explicitly approve the decoded text.
+4. Import TXT or Markdown only when it should become an **Editable Document**. Compare the converted preview, conversion notes, and source-preservation consequences before choosing **Create editable copy**.
 5. Use **Add files** for supporting originals that should remain **Attachments** rather than editable content.
 6. Review every staged file before keeping it with the Envelope. Download or remove an Attachment from the Envelope settings.
-7. Save a session checkpoint before a larger change. Export Markdown, plain text, or standalone escaped HTML when you need a portable copy.
+7. Save a session checkpoint before a larger change. Choose one portable-copy format, then download exact Markdown/text source or a standalone escaped semantic HTML reading copy.
 8. Open **Guide** in the app before rehearsing. It explains the consequences of Standard Mode, Sealed Mode, Guardian Attestation first, and Automatic Fallback without presenting unimplemented targets as available.
 
 ## Current file contract
 
-| Use in the synthetic rehearsal | Formats                                  | Limit                   | What happens                                                                                   |
-| ------------------------------ | ---------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
-| Editable text import           | TXT, MD, MARKDOWN                        | 256 KB and 10,000 lines | Exact UTF-8 bytes enter bounded fixture inspection; approved text replaces the current draft   |
-| Document Attachment candidate  | PDF, DOCX, XLSX, PPTX                    | 5 MB per file           | Original bytes stay unchanged in memory; no in-app editing or safe preview is promised         |
-| Image Attachment candidate     | JPG, JPEG, PNG, GIF, WEBP                | 5 MB per file           | Original bytes stay unchanged in memory; image content is not interpreted                      |
-| Media Attachment candidate     | MP3, M4A, WAV, MP4, MOV                  | 5 MB per file           | Original bytes stay unchanged in memory; playback and delivery are not provided                |
-| Data or contact candidate      | CSV, JSON, VCF                           | 5 MB per file           | Original bytes stay unchanged in memory; data is not parsed or treated as authority            |
-| Archive Attachment candidate   | ZIP                                      | 5 MB per file           | Original bytes stay unchanged in memory; archive contents are never opened                     |
-| Envelope session total         | Up to 8 Attachment candidates, all types | 20 MB                   | Count and size limits are prototype fixtures, not the unresolved version 1 Attachment contract |
+| Use in the synthetic rehearsal | Formats                                  | Limit                   | What happens                                                                                                                    |
+| ------------------------------ | ---------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Editable text import           | TXT, MD, MARKDOWN                        | 256 KB and 10,000 lines | Exact UTF-8 bytes enter bounded fixture inspection; a reviewed schema v1 copy replaces the draft only after explicit acceptance |
+| Document Attachment candidate  | PDF, DOCX, XLSX, PPTX                    | 5 MB per file           | Original bytes stay unchanged in memory; no in-app editing or safe preview is promised                                          |
+| Image Attachment candidate     | JPG, JPEG, PNG, GIF, WEBP                | 5 MB per file           | Original bytes stay unchanged in memory; image content is not interpreted                                                       |
+| Media Attachment candidate     | MP3, M4A, WAV, MP4, MOV                  | 5 MB per file           | Original bytes stay unchanged in memory; playback and delivery are not provided                                                 |
+| Data or contact candidate      | CSV, JSON, VCF                           | 5 MB per file           | Original bytes stay unchanged in memory; data is not parsed or treated as authority                                             |
+| Archive Attachment candidate   | ZIP                                      | 5 MB per file           | Original bytes stay unchanged in memory; archive contents are never opened                                                      |
+| Envelope session total         | Up to 8 Attachment candidates, all types | 20 MB                   | Count and size limits are prototype fixtures, not the unresolved version 1 Attachment contract                                  |
 
-HTML, SVG, scripts, executables, macro-enabled Office files, and other unlisted types are excluded from the browser fixture. This is an allowlist, not a claim that accepted files are safe. The production target still requires exact-byte classification, quarantine, malware scanning, isolated conversion, archive defenses, and durable source preservation.
+HTML, SVG, scripts, executables, macro-enabled Office files, and other unlisted types are excluded from the browser-editable fixture. DOCX may remain a session Attachment, but neither DOCX nor HTML becomes editable without an isolated converter. This is an allowlist, not a claim that accepted files are safe. The production target still requires exact-byte classification, quarantine, malware scanning, isolated format-specific conversion, archive defenses, and durable source preservation.
 
 ## What each choice entails
 
 ### Editable Document versus Attachment
 
-An Editable Document is the canonical copy Vidha can help the Owner revise and export. Conversion may change formatting, so an original source remains distinct. An Attachment preserves the original file without pretending Vidha can safely edit or render every format.
+An Editable Document is the versioned canonical copy Vidha can help the Owner revise and export. Version 1 keeps Markdown-compatible source and produces exact Markdown plus derived semantic HTML. Conversion may change formatting, so the original source, digest, converter identity, and conversion notes remain distinct. An Attachment preserves the original file without pretending Vidha can safely edit or render every format.
 
 ### Standard Mode versus Sealed Mode
 
