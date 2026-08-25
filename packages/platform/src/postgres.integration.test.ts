@@ -44,6 +44,8 @@ const SECOND_SESSION = `session_${'e'.repeat(64)}`;
 const JOB_ID = `job_${'1'.repeat(64)}`;
 const PLAN_ID = 'plan_postgres_fixture';
 const PLAN_OWNER_ID = 'owner_postgres_fixture';
+const RECOVERY_LOCK_BASE_MS = 1_000;
+const RECOVERY_LOCK_MAX_MS = 4_000;
 
 function commandKey(character: string): string {
   return `cmd_${character.repeat(64)}`;
@@ -99,9 +101,9 @@ suite('disposable PostgreSQL 18 platform', () => {
       installationId: `installation_${'3'.repeat(64)}`,
       mode: 'live',
       recoveryProofAbusePolicy: {
-        baseLockMs: 40,
+        baseLockMs: RECOVERY_LOCK_BASE_MS,
         failureThreshold: 2,
-        maxLockMs: 160,
+        maxLockMs: RECOVERY_LOCK_MAX_MS,
       },
     });
     apiPlatform = await createPostgresPlatform({
@@ -115,9 +117,9 @@ suite('disposable PostgreSQL 18 platform', () => {
       manageSchema: false,
       mode: 'live',
       recoveryProofAbusePolicy: {
-        baseLockMs: 40,
+        baseLockMs: RECOVERY_LOCK_BASE_MS,
         failureThreshold: 2,
-        maxLockMs: 160,
+        maxLockMs: RECOVERY_LOCK_MAX_MS,
       },
     });
     workerPool = new Pool({
@@ -978,7 +980,7 @@ suite('disposable PostgreSQL 18 platform', () => {
     const firstLock = await recoveryLock(attempts[1]!.attemptId);
     expect((await coordinator.read(OWNER_ID))?.recovery).toBeNull();
 
-    await new Promise((resolve) => setTimeout(resolve, 70));
+    await waitForRecoveryUnlock(firstLock);
     await beginRecovery(coordinator, attempts[2]!, 1);
     await coordinator.authenticate({
       assertion: 'fixture',
@@ -999,11 +1001,11 @@ suite('disposable PostgreSQL 18 platform', () => {
     await expect(
       beginRecovery(coordinator, attempts[4]!, 3, 'wrong-saved'),
     ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
+    const secondLock = await recoveryLock(attempts[4]!.attemptId);
+    expect(secondLock).toBeGreaterThanOrEqual(RECOVERY_LOCK_BASE_MS * 1.5);
     await expect(
       beginRecovery(coordinator, attempts[5]!, 3),
     ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
-    const secondLock = await recoveryLock(attempts[4]!.attemptId);
-    expect(secondLock - firstLock).toBeGreaterThanOrEqual(40);
     const failures = await apiPlatform.pool.query<{ total: string }>(
       `SELECT SUM(failures)::text AS total FROM recovery_proof_attempts
        WHERE owner_id = $1`,
@@ -1011,7 +1013,7 @@ suite('disposable PostgreSQL 18 platform', () => {
     );
     expect(failures.rows[0]?.total).toBe('4');
 
-    await new Promise((resolve) => setTimeout(resolve, 110));
+    await waitForRecoveryUnlock(secondLock);
     await expect(
       beginRecovery(coordinator, attempts[5]!, 3),
     ).resolves.toMatchObject({
@@ -1019,11 +1021,19 @@ suite('disposable PostgreSQL 18 platform', () => {
     });
 
     async function recoveryLock(attemptId: string): Promise<number> {
-      const result = await apiPlatform.pool.query<{ locked_until: string }>(
-        'SELECT locked_until::text FROM recovery_proof_attempts WHERE attempt_id = $1',
+      const result = await apiPlatform.pool.query<{ remaining_ms: string }>(
+        `SELECT GREATEST(
+            0,
+            locked_until - floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint
+          )::text AS remaining_ms
+         FROM recovery_proof_attempts WHERE attempt_id = $1`,
         [attemptId],
       );
-      return Number(result.rows[0]?.locked_until);
+      return Number(result.rows[0]?.remaining_ms);
+    }
+
+    async function waitForRecoveryUnlock(remainingMs: number): Promise<void> {
+      await new Promise((resolve) => setTimeout(resolve, remainingMs + 25));
     }
   });
 

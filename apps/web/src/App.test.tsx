@@ -88,7 +88,7 @@ describe('Vidha synthetic foundation app', () => {
     await user.upload(input, file);
 
     expect(
-      screen.getByRole('heading', { name: 'Review sample-note.md' }),
+      await screen.findByRole('heading', { name: 'Review sample-note.md' }),
     ).toBeVisible();
     expect(
       screen.getByText(/no malware scanner or sandboxed converter is active/i),
@@ -124,7 +124,7 @@ describe('Vidha synthetic foundation app', () => {
     ]);
 
     expect(
-      screen.getByRole('heading', {
+      await screen.findByRole('heading', {
         name: 'Keep 2 files with this Envelope?',
       }),
     ).toBeVisible();
@@ -287,7 +287,7 @@ describe('Vidha synthetic foundation app', () => {
       new File([source], 'source.md', { type: 'text/markdown' }),
     );
     await user.click(
-      screen.getByRole('button', { name: 'Approve decoded text' }),
+      await screen.findByRole('button', { name: 'Approve decoded text' }),
     );
     const editor = screen.getByLabelText('Envelope Markdown content');
     await user.clear(editor);
