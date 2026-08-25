@@ -333,7 +333,6 @@ export function createRootlessOciProcessExecutor(
               '--label',
               `vidha.import.role=${input.role}`,
               '--network=none',
-              '--dns=none',
               '--read-only',
               '--read-only-tmpfs=false',
               '--cap-drop=all',

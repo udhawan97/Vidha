@@ -37,6 +37,7 @@ chmod 700 "$XDG_RUNTIME_DIR" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
 
 cleanup() {
   podman rm --force --ignore "$clamd_name" >/dev/null 2>&1 || true
+  podman system reset --force >/dev/null 2>&1 || true
   chmod -R u+w "$fixture_root" >/dev/null 2>&1 || true
   case "$fixture_root" in
     "$runner_temp"/vidha-import-isolation.*)
@@ -105,7 +106,6 @@ podman run \
   --label "vidha.import.run=$run_id" \
   --label 'vidha.import.role=signature-updater' \
   --network=none \
-  --dns=none \
   --read-only \
   --read-only-tmpfs=false \
   --cap-drop=all \
@@ -161,7 +161,6 @@ podman run \
   --label "vidha.import.run=$run_id" \
   --label 'vidha.import.role=scanner-runtime' \
   --network=none \
-  --dns=none \
   --read-only \
   --read-only-tmpfs=false \
   --cap-drop=all \
