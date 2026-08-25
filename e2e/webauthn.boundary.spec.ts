@@ -16,9 +16,9 @@ test('keeps the disposable identity surface same-origin and non-claiming', async
   await expect(
     page.getByText('Disposable loopback rehearsal · synthetic identity only'),
   ).toBeVisible();
-  await expect(
-    page.getByText(/does not create a real Vidha account or contact anyone/u),
-  ).toBeVisible();
+  await expect(page.locator('.lede')).toContainText(
+    'It does not create a real Vidha account or contact anyone.',
+  );
 
   const geometry = await page.evaluate(() => ({
     body: document.body.scrollWidth,
