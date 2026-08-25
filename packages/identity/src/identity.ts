@@ -252,6 +252,7 @@ export interface OwnerIdentityCoordinator extends SessionVerifier {
     readonly assertion: string;
     readonly credentialId: string;
     readonly ownerId: string;
+    readonly replacesSessionId?: string;
   }): Promise<AuthenticationSession>;
   execute(command: IdentityCommand): Promise<IdentityResult>;
   read(ownerId: string): Promise<OwnerIdentityState | null>;
@@ -356,8 +357,36 @@ export function createOwnerIdentityCoordinator({
           expiresAt,
           sessionEpoch: state.sessionEpoch,
         };
+        let sessionState = state;
+        if (input.replacesSessionId !== undefined) {
+          validateSessionId(input.replacesSessionId);
+          const replacedDigest = await digestSessionId(input.replacesSessionId);
+          const replaced = state.sessions.find(
+            (candidate) =>
+              candidate.sessionDigest === replacedDigest &&
+              candidate.revokedAt === undefined &&
+              candidate.sessionEpoch === state.sessionEpoch &&
+              candidate.authenticatedAt <= at &&
+              candidate.expiresAt >= at,
+          );
+          if (replaced === undefined) {
+            denied('The session selected for rotation is not active.');
+          }
+          sessionState = appendEvent(
+            {
+              ...state,
+              sessions: state.sessions.map((candidate) =>
+                candidate.sessionDigest === replacedDigest
+                  ? { ...candidate, revokedAt: at }
+                  : candidate,
+              ),
+            },
+            'SESSION_REVOKED',
+            at,
+          );
+        }
         const next = appendEvent(
-          { ...state, sessions: [...state.sessions, session] },
+          { ...sessionState, sessions: [...sessionState.sessions, session] },
           'SESSION_ISSUED',
           at,
         );

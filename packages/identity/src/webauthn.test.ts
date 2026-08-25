@@ -166,6 +166,8 @@ describe('WebAuthn ceremony coordinator', () => {
       },
       attestation: 'none',
     });
+    expect(started.options.user.id).toHaveLength(43);
+    expect(started.options.user.id).not.toContain(OWNER_ID);
 
     const credential = await runtime.coordinator.finishRegistration({
       ceremonyId: started.ceremonyId,

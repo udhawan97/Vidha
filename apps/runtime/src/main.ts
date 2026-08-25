@@ -9,6 +9,8 @@ import {
   type PostgresOperationsStore,
 } from '@vidha/platform';
 
+import { createIdentityRehearsalHandler } from './identityApi';
+
 const role = required('VIDHA_ROLE');
 if (role !== 'api' && role !== 'worker' && role !== 'migrate') {
   throw new Error('VIDHA_ROLE must be api, worker, or migrate.');
@@ -40,20 +42,34 @@ function startApi(): void {
   if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
     throw new Error('PORT is invalid.');
   }
+  const identityRehearsal =
+    process.env.VIDHA_ENABLE_IDENTITY_REHEARSAL === '1'
+      ? createIdentityRehearsalHandler({
+          bootstrapCapabilityDigest: required(
+            'VIDHA_BOOTSTRAP_CAPABILITY_DIGEST',
+          ),
+          csrfSecret: required('VIDHA_CSRF_SECRET'),
+          identityRepository: platform.identityRepository,
+          publicOrigin: required('VIDHA_PUBLIC_ORIGIN'),
+          rpId: required('VIDHA_RP_ID'),
+          verifiedChannelRef: required('VIDHA_VERIFIED_CHANNEL_REF'),
+          webAuthnStore: platform.webAuthnStore,
+        })
+      : null;
+  const bindHost = process.env.VIDHA_BIND_HOST ?? '0.0.0.0';
+  if (identityRehearsal !== null && bindHost !== '127.0.0.1') {
+    throw new Error(
+      'The disposable identity rehearsal must bind only to 127.0.0.1.',
+    );
+  }
   const server = createServer(async (request, response) => {
     response.setHeader('content-type', 'application/json; charset=utf-8');
     response.setHeader('cache-control', 'no-store');
-    if (request.method !== 'GET') {
-      response
-        .writeHead(405)
-        .end(JSON.stringify({ status: 'method_not_allowed' }));
-      return;
-    }
-    if (request.url === '/healthz') {
+    if (request.method === 'GET' && request.url === '/healthz') {
       response.writeHead(200).end(JSON.stringify({ status: 'ok', role, mode }));
       return;
     }
-    if (request.url === '/readyz') {
+    if (request.method === 'GET' && request.url === '/readyz') {
       try {
         const readiness = await platform.readiness();
         response.writeHead(200).end(
@@ -70,9 +86,21 @@ function startApi(): void {
       }
       return;
     }
+    if (
+      identityRehearsal !== null &&
+      (await identityRehearsal.handle(request, response))
+    ) {
+      return;
+    }
+    if (request.method !== 'GET') {
+      response
+        .writeHead(405)
+        .end(JSON.stringify({ status: 'method_not_allowed' }));
+      return;
+    }
     response.writeHead(404).end(JSON.stringify({ status: 'not_found' }));
   });
-  server.listen(port, '0.0.0.0');
+  server.listen(port, bindHost);
   const close = async () => {
     server.close();
     await platform.close();

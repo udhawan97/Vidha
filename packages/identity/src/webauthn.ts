@@ -145,7 +145,11 @@ export interface WebAuthnCeremonyCoordinator {
     readonly ceremonyId: string;
     readonly response: AuthenticationResponseJSON;
     readonly purpose: 'authenticate' | 'reauthenticate';
-  }): Promise<{ readonly proofId: string }>;
+  }): Promise<{
+    readonly credentialId: string;
+    readonly ownerId: string;
+    readonly proofId: string;
+  }>;
   consumeAuthenticationProof(input: {
     readonly proofId: string;
     readonly ownerId: string;
@@ -376,7 +380,11 @@ export function createWebAuthnCeremonyCoordinator({
         authenticatedAt: at,
         expiresAt: safeAdd(at, policy.proofLifetimeMs),
       });
-      return { proofId };
+      return {
+        credentialId: credential.credentialId,
+        ownerId: ceremony.ownerId,
+        proofId,
+      };
     },
     async consumeAuthenticationProof(input) {
       const proof = await store.consumeProof({
@@ -401,7 +409,7 @@ export const simpleWebAuthnServerAdapter: WebAuthnServerAdapter = {
       rpID: input.rpId,
       userName: input.ownerId,
       userDisplayName: 'Disposable Vidha Owner',
-      userID: new TextEncoder().encode(input.ownerId),
+      userID: await sha256Bytes(input.ownerId),
       challenge: fromBase64Url(input.challenge),
       timeout: input.timeoutMs,
       attestationType: 'none',
@@ -660,13 +668,16 @@ function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
 }
 
 async function sha256(value: string): Promise<string> {
+  const digest = await sha256Bytes(value);
+  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function sha256Bytes(value: string): Promise<Uint8Array<ArrayBuffer>> {
   const digest = await globalThis.crypto.subtle.digest(
     'SHA-256',
     new TextEncoder().encode(value),
   );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  return new Uint8Array(digest);
 }
 
 async function constantTimeDigestMatch(

@@ -44,6 +44,9 @@ importers:
 
   apps/runtime:
     dependencies:
+      '@vidha/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       '@vidha/operations':
         specifier: workspace:*
         version: link:../../packages/operations

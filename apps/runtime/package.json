@@ -6,9 +6,11 @@
   "scripts": {
     "build": "node build.mjs",
     "start": "node dist/main.mjs",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vidha/identity": "workspace:*",
     "@vidha/operations": "workspace:*",
     "@vidha/platform": "workspace:*",
     "pg": "8.23.0"

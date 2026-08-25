@@ -29,6 +29,7 @@ const NEXT_CHANNEL = `channel_${hex('next-channel')}`;
 const OTHER_CHANNEL = `channel_${hex('other-channel')}`;
 const SESSION = `session_${hex('session')}`;
 const SECOND_SESSION = `session_${hex('second-session')}`;
+const THIRD_SESSION = `session_${hex('third-session')}`;
 
 type CommandInput<T> = T extends IdentityCommand
   ? Omit<T, 'expectedSecurityRevision' | 'idempotencyKey'>
@@ -147,6 +148,36 @@ describe('Owner Identity coordinator', () => {
     await expect(
       runtime.coordinator.verify(SESSION, START + HOUR + 1),
     ).resolves.toBeNull();
+  });
+
+  it('atomically replaces an active session after fresh authentication', async () => {
+    const runtime = await initialized();
+    await authenticate(runtime);
+    runtime.queueSessionId(SECOND_SESSION);
+
+    const rotated = await runtime.coordinator.authenticate({
+      assertion: 'verified-assertion',
+      credentialId: FIRST_CREDENTIAL,
+      ownerId: OWNER_ID,
+      replacesSessionId: SESSION,
+    });
+
+    expect(rotated.sessionId).toBe(SECOND_SESSION);
+    await expect(
+      runtime.coordinator.verify(SESSION, runtime.now()),
+    ).resolves.toBeNull();
+    await expect(
+      runtime.coordinator.verify(SECOND_SESSION, runtime.now()),
+    ).resolves.toEqual(rotated);
+    runtime.queueSessionId(THIRD_SESSION);
+    await expect(
+      runtime.coordinator.authenticate({
+        assertion: 'verified-assertion',
+        credentialId: FIRST_CREDENTIAL,
+        ownerId: OWNER_ID,
+        replacesSessionId: SESSION,
+      }),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_DENIED' });
   });
 
   it('fails closed when the server session generator collides across Owners', async () => {
