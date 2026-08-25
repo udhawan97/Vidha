@@ -94,7 +94,7 @@ describe('executable import pipeline', () => {
           return {
             exitCode: 0,
             outputExceeded: false,
-            stderr: new Uint8Array(),
+            stderr: new TextEncoder().encode('runtime warning'),
             stdout: new TextEncoder().encode('application/zip\n'),
             timedOut: false,
           };

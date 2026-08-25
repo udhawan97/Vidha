@@ -178,7 +178,8 @@ podman run \
   --config-file=/vidha-config/clamd.conf >/dev/null
 
 for attempt in $(seq 1 90); do
-  if [[ -S "$socket_directory/clamd.sock" ]]; then
+  if [[ -S "$socket_directory/clamd.sock" ]] && \
+    VIDHA_SOCKET="$socket_directory/clamd.sock" node -e "const net=require('node:net');const socket=net.connect(process.env.VIDHA_SOCKET,()=>socket.write('zPING\\0'));const timer=setTimeout(()=>{socket.destroy();process.exit(1)},1000);socket.on('data',(data)=>{if(data.toString().includes('PONG')){clearTimeout(timer);socket.destroy();process.exit(0)}});socket.on('error',()=>process.exit(1))"; then
     break
   fi
   if [[ "$attempt" -eq 90 ]]; then
@@ -208,7 +209,6 @@ VIDHA_OCI_XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
 VIDHA_OCI_XDG_DATA_HOME="$XDG_DATA_HOME" \
 VIDHA_OCI_XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
 VIDHA_SYNTHETIC_PARENT_CREDENTIAL='synthetic-private-content-canary' \
-TMPDIR="$job_directory" \
 pnpm --filter @vidha/documents test:isolation 2>&1 | tee "$test_log"
 
 if grep --fixed-strings 'synthetic-private-content-canary' "$test_log"; then

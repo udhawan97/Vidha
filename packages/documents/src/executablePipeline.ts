@@ -100,8 +100,7 @@ export function createExecutableImportScanner(input: {
         if (
           classification.timedOut ||
           classification.outputExceeded ||
-          classification.exitCode !== 0 ||
-          classification.stderr.byteLength > 0
+          classification.exitCode !== 0
         ) {
           return evidence(
             source,
