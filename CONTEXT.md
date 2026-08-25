@@ -58,6 +58,10 @@ _Avoid_: Will, payload
 Owner-authored content held in the versioned `vidha.editable-document` schema. Version 1 uses a title, Recipient label, and canonical Markdown-compatible source so portable Markdown and derived semantic HTML do not depend on one proprietary editor. Imported originals and conversion provenance remain separate from this editable copy.
 _Avoid_: Arbitrary file, Attachment
 
+**Document Version**:
+A canonical point-in-time snapshot of one Editable Document's title, Recipient label, and Markdown. The current synthetic rehearsal keeps a bounded, in-memory session history and preserves the current draft before a restore; it never includes Attachments, imported-source provenance, durable storage, or an entire Envelope.
+_Avoid_: Checkpoint, backup, Envelope snapshot
+
 **Attachment**:
 An original file preserved with an Envelope for preview or download without a promise that its native format can be edited in Vidha.
 _Avoid_: Editable Document

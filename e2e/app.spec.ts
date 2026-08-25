@@ -101,11 +101,13 @@ test('rehearses explicit Plan pause, fresh resume, and terminal disable', async 
   await expect(page.getByText('Concern is active')).toHaveCount(0);
 });
 
-test('keeps Recipient history and checkpoints for the page session', async ({
+test('keeps undo history and safely restores session Document Versions', async ({
   page,
 }) => {
   await page.getByRole('button', { name: 'Envelopes' }).click();
-  await page.getByRole('button', { name: 'Save checkpoint' }).click();
+  const title = page.getByLabel('Document title');
+  const originalTitle = await title.inputValue();
+  await page.getByRole('button', { name: 'Save version' }).click();
   await page.getByLabel('Recipient').selectOption('Sam Rivera');
   await expect(page.getByLabel('Recipient')).toHaveValue('Sam Rivera');
 
@@ -117,16 +119,77 @@ test('keeps Recipient history and checkpoints for the page session', async ({
   await page.getByRole('button', { name: 'Redo session edit' }).click();
   await expect(page.getByLabel('Recipient')).toHaveValue('Sam Rivera');
 
-  await page.getByRole('button', { name: 'Save checkpoint' }).click();
-  const checkpointButtons = page.locator('[data-checkpoint-id]');
-  await expect(checkpointButtons).toHaveCount(2);
-  const checkpointIds = await checkpointButtons.evaluateAll((buttons) =>
-    buttons.map((button) => button.getAttribute('data-checkpoint-id')),
+  await title.fill('Current draft');
+  await page.getByRole('button', { name: 'Save version' }).click();
+  await page
+    .getByLabel('Envelope Markdown content')
+    .fill('# Unsaved current draft');
+  const versionButtons = page.locator('[data-version-id]');
+  await expect(versionButtons).toHaveCount(2);
+  const versionIds = await versionButtons.evaluateAll((buttons) =>
+    buttons.map((button) => button.getAttribute('data-version-id')),
   );
-  expect(new Set(checkpointIds).size).toBe(2);
+  expect(new Set(versionIds).size).toBe(2);
 
-  await page.getByRole('button', { name: 'Restore checkpoint 2' }).click();
+  await page
+    .getByRole('button', { name: `Review Version 1: ${originalTitle}` })
+    .click();
+  const dialog = page.getByRole('dialog', { name: 'Restore Version 1?' });
+  await expect(dialog).toContainText(
+    `Current title: Current draft→Restored title: ${originalTitle}`,
+  );
+  await expect(dialog).toContainText(
+    'Current Recipient: Sam Rivera→Restored Recipient: Mira Chen',
+  );
+  await expect(dialog).toContainText('Version 1 content preview');
+  await expect(dialog).toContainText(
+    'Your current draft remains available as Version 3.',
+  );
+  const keepCurrent = page.getByRole('button', { name: 'Keep current draft' });
+  const restoreDocument = page.getByRole('button', {
+    name: 'Restore document',
+  });
+  await expect(keepCurrent).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(restoreDocument).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(keepCurrent).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  const reviewVersion = page.getByRole('button', {
+    name: `Review Version 1: ${originalTitle}`,
+  });
+  await expect(reviewVersion).toBeFocused();
+  await reviewVersion.click();
+  await page.getByRole('button', { name: 'Restore document' }).click();
+
   await expect(page.getByLabel('Recipient')).toHaveValue('Mira Chen');
+  await expect(title).toHaveValue(originalTitle);
+  await expect(versionButtons).toHaveCount(3);
+});
+
+test('keeps the version restore confirmation reachable at 375px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  const originalTitle = await page.getByLabel('Document title').inputValue();
+  await page.getByRole('button', { name: 'Save version' }).click();
+  await page.getByLabel('Document title').fill('Mobile current draft');
+  await page
+    .getByRole('button', { name: `Review Version 1: ${originalTitle}` })
+    .click();
+
+  const restore = page.getByRole('button', { name: 'Restore document' });
+  const restoreBox = await restore.boundingBox();
+  const viewport = await page.locator('body').evaluate((body) => ({
+    clientWidth: body.clientWidth,
+    scrollWidth: body.scrollWidth,
+  }));
+
+  expect(restoreBox).not.toBeNull();
+  expect(restoreBox!.y + restoreBox!.height).toBeLessThanOrEqual(812);
+  expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth);
 });
 
 test('opens the intended Envelope from the overview review action', async ({
@@ -194,7 +257,37 @@ test('restores decoded imported text and offers text and HTML copies', async ({
   });
   await page.getByRole('button', { name: 'Create editable copy' }).click();
   await expect(page.getByText('source-copy.md')).toBeVisible();
-  await expect(page.getByText(/^sha256:[a-f0-9]{64}$/u)).toBeVisible();
+  const sourceDigest = page.getByText(/^sha256:[a-f0-9]{64}$/u);
+  const digestText = await sourceDigest.textContent();
+  await expect(sourceDigest).toBeVisible();
+  await expect(
+    page.getByText(
+      'Synthetic inspection · synthetic-fixture-inspection-no-malware-scan',
+    ),
+  ).toBeVisible();
+  await expect(page.getByText('Schema v1 · vidha-utf8-text-v1')).toBeVisible();
+  const conversionWarning = page.getByText(
+    'Markdown formatting will remain editable source text.',
+  );
+  await expect(conversionWarning).toBeVisible();
+
+  await page.getByRole('button', { name: 'Save version' }).click();
+  await page.getByLabel('Document title').fill('Changed after import');
+  await page.getByLabel('Recipient').selectOption('Sam Rivera');
+  await page.getByLabel('Envelope Markdown content').fill('Changed later');
+  await page
+    .getByRole('button', { name: 'Review Version 1: source copy' })
+    .click();
+  await page.getByRole('button', { name: 'Restore document' }).click();
+  await expect(page.getByText('source-copy.md')).toBeVisible();
+  await expect(sourceDigest).toHaveText(digestText ?? '');
+  await expect(
+    page.getByText(
+      'Synthetic inspection · synthetic-fixture-inspection-no-malware-scan',
+    ),
+  ).toBeVisible();
+  await expect(page.getByText('Schema v1 · vidha-utf8-text-v1')).toBeVisible();
+  await expect(conversionWarning).toBeVisible();
 
   await page.getByLabel('Envelope Markdown content').fill('Changed later');
   await page.getByRole('button', { name: 'Restore imported text' }).click();
@@ -332,6 +425,20 @@ test('has no serious or critical automated accessibility violations', async ({
 
     expect(materialViolations, `${view} accessibility`).toEqual([]);
   }
+
+  await page.getByRole('button', { name: 'Envelopes', exact: true }).click();
+  const originalTitle = await page.getByLabel('Document title').inputValue();
+  await page.getByRole('button', { name: 'Save version' }).click();
+  await page.getByLabel('Document title').fill('Accessibility review draft');
+  await page
+    .getByRole('button', { name: `Review Version 1: ${originalTitle}` })
+    .click();
+  const dialogResults = await new AxeBuilder({ page }).analyze();
+  const dialogViolations = dialogResults.violations.filter(({ impact }) =>
+    ['serious', 'critical'].includes(impact ?? ''),
+  );
+
+  expect(dialogViolations, 'restore dialog accessibility').toEqual([]);
 });
 
 test('uses the motion-aware working-concept icon with a reduced-motion fallback', async ({

@@ -19,7 +19,7 @@ Vidha is a contingency relay for one adult Owner. It keeps each handoff in a rec
 4. Import TXT or Markdown only when it should become an **Editable Document**. Compare the converted preview, conversion notes, and source-preservation consequences before choosing **Create editable copy**.
 5. Use **Add files** for supporting originals that should remain **Attachments** rather than editable content.
 6. Review every staged file before keeping it with the Envelope. Download or remove an Attachment from the Envelope settings.
-7. Save a session checkpoint before a larger change. Choose one portable-copy format, then download exact Markdown/text source or a standalone escaped semantic HTML reading copy.
+7. Save a **Document Version** before a larger change. Restoring shows which title, Recipient, and Markdown fields will change and preserves the current draft first; it never changes Attachments or imported-source provenance. This bounded history clears on refresh and is not autosave or backup. Choose one portable-copy format, then download exact Markdown/text source or a standalone escaped semantic HTML reading copy.
 8. Open **Guide** in the app before rehearsing. It explains the consequences of Standard Mode, Sealed Mode, Guardian Attestation first, and Automatic Fallback without presenting unimplemented targets as available.
 
 ## Current file contract
@@ -41,6 +41,8 @@ HTML, SVG, scripts, executables, macro-enabled Office files, and other unlisted 
 ### Editable Document versus Attachment
 
 An Editable Document is the versioned canonical copy Vidha can help the Owner revise and export. Version 1 keeps Markdown-compatible source and produces exact Markdown plus derived semantic HTML. Conversion may change formatting, so the original source, digest, converter identity, and conversion notes remain distinct. An Attachment preserves the original file without pretending Vidha can safely edit or render every format.
+
+A Document Version is one point-in-time copy of only the Editable Document title, Recipient label, and Markdown. The prototype keeps at most six per Envelope in the current browser session, suppresses an unchanged latest copy, and preserves the current draft before a confirmed restore. It does not version Attachments, imported-source provenance, or other Envelope settings, and it provides no durable history or recovery guarantee.
 
 ### Standard Mode versus Sealed Mode
 

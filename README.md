@@ -62,7 +62,7 @@ Open the local URL printed by Vite. You can:
 - quarantine, preview, and explicitly accept a Markdown or plain-text conversion up to 256 KB;
 - stage up to eight common document, image, audio, video, data, contact, or ZIP files as session-only Attachment candidates, with a 5 MB per-file and 20 MB per-Envelope fixture limit;
 - review, download, or remove exact Attachment bytes without claiming upload, scanning, safe preview, encryption, persistence, or delivery;
-- create checkpoints, inspect conversion provenance, restore or download the original source, and download a portable Markdown, text, or escaped semantic HTML copy from schema v1.
+- save up to six document-only session versions, review exactly which fields a restore changes, preserve the current draft before restoring, inspect conversion provenance, restore or download the original source, and download a portable Markdown, text, or escaped semantic HTML copy from schema v1;
 - open the in-app Owner guide for the four-part rehearsal path, role boundaries, file contract, and the consequences of each intended Protection Mode and Release Policy.
 
 Browser import and Attachment handling are synthetic fixtures—not malware scanning, sandboxed conversion, encryption, or delivery. Approved content and exact source bytes remain in memory for the current session only. See the [Owner guide](docs/product/OWNER_GUIDE.md) before using the rehearsal.
@@ -107,17 +107,17 @@ Read the [threat model](docs/security/THREAT_MODEL.md) before treating any imple
 
 Vidha is a TypeScript monorepo. Safety-sensitive state transitions remain in framework-independent packages; the React client and infrastructure adapters consume those decisions rather than recreating them.
 
-| Path                                             | Responsibility                                         |
-| ------------------------------------------------ | ------------------------------------------------------ |
-| [`apps/web/`](apps/web/)                         | Responsive React/Vite synthetic PWA prototype          |
-| [`apps/runtime/`](apps/runtime/)                 | Disposable API/worker/migrator image                   |
-| [`packages/domain/`](packages/domain/)           | Pure lifecycle, Check-in, and Concern decisions        |
-| [`packages/application/`](packages/application/) | Canonical-session and authorization seam               |
-| [`packages/identity/`](packages/identity/)       | Synthetic Owner identity and recovery contracts        |
-| [`packages/operations/`](packages/operations/)   | Encrypted-metadata and durable-work contracts          |
-| [`packages/persistence/`](packages/persistence/) | Disposable Plan-store adapters and parity tests        |
-| [`packages/platform/`](packages/platform/)       | PostgreSQL identity, Plan, and operations seams        |
-| [`packages/documents/`](packages/documents/)     | Bounded untrusted-file intake and conversion contracts |
+| Path                                             | Responsibility                                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| [`apps/web/`](apps/web/)                         | Responsive React/Vite synthetic PWA prototype                                         |
+| [`apps/runtime/`](apps/runtime/)                 | Disposable API/worker/migrator image                                                  |
+| [`packages/domain/`](packages/domain/)           | Pure lifecycle, Check-in, and Concern decisions                                       |
+| [`packages/application/`](packages/application/) | Canonical-session and authorization seam                                              |
+| [`packages/identity/`](packages/identity/)       | Synthetic Owner identity and recovery contracts                                       |
+| [`packages/operations/`](packages/operations/)   | Encrypted-metadata and durable-work contracts                                         |
+| [`packages/persistence/`](packages/persistence/) | Disposable Plan-store adapters and parity tests                                       |
+| [`packages/platform/`](packages/platform/)       | PostgreSQL identity, Plan, and operations seams                                       |
+| [`packages/documents/`](packages/documents/)     | Canonical documents, session versions, portability, and bounded untrusted-file intake |
 
 The [Phase 3B evidence map](docs/architecture/FOUNDATION_PHASE_3B.md) explains what the production-shaped foundations prove—and what they do not.
 

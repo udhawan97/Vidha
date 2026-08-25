@@ -21,6 +21,20 @@ export {
   type PortableDocumentFormat,
 } from './editableDocument';
 export {
+  EDITABLE_DOCUMENT_HISTORY_SCHEMA,
+  EDITABLE_DOCUMENT_HISTORY_SCHEMA_VERSION,
+  MAX_EDITABLE_DOCUMENT_VERSIONS,
+  EditableDocumentHistoryError,
+  createEditableDocumentHistory,
+  planEditableDocumentRestore,
+  saveEditableDocumentVersion,
+  type EditableDocumentDifference,
+  type EditableDocumentHistoryV1,
+  type EditableDocumentRestorePlan,
+  type EditableDocumentVersionV1,
+  type SaveEditableDocumentVersionResult,
+} from './editableDocumentHistory';
+export {
   ImportIntakeError,
   createImportIntake,
   utf8TextConverter,

@@ -1,6 +1,6 @@
 # Proposed architecture
 
-**Status:** Phase 3B has exact-commit disposable evidence for the pure Concern-bounded domain plus PostgreSQL, WebAuthn ceremony, wrapped-key metadata, durable identity/recovery, Plan/audit/outbox, and file/ClamAV/Pandoc adapters. Phase 3C adds a versioned synthetic Editable Document and explicit conversion-review boundary. Browser authentication, durable content storage, production key custody and restore, production upload isolation and signature updating, real notifications, Guardian authority, and Release remain unimplemented.
+**Status:** Phase 3B has exact-commit disposable evidence for the pure Concern-bounded domain plus PostgreSQL, WebAuthn ceremony, wrapped-key metadata, durable identity/recovery, Plan/audit/outbox, and file/ClamAV/Pandoc adapters. Phase 3C adds a versioned synthetic Editable Document and explicit conversion-review boundary; Phase 3D adds bounded in-memory Document Version and restore planning. Browser authentication, durable content storage or history, production key custody and restore, production upload isolation and signature updating, real notifications, Guardian authority, and Release remain unimplemented.
 
 ## Architectural objective
 
@@ -40,7 +40,7 @@ packages/
   operations/          implemented wrapped metadata, backup, and durable-work contracts
   platform/            implemented disposable PostgreSQL 18 adapters and migrations
   crypto/              proposed reviewed Standard and Sealed Mode boundaries
-  documents/           implemented versioned Editable Documents, portability, and bounded executable intake
+  documents/           implemented Editable Documents, session versions, portability, and bounded executable intake
   notifications/       proposed provider-neutral outbox and templates
   ui/                  proposed shared components if a second client requires them
 infra/
@@ -130,6 +130,8 @@ The implemented `vidha.editable-document` version 1 schema keeps bounded title, 
 4. show the Owner a preview and conversion warnings;
 5. create a new Editable Document only after confirmation;
 6. preserve an approved original as an Attachment where safe.
+
+The separate `vidha.editable-document-history` version 1 interface keeps at most six canonical Document Versions for the current session. Monotonic identities, newest-first ordering, duplicate suppression, counter exhaustion, sparse-input rejection, and valid timestamps are module-owned. Restore planning reports title, Recipient, and Markdown differences and preserves the current draft before returning the chosen document. When history is full, it retains both that current draft and the chosen restore target while evicting the oldest unrelated entry. The web binds a pending plan to the reviewed Envelope, canonical draft, and history; confirmation fails closed if any identity changes. This interface never includes Attachments or imported-source provenance and is not a durable store, autosave mechanism, backup, or audit log.
 
 Do not execute macros, embedded scripts, external references, or active PDF content. Never promise faithful round-trip editing without format-specific evidence.
 

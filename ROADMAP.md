@@ -12,7 +12,7 @@ This roadmap describes intent, not shipped capability or a delivery date.
 - Pure deterministic Check-in timeline through Concern, with injected time and idempotent commands
 - Responsive local PWA prototype using synthetic, in-memory data
 - Versioned `vidha.editable-document` schema with deterministic canonical JSON, Markdown-compatible editing, and portable Markdown/text/escaped semantic HTML copies
-- Synthetic Recipient reassignment, undo/redo, restorable session checkpoints, review-before-accept import previews, exact-source provenance, and one clear portable-copy flow
+- Synthetic Recipient reassignment, undo/redo, bounded document-only session versions with reviewed safe restore, review-before-accept import previews, exact-source provenance, and one clear portable-copy flow
 - In-app Owner guidance plus session-only, explicitly reviewed Attachment candidates for bounded document, image, audio, video, data, contact, and ZIP formats; no upload, scan, encryption, persistence, or delivery claim
 - Canonical-session application boundary plus synthetic Owner Credential, session revocation, two-proof recovery, and Verified Owner Channel contracts
 - Disposable in-memory, SQLite, and Postgres-compatible PGlite Plan stores under one atomic audit/idempotency contract
@@ -35,6 +35,8 @@ This roadmap describes intent, not shipped capability or a delivery date.
 The [Phase 3B six-slice record](docs/product/NEXT_PHASE_3B_SIX.md) has intermediate disposable executable adapters for PostgreSQL topology, wrapped-key backup manifests, WebAuthn ceremonies, durable identity/recovery, integrated PostgreSQL Plan/outbox storage, and file/ClamAV/Pandoc intake. All six [closure slices](docs/product/PHASE_3B_CLOSURE_SIX.md) now have source gates for topology failure/capacity/teardown, authenticated logical restore and atomic key rotation, the loopback-only WebAuthn/session boundary, transactional recovery abuse/restore behavior, canonical scheduled-command crashes, and rootless adversarial import isolation; exact-commit CI acceptance remains mandatory. Phase 3B still cannot accept real data or send a message. Guardian authority, Veto Window, Delivery Hold, Automatic Fallback, and Release remain outside the implemented state machine.
 
 The [Phase 3C six-slice record](docs/product/NEXT_PHASE_3C_SIX.md) adds the versioned canonical Editable Document, deterministic portability, review-before-accept conversion state, exact session-source provenance, and a clearer browser import/export flow. It keeps HTML and DOCX editable conversion, durable content, and every authority or delivery path explicitly outside the current evidence.
+
+The [Phase 3D six-slice record](docs/product/NEXT_PHASE_3D_SIX.md) replaces ambiguous whole-Envelope checkpoints with bounded Document Versions, duplicate suppression, document-only change summaries, preservation of the current draft before restore, and an explicit confirmation flow. The history remains in memory and excludes Attachments and imported-source provenance; it is not autosave, durable versioning, backup, or Release evidence.
 
 The earlier foundation record is in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md), and current boundaries are in [`docs/architecture/FOUNDATION_PHASE_3B.md`](docs/architecture/FOUNDATION_PHASE_3B.md). The sequence remains intentional: executable provider and operational evidence still precedes any durable personal data, and none of this work authorizes Guardian Attestation or Release behavior.
 

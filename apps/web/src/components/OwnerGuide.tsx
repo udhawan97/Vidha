@@ -105,9 +105,9 @@ export function OwnerGuide() {
             <div>
               <dt>Editable Document</dt>
               <dd>
-                Designed for focused writing, checkpoints, and portable copies.
-                Conversion can change formatting, so the original source stays
-                separate.
+                Designed for focused writing, document-only session versions,
+                safe restore review, and portable copies. Conversion can change
+                formatting, so the original source stays separate.
               </dd>
             </div>
             <div>

@@ -1,6 +1,7 @@
 import {
   type ChangeEvent,
   type Dispatch,
+  type KeyboardEvent,
   type SetStateAction,
   useEffect,
   useRef,
@@ -9,14 +10,22 @@ import {
 import {
   AttachmentIntakeError,
   EditableDocumentError,
+  EditableDocumentHistoryError,
   ImportIntakeError,
   SUPPORTED_ATTACHMENT_FORMATS,
   createEditableDocument,
+  createEditableDocumentHistory,
   createImportIntake,
   exportEditableDocument,
+  planEditableDocumentRestore,
   prepareAttachmentCandidate,
+  saveEditableDocumentVersion,
+  serializeEditableDocument,
   utf8TextConverter,
   type AttachmentCandidate,
+  type EditableDocumentHistoryV1,
+  type EditableDocumentRestorePlan,
+  type EditableDocumentV1,
   type ImportScanner,
   type PortableDocumentFormat,
   type ReviewableTextImport,
@@ -49,10 +58,12 @@ interface DraftHistory {
   readonly future: readonly DraftSnapshot[];
 }
 
-interface SessionCheckpoint {
-  readonly id: string;
-  readonly createdAt: number;
-  readonly snapshot: DraftSnapshot;
+interface PendingDocumentRestore {
+  readonly documentIdentity: string;
+  readonly envelopeId: string;
+  readonly historyIdentity: string;
+  readonly plan: EditableDocumentRestorePlan;
+  readonly reviewedDocument: EditableDocumentV1;
 }
 
 const MAX_IMPORT_BYTES = 256 * 1024;
@@ -61,7 +72,6 @@ const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENT_TOTAL_BYTES = 20 * 1024 * 1024;
 const MAX_ATTACHMENTS = 8;
 const MAX_UNDO_STEPS = 50;
-const MAX_CHECKPOINTS = 6;
 const ATTACHMENT_ACCEPT = SUPPORTED_ATTACHMENT_FORMATS.map(
   (format) => `.${format.extension}`,
 ).join(',');
@@ -121,11 +131,23 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatCheckpointTime(timestamp: number): string {
+function formatVersionTime(timestamp: number): string {
   return new Intl.DateTimeFormat('en', {
     hour: 'numeric',
     minute: '2-digit',
   }).format(timestamp);
+}
+
+function documentHistoryIdentity(history: EditableDocumentHistoryV1): string {
+  return JSON.stringify(history);
+}
+
+function summarizeMarkdown(markdown: string): string {
+  const plainText = markdown.replaceAll(/\s+/gu, ' ').trim();
+  const characters = Array.from(plainText);
+  return characters.length > 180
+    ? `${characters.slice(0, 180).join('')}…`
+    : plainText || 'This version has no Markdown content.';
 }
 
 export function DocumentWorkspace({
@@ -147,13 +169,16 @@ export function DocumentWorkspace({
   const [historyByEnvelope, setHistoryByEnvelope] = useState<
     Record<string, DraftHistory>
   >({});
-  const [checkpointsByEnvelope, setCheckpointsByEnvelope] = useState<
-    Record<string, readonly SessionCheckpoint[]>
+  const [versionsByEnvelope, setVersionsByEnvelope] = useState<
+    Record<string, EditableDocumentHistoryV1>
   >({});
+  const [pendingRestore, setPendingRestore] =
+    useState<PendingDocumentRestore | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const attachmentRef = useRef<HTMLInputElement>(null);
-  const checkpointSequence = useRef(0);
+  const restoreDialogRef = useRef<HTMLDialogElement>(null);
+  const restoreTriggerRef = useRef<HTMLButtonElement>(null);
   const activeEnvelope =
     envelopes.find((envelope) => envelope.id === selectedEnvelopeId) ??
     envelopes[0];
@@ -168,6 +193,28 @@ export function DocumentWorkspace({
     return () => window.clearTimeout(timer);
   }, [activeEnvelope]);
 
+  useEffect(() => {
+    const dialog = restoreDialogRef.current;
+    if (pendingRestore === null || dialog === null) {
+      return;
+    }
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute('open', '');
+      }
+    }
+    return () => {
+      if (dialog.open && typeof dialog.close === 'function') {
+        dialog.close();
+      } else {
+        dialog.removeAttribute('open');
+      }
+      window.requestAnimationFrame(() => restoreTriggerRef.current?.focus());
+    };
+  }, [pendingRestore]);
+
   if (activeEnvelope === undefined) {
     return null;
   }
@@ -176,7 +223,8 @@ export function DocumentWorkspace({
     past: [],
     future: [],
   };
-  const activeCheckpoints = checkpointsByEnvelope[selectedEnvelope.id] ?? [];
+  const activeVersions =
+    versionsByEnvelope[selectedEnvelope.id] ?? createEditableDocumentHistory();
 
   function updateActiveEnvelope(patch: Partial<DemoEnvelope>) {
     setSessionStatus('Editing in this session…');
@@ -264,27 +312,152 @@ export function DocumentWorkspace({
     setSessionStatus('Redid the latest session edit');
   }
 
-  function saveCheckpoint() {
-    checkpointSequence.current += 1;
-    const createdAt = Date.now();
-    const checkpoint: SessionCheckpoint = {
-      id: `${selectedEnvelope.id}-${checkpointSequence.current}`,
-      createdAt,
-      snapshot: snapshotEnvelope(selectedEnvelope),
-    };
-    setCheckpointsByEnvelope((current) => ({
-      ...current,
-      [selectedEnvelope.id]: [
-        checkpoint,
-        ...(current[selectedEnvelope.id] ?? []),
-      ].slice(0, MAX_CHECKPOINTS),
-    }));
-    setSessionStatus('Session checkpoint saved');
+  function saveDocumentVersion() {
+    try {
+      setImportError(null);
+      const result = saveEditableDocumentVersion(
+        activeVersions,
+        createEditableDocument(selectedEnvelope.documentDraft),
+        Date.now(),
+      );
+      setVersionsByEnvelope((current) => ({
+        ...current,
+        [selectedEnvelope.id]: result.history,
+      }));
+      setSessionStatus(
+        result.created
+          ? `Session Version ${result.version.versionNumber} saved`
+          : `Draft already matches Version ${result.version.versionNumber}`,
+      );
+    } catch (error) {
+      setImportError(
+        error instanceof EditableDocumentError ||
+          error instanceof EditableDocumentHistoryError
+          ? error.message
+          : 'The session version could not be saved.',
+      );
+    }
   }
 
-  function restoreCheckpoint(checkpoint: SessionCheckpoint) {
-    updateActiveEnvelope(checkpoint.snapshot);
-    setSessionStatus('Session checkpoint restored');
+  function reviewDocumentRestore(
+    versionId: string,
+    reviewedAt: number,
+    trigger: HTMLButtonElement,
+  ) {
+    try {
+      setImportError(null);
+      const reviewedDocument = createEditableDocument(
+        selectedEnvelope.documentDraft,
+      );
+      const plan = planEditableDocumentRestore(
+        activeVersions,
+        reviewedDocument,
+        versionId,
+        reviewedAt,
+      );
+      if (!plan.changes.hasChanges) {
+        setSessionStatus(
+          `Draft already matches Version ${plan.targetVersion.versionNumber}`,
+        );
+        return;
+      }
+      restoreTriggerRef.current = trigger;
+      setPendingRestore({
+        documentIdentity: serializeEditableDocument(reviewedDocument),
+        envelopeId: selectedEnvelope.id,
+        historyIdentity: documentHistoryIdentity(activeVersions),
+        plan,
+        reviewedDocument,
+      });
+    } catch (error) {
+      setImportError(
+        error instanceof EditableDocumentError ||
+          error instanceof EditableDocumentHistoryError
+          ? error.message
+          : 'The session version could not be reviewed.',
+      );
+    }
+  }
+
+  function confirmDocumentRestore() {
+    if (pendingRestore === null) {
+      return;
+    }
+    const reviewed = pendingRestore;
+    const latestEnvelope = envelopes.find(
+      (envelope) => envelope.id === reviewed.envelopeId,
+    );
+    const latestHistory =
+      versionsByEnvelope[reviewed.envelopeId] ??
+      createEditableDocumentHistory();
+    let latestDocument: EditableDocumentV1;
+    try {
+      if (
+        selectedEnvelope.id !== reviewed.envelopeId ||
+        latestEnvelope === undefined
+      ) {
+        throw new EditableDocumentHistoryError(
+          'The selected Envelope changed after restore review.',
+        );
+      }
+      latestDocument = createEditableDocument(latestEnvelope.documentDraft);
+      if (
+        serializeEditableDocument(latestDocument) !==
+          reviewed.documentIdentity ||
+        documentHistoryIdentity(latestHistory) !== reviewed.historyIdentity
+      ) {
+        throw new EditableDocumentHistoryError(
+          'The draft or Session versions changed after restore review.',
+        );
+      }
+    } catch {
+      setPendingRestore(null);
+      setImportError(
+        'The draft or Session versions changed. Review the restore again before applying it.',
+      );
+      setSessionStatus('Restore review expired');
+      return;
+    }
+    setVersionsByEnvelope((current) => ({
+      ...current,
+      [reviewed.envelopeId]: reviewed.plan.history,
+    }));
+    updateActiveDocument({
+      title: reviewed.plan.document.title,
+      recipientLabel: reviewed.plan.document.recipientLabel,
+      markdown: reviewed.plan.document.markdown,
+    });
+    setPendingRestore(null);
+    setSessionStatus(
+      `Version ${reviewed.plan.targetVersion.versionNumber} restored; the previous draft remains saved`,
+    );
+  }
+
+  function containRestoreDialogFocus(event: KeyboardEvent<HTMLDialogElement>) {
+    if (event.key !== 'Tab') {
+      return;
+    }
+    const dialog = event.currentTarget;
+    const controls = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    const first = controls[0];
+    const last = controls.at(-1);
+    if (first === undefined || last === undefined) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const focused = document.activeElement;
+    if (event.shiftKey && (focused === first || !dialog.contains(focused))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && focused === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   function insertMarkdown(prefix: string, suffix = prefix) {
@@ -793,6 +966,7 @@ export function DocumentWorkspace({
                 onSelectEnvelope(envelope.id);
                 setPendingImport(null);
                 setPendingAttachments([]);
+                setPendingRestore(null);
                 setImportError(null);
               }}
               type="button"
@@ -888,8 +1062,8 @@ export function DocumentWorkspace({
               List
             </button>
             <span className="toolbar-divider" />
-            <button onClick={saveCheckpoint} type="button">
-              Save checkpoint
+            <button onClick={saveDocumentVersion} type="button">
+              Save version
             </button>
             <span className="editor-status">{sessionStatus}</span>
           </div>
@@ -1033,30 +1207,40 @@ export function DocumentWorkspace({
             )}
             <span>No file was uploaded or sent.</span>
           </div>
-          <div className="setting-block checkpoint-block">
-            <p className="setting-label">Session checkpoints</p>
-            {activeCheckpoints.length === 0 ? (
-              <span>Save a checkpoint before a larger edit.</span>
+          <div className="setting-block version-block">
+            <p className="setting-label">Session versions</p>
+            <span>
+              Document only · Attachments and imported source stay unchanged ·
+              refresh clears this history
+            </span>
+            {activeVersions.versions.length === 0 ? (
+              <span>Save a version before a larger edit.</span>
             ) : (
               <ol>
-                {activeCheckpoints.map((checkpoint, index) => (
-                  <li key={checkpoint.id}>
-                    <span>
-                      {index === 0 ? 'Latest' : `Checkpoint ${index + 1}`} ·{' '}
-                      {formatCheckpointTime(checkpoint.createdAt)}
-                    </span>
+                {activeVersions.versions.map((version, index) => (
+                  <li key={version.versionId}>
+                    <strong>
+                      Version {version.versionNumber}
+                      {index === 0 ? ' · most recently saved' : ''}
+                    </strong>
+                    <span>{version.document.title}</span>
+                    <time dateTime={new Date(version.savedAt).toISOString()}>
+                      {formatVersionTime(version.savedAt)}
+                    </time>
                     <button
-                      aria-label={`Restore ${
-                        index === 0
-                          ? 'latest checkpoint'
-                          : `checkpoint ${index + 1}`
-                      }`}
+                      aria-label={`Review Version ${version.versionNumber}: ${version.document.title}`}
                       className="text-action"
-                      data-checkpoint-id={checkpoint.id}
-                      onClick={() => restoreCheckpoint(checkpoint)}
+                      data-version-id={version.versionId}
+                      onClick={(event) =>
+                        reviewDocumentRestore(
+                          version.versionId,
+                          Date.now(),
+                          event.currentTarget,
+                        )
+                      }
                       type="button"
                     >
-                      Restore
+                      Review restore
                     </button>
                   </li>
                 ))}
@@ -1080,6 +1264,102 @@ export function DocumentWorkspace({
           </div>
         </aside>
       </div>
+
+      {pendingRestore === null ? null : (
+        <dialog
+          aria-describedby="restore-version-description"
+          aria-labelledby="restore-version-title"
+          className="confirmation-dialog version-restore-dialog"
+          onCancel={(event) => {
+            event.preventDefault();
+            setPendingRestore(null);
+          }}
+          onKeyDown={containRestoreDialogFocus}
+          ref={restoreDialogRef}
+          tabIndex={-1}
+        >
+          <p className="eyebrow">Document-only session restore</p>
+          <h2 id="restore-version-title">
+            Restore Version {pendingRestore.plan.targetVersion.versionNumber}?
+          </h2>
+          <p id="restore-version-description">
+            This restores only the Editable Document. Attachments and
+            imported-source provenance stay unchanged.
+          </p>
+          <dl className="restore-comparison">
+            {pendingRestore.plan.changes.titleChanged ? (
+              <div>
+                <dt>Title</dt>
+                <dd>
+                  <span>
+                    <span className="visually-hidden">Current title: </span>
+                    {pendingRestore.reviewedDocument.title}
+                  </span>
+                  <span aria-hidden="true">→</span>
+                  <strong>
+                    <span className="visually-hidden">Restored title: </span>
+                    {pendingRestore.plan.targetVersion.document.title}
+                  </strong>
+                </dd>
+              </div>
+            ) : null}
+            {pendingRestore.plan.changes.recipientChanged ? (
+              <div>
+                <dt>Recipient</dt>
+                <dd>
+                  <span>
+                    <span className="visually-hidden">Current Recipient: </span>
+                    {pendingRestore.reviewedDocument.recipientLabel}
+                  </span>
+                  <span aria-hidden="true">→</span>
+                  <strong>
+                    <span className="visually-hidden">
+                      Restored Recipient:{' '}
+                    </span>
+                    {pendingRestore.plan.targetVersion.document.recipientLabel}
+                  </strong>
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+          {pendingRestore.plan.changes.markdownChanged ? (
+            <div className="restore-preview">
+              <span className="review-label">
+                Version {pendingRestore.plan.targetVersion.versionNumber}{' '}
+                content preview
+              </span>
+              <blockquote>
+                {summarizeMarkdown(
+                  pendingRestore.plan.targetVersion.document.markdown,
+                )}
+              </blockquote>
+            </div>
+          ) : null}
+          {pendingRestore.plan.preservedCurrentVersion === null ? null : (
+            <p className="restore-preservation">
+              Your current draft remains available as Version{' '}
+              {pendingRestore.plan.preservedCurrentVersion.versionNumber}.
+            </p>
+          )}
+          <div className="dialog-actions">
+            <button
+              autoFocus
+              className="button button-quiet"
+              onClick={() => setPendingRestore(null)}
+              type="button"
+            >
+              Keep current draft
+            </button>
+            <button
+              className="button button-primary"
+              onClick={confirmDocumentRestore}
+              type="button"
+            >
+              Restore document
+            </button>
+          </div>
+        </dialog>
+      )}
     </div>
   );
 }

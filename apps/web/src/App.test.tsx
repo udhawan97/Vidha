@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -297,36 +297,160 @@ describe('Vidha synthetic foundation app', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('keeps undo history and checkpoints across workspace navigation', async () => {
+  it('reviews a document-only version restore and preserves the current draft', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: 'Envelopes' }));
-    await user.click(screen.getByRole('button', { name: 'Save checkpoint' }));
+    const originalTitle = (
+      screen.getByLabelText('Document title') as HTMLInputElement
+    ).value;
+    const originalMarkdown = (
+      screen.getByLabelText('Envelope Markdown content') as HTMLTextAreaElement
+    ).value;
+    await user.upload(screen.getByLabelText('Add Attachment candidates'), [
+      new File(['%PDF-synthetic'], 'restore-boundary.pdf', {
+        type: 'application/pdf',
+      }),
+    ]);
+    await user.click(
+      await screen.findByRole('button', { name: 'Keep as Attachments' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
     await user.selectOptions(screen.getByLabelText('Recipient'), 'Sam Rivera');
+    await user.clear(screen.getByLabelText('Document title'));
+    await user.type(screen.getByLabelText('Document title'), 'Current draft');
+    await user.clear(screen.getByLabelText('Envelope Markdown content'));
+    await user.type(
+      screen.getByLabelText('Envelope Markdown content'),
+      '# Current draft',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
     await user.click(screen.getByRole('button', { name: 'Overview' }));
     await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    await user.type(screen.getByLabelText('Envelope Markdown content'), '!');
 
-    await user.click(screen.getByRole('button', { name: 'Undo session edit' }));
-    expect(screen.getByLabelText('Recipient')).toHaveValue('Mira Chen');
-    await user.click(screen.getByRole('button', { name: 'Redo session edit' }));
-    expect(screen.getByLabelText('Recipient')).toHaveValue('Sam Rivera');
-
-    await user.click(screen.getByRole('button', { name: 'Save checkpoint' }));
-    const checkpoints = screen.getAllByRole('button', {
-      name: /Restore .*checkpoint/,
+    const versions = screen.getAllByRole('button', {
+      name: /Review Version/,
     });
-    expect(checkpoints).toHaveLength(2);
-    expect(checkpoints[0]).not.toHaveAttribute(
-      'data-checkpoint-id',
-      checkpoints[1]?.getAttribute('data-checkpoint-id'),
+    expect(versions).toHaveLength(2);
+    expect(versions[0]).not.toHaveAttribute(
+      'data-version-id',
+      versions[1]?.getAttribute('data-version-id'),
     );
     await user.click(
-      screen.getByRole('button', { name: 'Restore checkpoint 2' }),
+      screen.getByRole('button', {
+        name: `Review Version 1: ${originalTitle}`,
+      }),
     );
 
+    const dialog = screen.getByRole('dialog', { name: 'Restore Version 1?' });
+    expect(dialog).toHaveTextContent(
+      `Current title: Current draft→Restored title: ${originalTitle}`,
+    );
+    expect(dialog).toHaveTextContent(
+      'Current Recipient: Sam Rivera→Restored Recipient: Mira Chen',
+    );
+    expect(dialog).toHaveTextContent('Version 1 content preview');
+    expect(dialog).toHaveTextContent('# The house, without guesswork');
+    expect(dialog).toHaveTextContent(
+      'Your current draft remains available as Version 3.',
+    );
+    expect(dialog).toHaveTextContent(
+      'Attachments and imported-source provenance stay unchanged.',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Keep current draft' }),
+    );
+    expect(screen.getByLabelText('Document title')).toHaveValue(
+      'Current draft',
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: `Review Version 1: ${originalTitle}`,
+      }),
+    );
+    fireEvent.change(screen.getByLabelText('Document title'), {
+      target: { value: 'Changed after review' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Restore document' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The draft or Session versions changed. Review the restore again before applying it.',
+    );
+    expect(screen.getByLabelText('Document title')).toHaveValue(
+      'Changed after review',
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: `Review Version 1: ${originalTitle}`,
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Restore document' }));
+
     expect(screen.getByLabelText('Recipient')).toHaveValue('Mira Chen');
-    expect(screen.getByText('Session checkpoint restored')).toBeVisible();
+    expect(screen.getByLabelText('Document title')).toHaveValue(originalTitle);
+    expect(screen.getByLabelText('Envelope Markdown content')).toHaveValue(
+      originalMarkdown,
+    );
+    expect(screen.getByText('restore-boundary.pdf')).toBeVisible();
+    expect(
+      screen.getAllByRole('button', { name: /Review Version/ }),
+    ).toHaveLength(3);
+    expect(
+      screen.getByText('Version 1 restored; the previous draft remains saved'),
+    ).toBeVisible();
+  });
+
+  it('keeps imported-source metadata unchanged across a Document Version restore', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    const source = '# Provenance source\n\nSynthetic source text.';
+    await user.upload(
+      screen.getByLabelText('Import Markdown or plain text'),
+      new File([source], 'provenance-source.md', {
+        type: 'text/markdown',
+      }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: 'Create editable copy' }),
+    );
+    const digest = screen.getByText(/^sha256:[a-f0-9]{64}$/u).textContent;
+    const scanner =
+      'Synthetic inspection · synthetic-fixture-inspection-no-malware-scan';
+    const converter = 'Schema v1 · vidha-utf8-text-v1';
+    const warning = 'Markdown formatting will remain editable source text.';
+    expect(screen.getByText(scanner)).toBeVisible();
+    expect(screen.getByText(converter)).toBeVisible();
+    expect(screen.getByText(warning)).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await user.clear(screen.getByLabelText('Document title'));
+    await user.type(screen.getByLabelText('Document title'), 'Changed draft');
+    await user.selectOptions(screen.getByLabelText('Recipient'), 'Sam Rivera');
+    await user.clear(screen.getByLabelText('Envelope Markdown content'));
+    await user.type(
+      screen.getByLabelText('Envelope Markdown content'),
+      '# Changed draft',
+    );
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Review Version 1: provenance source',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Restore document' }));
+
+    expect(screen.getByText('provenance-source.md')).toBeVisible();
+    expect(screen.getByText(digest ?? '')).toBeVisible();
+    expect(screen.getByText(scanner)).toBeVisible();
+    expect(screen.getByText(converter)).toBeVisible();
+    expect(screen.getByText(warning)).toBeVisible();
+    expect(screen.getByLabelText('Envelope Markdown content')).toHaveValue(
+      source,
+    );
   });
 
   it('restores decoded imported text after an in-session edit', async () => {
