@@ -17,10 +17,16 @@ The `api` and `worker` roles run the same versioned application image with separ
 
 In the disposable Compose fixture, PostgreSQL and worker traffic stays on an internal data network. The API alone also joins a separate edge network whose only published port is bound to host loopback for health/readiness evidence. This is not a public endpoint or a production network design.
 
+## Loopback identity rehearsal
+
+Closure slice 3 adds a separate opt-in rehearsal surface to the API role. It remains off unless `VIDHA_ENABLE_IDENTITY_REHEARSAL=1`, rejects any bind host except `127.0.0.1`, and requires an exact `http://localhost:<port>` public origin with RP ID `localhost`. Its static page and JSON routes create only a disposable synthetic Owner Credential and opaque session. Exact Host/Origin checks, bounded JSON bodies, no credentialed CORS, `__Host-` Secure/HttpOnly/SameSite=Strict cookies, session-bound CSRF, and canonical rotation/revocation keep browser composition within the existing identity authority.
+
+The executable gate reaches this surface only from the same host against a run-owned tmpfs PostgreSQL container. Chromium uses a virtual authenticator for the complete ceremony; Firefox and WebKit verify only the HTTP/session boundary. This fixture is not a public endpoint, supported-browser statement, Safari result, real authenticator, real account, or production TLS/session design.
+
 ## Restore behavior
 
 A restore enters `restore_safe` before any application role starts. Read-only inspection and invariant checks are allowed. Metadata writes, scheduled-job claims, outbox dispatch, scanner updates, conversion, and every provider adapter remain disabled until explicit promotion. Closure-slice-2 source now rehearses a digest-pinned custom logical dump, wrapped-key archive encryption, signed generation chain, external inventory, a dedicated non-superuser restore into an isolated tmpfs database, portable-state and migration invariants, read-only promotion denial, and one immutable explicit-promotion digest. Exact-commit CI acceptance is still required. The providers are disposable in-memory fixtures and the archive is bounded in memory; this is not external key custody, a durable backup service, persistent-volume recovery, or RPO/RTO evidence.
 
 ## Explicit exclusions
 
-There is no chosen cloud host, public DNS, TLS certificate, production secret store, KMS, object store, notification provider, monitoring provider, image registry, supported self-host platform, high-availability model, RPO, RTO, updater, or deployment. The disposable PostgreSQL 18 service and Compose topology are CI fixtures with synthetic credentials and temporary storage; they are not a production environment.
+There is no chosen cloud host, public DNS, TLS certificate, production secret store, KMS, object store, notification provider, monitoring provider, image registry, supported self-host platform, supported browser matrix, high-availability model, RPO, RTO, updater, or deployment. The disposable PostgreSQL 18 service, Compose topology, and loopback identity rehearsal are CI fixtures with synthetic credentials and temporary storage; they are not a production environment.
