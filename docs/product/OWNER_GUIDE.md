@@ -7,7 +7,7 @@ Vidha is a contingency relay for one adult Owner. It keeps each handoff in a rec
 ## Before using the prototype
 
 - Use only the included synthetic content. Do not enter personal or sensitive information.
-- Refresh clears the browser session.
+- Refresh or a confirmed **Start fresh local rehearsal** action clears the browser session.
 - No file is uploaded, scanned by a malware engine, encrypted, persisted, or sent.
 - Timeline rehearsal stops at **Concern**. Nothing in this build can authorize Release.
 
@@ -21,7 +21,8 @@ Vidha is a contingency relay for one adult Owner. It keeps each handoff in a rec
 6. Review every staged file before keeping it with the Envelope. Download or remove an Attachment from the Envelope settings.
 7. Save a **Document Version** before a larger change. Restoring shows which title, Recipient, and Markdown fields will change and preserves the current draft first; it never changes Attachments or imported-source provenance. This bounded history clears on refresh and is not autosave or backup. Choose one portable-copy format, then download exact Markdown/text source or a standalone escaped semantic HTML reading copy.
 8. Return to **Overview** and choose **Review rehearsal**. The run-sheet shows the complete Day 25 reminder, Day 30 due date, and Day 37 Concern boundary, every prepared synthetic handoff, readiness blockers, and the exact content-free test-notice preview. **Run local rehearsal** records only a synthetic `PLAN_REHEARSED` event and sends zero messages. Changing an included Editable Document or Attachment requires another review before the UI offers **Arm rehearsal**.
-9. Open **Guide** in the app for the consequences of Standard Mode, Sealed Mode, Guardian Attestation first, and Automatic Fallback without presenting unimplemented targets as available.
+9. Treat **Disable rehearsal** as terminal for that synthetic Plan. **Start fresh local rehearsal** explicitly clears session edits, Attachments, Document Versions, and local events before loading a separate Draft; it never resumes the Disabled Plan.
+10. Open **Guide** in the app for the consequences of Standard Mode, Sealed Mode, Guardian Attestation first, and Automatic Fallback without presenting unimplemented targets as available.
 
 ## Current file contract
 

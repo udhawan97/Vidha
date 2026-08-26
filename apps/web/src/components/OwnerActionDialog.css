@@ -1,0 +1,35 @@
+.owner-action-dialog {
+  max-height: calc(100dvh - 40px);
+  margin: auto;
+  overflow-y: auto;
+}
+
+.owner-action-dialog::backdrop {
+  background: rgb(12 32 35 / 58%);
+  backdrop-filter: blur(5px);
+}
+
+.confirmation-dialog > .owner-action-issue {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--concern) 35%, var(--line));
+  border-radius: 8px;
+  margin-top: 16px;
+  background: color-mix(in srgb, var(--concern) 7%, var(--paper-strong));
+  color: var(--concern);
+  font-weight: 700;
+}
+
+.owner-action-inline-issue {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--concern);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .owner-action-dialog {
+    width: calc(100% - 40px);
+    margin: 20px auto;
+  }
+}

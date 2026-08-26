@@ -11,19 +11,61 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { demoContacts, type DemoEnvelope } from '../demo';
 import { ContinuityLine } from './ContinuityLine';
 import { DraftRehearsalDialog } from './DraftRehearsalDialog';
+import { OwnerActionDialog } from './OwnerActionDialog';
 
 interface OverviewProps {
+  readonly actionIssue: string | null;
+  readonly actionPending: boolean;
   readonly plan: PlanState;
   readonly envelopes: readonly DemoEnvelope[];
   readonly onArm: () => Promise<void>;
-  readonly onAdvance: () => void;
-  readonly onCheckIn: () => void;
-  readonly onDisable: () => void;
-  readonly onPause: () => void;
+  readonly onAdvance: () => Promise<void>;
+  readonly onCheckIn: () => Promise<void>;
+  readonly onDisable: () => Promise<void>;
+  readonly onPause: () => Promise<void>;
   readonly onOpenEnvelope: (envelopeId: string) => void;
   readonly onRehearse: (reviewIdentity: string) => Promise<void>;
-  readonly onResume: () => void;
+  readonly onRestart: () => Promise<void>;
+  readonly onResume: () => Promise<void>;
 }
+
+type OwnerConfirmation = 'check-in' | 'disable' | 'restart';
+
+const confirmationCopy = {
+  'check-in': {
+    actionLabel: 'Confirm Check-in',
+    busyLabel: 'Recording Check-in…',
+    cancelLabel: 'Go back',
+    description:
+      'The real product will require strong authentication. This local demo records a synthetic authenticated action.',
+    eyebrow: 'Explicit Owner action',
+    failure: 'The synthetic Check-in could not be recorded.',
+    title: 'Confirm this rehearsal Check-in?',
+    tone: 'primary',
+  },
+  disable: {
+    actionLabel: 'Confirm disable',
+    busyLabel: 'Disabling rehearsal…',
+    cancelLabel: 'Keep rehearsal',
+    description:
+      'Disabled is terminal for this Plan. You can later start a separate disposable rehearsal, but this Plan will not resume.',
+    eyebrow: 'Terminal synthetic state',
+    failure: 'The rehearsal Plan could not be disabled.',
+    title: 'Disable this rehearsal Plan?',
+    tone: 'danger',
+  },
+  restart: {
+    actionLabel: 'Start fresh rehearsal',
+    busyLabel: 'Starting fresh rehearsal…',
+    cancelLabel: 'Keep ended rehearsal',
+    description:
+      'This clears every session edit, Attachment, Document Version, and local event, then loads a separate synthetic Draft. The Disabled Plan remains terminal.',
+    eyebrow: 'New disposable session',
+    failure: 'A fresh local rehearsal could not be started.',
+    title: 'Start a fresh local rehearsal?',
+    tone: 'danger',
+  },
+} as const;
 
 const eventLabels: Record<DomainEvent['type'], string> = {
   PLAN_DRAFTED: 'Synthetic Plan drafted',
@@ -117,6 +159,8 @@ function rehearsalInput(
 }
 
 export function Overview({
+  actionIssue,
+  actionPending,
   plan,
   envelopes,
   onArm,
@@ -126,10 +170,15 @@ export function Overview({
   onPause,
   onOpenEnvelope,
   onRehearse,
+  onRestart,
   onResume,
 }: OverviewProps) {
-  const [confirming, setConfirming] = useState(false);
-  const [confirmingDisable, setConfirmingDisable] = useState(false);
+  const [confirmation, setConfirmation] = useState<OwnerConfirmation | null>(
+    null,
+  );
+  const [confirmationIssue, setConfirmationIssue] = useState<string | null>(
+    null,
+  );
   const [acceptedRehearsalIdentity, setAcceptedRehearsalIdentity] = useState<
     string | null
   >(null);
@@ -140,6 +189,9 @@ export function Overview({
   const [completingRehearsal, setCompletingRehearsal] = useState(false);
   const [rehearsalIssue, setRehearsalIssue] = useState<string | null>(null);
   const rehearsalTriggerRef = useRef<HTMLButtonElement>(null);
+  const checkInTriggerRef = useRef<HTMLButtonElement>(null);
+  const disableTriggerRef = useRef<HTMLButtonElement>(null);
+  const restartTriggerRef = useRef<HTMLButtonElement>(null);
   const rehearsalCompletionRef = useRef(false);
   const currentRehearsalInput = useMemo(
     () => rehearsalInput(plan, envelopes),
@@ -182,14 +234,27 @@ export function Overview({
     };
   }, [currentRehearsalInput, plan.lifecycle]);
 
-  function confirmCheckIn() {
-    onCheckIn();
-    setConfirming(false);
+  function openConfirmation(next: OwnerConfirmation) {
+    setConfirmationIssue(null);
+    setConfirmation(next);
   }
 
-  function confirmDisable() {
-    onDisable();
-    setConfirmingDisable(false);
+  async function confirmOwnerAction() {
+    if (confirmation === null) return;
+    setConfirmationIssue(null);
+    const copy = confirmationCopy[confirmation];
+    try {
+      if (confirmation === 'check-in') await onCheckIn();
+      else if (confirmation === 'disable') await onDisable();
+      else await onRestart();
+      setConfirmation(null);
+    } catch {
+      setConfirmationIssue(copy.failure);
+    }
+  }
+
+  function runHandled(action: () => Promise<void>) {
+    void action().catch(() => undefined);
   }
 
   async function reviewDraftRehearsal() {
@@ -272,6 +337,7 @@ export function Overview({
         rehearsalIsCurrent ? (
           <button
             className="button button-primary"
+            disabled={actionPending}
             onClick={() => void armReviewedDraft()}
             ref={rehearsalTriggerRef}
             type="button"
@@ -281,6 +347,7 @@ export function Overview({
         ) : (
           <button
             className="button button-primary"
+            disabled={actionPending}
             onClick={() => void reviewDraftRehearsal()}
             ref={rehearsalTriggerRef}
             type="button"
@@ -289,13 +356,19 @@ export function Overview({
           </button>
         )
       ) : plan.lifecycle === 'armed' ? (
-        <button className="button button-quiet" onClick={onPause} type="button">
+        <button
+          className="button button-quiet"
+          disabled={actionPending}
+          onClick={() => runHandled(onPause)}
+          type="button"
+        >
           Pause rehearsal
         </button>
       ) : plan.lifecycle === 'paused' ? (
         <button
           className="button button-quiet"
-          onClick={onResume}
+          disabled={actionPending}
+          onClick={() => runHandled(onResume)}
           type="button"
         >
           Resume with fresh interval
@@ -304,22 +377,51 @@ export function Overview({
       {plan.lifecycle === 'disabled' ? null : (
         <button
           className="button button-text-danger"
-          onClick={() => setConfirmingDisable(true)}
+          disabled={actionPending}
+          onClick={() => openConfirmation('disable')}
+          ref={disableTriggerRef}
           type="button"
         >
           Disable rehearsal
         </button>
       )}
       {plan.lifecycle === 'disabled' ? (
-        <p>Disabled is terminal in this synthetic foundation.</p>
+        <>
+          <p>
+            Disabled is terminal. A fresh rehearsal creates a separate local
+            Draft.
+          </p>
+          <button
+            className="button button-primary"
+            disabled={actionPending}
+            onClick={() => openConfirmation('restart')}
+            ref={restartTriggerRef}
+            type="button"
+          >
+            Start fresh local rehearsal
+          </button>
+        </>
       ) : null}
       {plan.lifecycle === 'draft' && rehearsalIssue !== null ? (
         <p className="rehearsal-inline-issue" role="alert">
           {rehearsalIssue}
         </p>
       ) : null}
+      {confirmation === null && actionIssue !== null ? (
+        <p className="owner-action-inline-issue" role="alert">
+          {actionIssue}
+        </p>
+      ) : null}
     </div>
   );
+  const activeConfirmation =
+    confirmation === null ? null : confirmationCopy[confirmation];
+  const confirmationReturnFocusRef =
+    confirmation === 'check-in'
+      ? checkInTriggerRef
+      : confirmation === 'disable'
+        ? disableTriggerRef
+        : restartTriggerRef;
 
   return (
     <div className="overview-view">
@@ -359,16 +461,17 @@ export function Overview({
           </span>
           <button
             className="button button-primary"
-            disabled={!isArmed}
-            onClick={() => setConfirming(true)}
+            disabled={!isArmed || actionPending}
+            onClick={() => openConfirmation('check-in')}
+            ref={checkInTriggerRef}
             type="button"
           >
             Rehearse Check-in
           </button>
           <button
             className="button button-quiet"
-            disabled={!canAdvance}
-            onClick={onAdvance}
+            disabled={!canAdvance || actionPending}
+            onClick={() => runHandled(onAdvance)}
             type="button"
           >
             {canAdvance
@@ -481,7 +584,9 @@ export function Overview({
             <p className="eyebrow">Local event record</p>
             <h2 id="activity-title">What this rehearsal changed</h2>
           </div>
-          <span className="session-label">Clears on refresh</span>
+          <span className="session-label">
+            Clears on refresh or fresh rehearsal
+          </span>
         </div>
         <ol className="activity-list">
           {[...plan.events]
@@ -501,42 +606,6 @@ export function Overview({
         </ol>
       </section>
 
-      {confirming ? (
-        <div className="dialog-backdrop" role="presentation">
-          <div
-            aria-describedby="check-in-description"
-            aria-labelledby="check-in-title"
-            aria-modal="true"
-            className="confirmation-dialog"
-            role="dialog"
-          >
-            <p className="eyebrow">Explicit Owner action</p>
-            <h2 id="check-in-title">Confirm this rehearsal Check-in?</h2>
-            <p id="check-in-description">
-              The real product will require strong authentication. This local
-              demo records a synthetic authenticated action.
-            </p>
-            <div className="dialog-actions">
-              <button
-                className="button button-quiet"
-                onClick={() => setConfirming(false)}
-                type="button"
-              >
-                Go back
-              </button>
-              <button
-                autoFocus
-                className="button button-primary"
-                onClick={confirmCheckIn}
-                type="button"
-              >
-                Confirm Check-in
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {pendingRehearsal === null ? null : (
         <DraftRehearsalDialog
           completing={completingRehearsal}
@@ -549,41 +618,24 @@ export function Overview({
         />
       )}
 
-      {confirmingDisable ? (
-        <div className="dialog-backdrop" role="presentation">
-          <div
-            aria-describedby="disable-description"
-            aria-labelledby="disable-title"
-            aria-modal="true"
-            className="confirmation-dialog"
-            role="dialog"
-          >
-            <p className="eyebrow">Terminal synthetic state</p>
-            <h2 id="disable-title">Disable this rehearsal Plan?</h2>
-            <p id="disable-description">
-              Disabled is terminal in this foundation model. Refresh the page to
-              load a new disposable rehearsal.
-            </p>
-            <div className="dialog-actions">
-              <button
-                className="button button-quiet"
-                onClick={() => setConfirmingDisable(false)}
-                type="button"
-              >
-                Keep rehearsal
-              </button>
-              <button
-                autoFocus
-                className="button button-text-danger"
-                onClick={confirmDisable}
-                type="button"
-              >
-                Confirm disable
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {activeConfirmation === null ? null : (
+        <OwnerActionDialog
+          actionLabel={activeConfirmation.actionLabel}
+          busy={actionPending}
+          busyLabel={activeConfirmation.busyLabel}
+          cancelLabel={activeConfirmation.cancelLabel}
+          description={activeConfirmation.description}
+          eyebrow={activeConfirmation.eyebrow}
+          issue={confirmationIssue}
+          onCancel={() => {
+            if (!actionPending) setConfirmation(null);
+          }}
+          onConfirm={() => void confirmOwnerAction()}
+          returnFocusRef={confirmationReturnFocusRef}
+          title={activeConfirmation.title}
+          tone={activeConfirmation.tone}
+        />
+      )}
     </div>
   );
 }

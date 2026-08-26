@@ -13,6 +13,7 @@ This roadmap describes intent, not shipped capability or a delivery date.
 - Responsive local PWA prototype using synthetic, in-memory data
 - Versioned `vidha.editable-document` schema with deterministic canonical JSON, Markdown-compatible editing, and portable Markdown/text/escaped semantic HTML copies
 - Synthetic Recipient reassignment, undo/redo, bounded document-only session versions with reviewed safe restore, review-before-accept import previews, exact-source provenance, and one clear portable-copy flow
+- Serialized synthetic Owner actions, failure-safe native confirmations, and a deliberate fresh-session path that never resumes a terminal Disabled Plan
 - In-app Owner guidance plus session-only, explicitly reviewed Attachment candidates for bounded document, image, audio, video, data, contact, and ZIP formats; no upload, scan, encryption, persistence, or delivery claim
 - Canonical-session application boundary plus synthetic Owner Credential, session revocation, two-proof recovery, and Verified Owner Channel contracts
 - Disposable in-memory, SQLite, and Postgres-compatible PGlite Plan stores under one atomic audit/idempotency contract
@@ -37,6 +38,10 @@ The [Phase 3B six-slice record](docs/product/NEXT_PHASE_3B_SIX.md) has intermedi
 The [Phase 3C six-slice record](docs/product/NEXT_PHASE_3C_SIX.md) adds the versioned canonical Editable Document, deterministic portability, review-before-accept conversion state, exact session-source provenance, and a clearer browser import/export flow. It keeps HTML and DOCX editable conversion, durable content, and every authority or delivery path explicitly outside the current evidence.
 
 The [Phase 3D six-slice record](docs/product/NEXT_PHASE_3D_SIX.md) replaces ambiguous whole-Envelope checkpoints with bounded Document Versions, duplicate suppression, document-only change summaries, preservation of the current draft before restore, and an explicit confirmation flow. The history remains in memory and excludes Attachments and imported-source provenance; it is not autosave, durable versioning, backup, or Release evidence.
+
+The [Phase 3E six-slice record](docs/product/NEXT_PHASE_3E_SIX.md) binds Draft rehearsal to the exact synthetic Plan, contact, Editable Document, and Attachment identities reviewed, exposes complete timing and content-free notice previews, and invalidates Arm after drift. The review remains session-only and sends no message.
+
+The [Phase 3F six-slice record](docs/product/NEXT_PHASE_3F_SIX.md) serializes local Owner actions, keeps failed confirmations open, uses safe-default native dialogs, and provides an explicit way to clear a terminal session and load a separate Draft. It does not add durable session state, authentication, provider delivery, or authority beyond Concern.
 
 The earlier foundation record is in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md), and current boundaries are in [`docs/architecture/FOUNDATION_PHASE_3B.md`](docs/architecture/FOUNDATION_PHASE_3B.md). The sequence remains intentional: executable provider and operational evidence still precedes any durable personal data, and none of this work authorizes Guardian Attestation or Release behavior.
 
