@@ -155,10 +155,10 @@ export function App() {
     setAnnouncement(`Synthetic Plan lifecycle changed to ${lifecycle}.`);
   }
 
-  async function rehearsePlan() {
+  async function rehearsePlan(reviewIdentity: string) {
     await executeOwnerAction(
       { type: 'REHEARSE_PLAN', expectedPolicyRevision: plan.policyRevision },
-      commandKey('rehearse'),
+      `draft-rehearsal:${reviewIdentity}`,
     );
     setAnnouncement('Synthetic Draft rehearsal completed.');
   }

@@ -38,6 +38,10 @@ _Avoid_: Will, death switch
 A Contingency Plan lifecycle state in which setup and rehearsal may occur but no Check-in timeline or Concern transition is active. A Draft must be rehearsed before it can become Armed.
 _Avoid_: Active plan, live schedule
 
+**Draft Rehearsal Review**:
+A bounded review of the current Draft, synthetic contact assignments, prepared Envelopes, complete Check-in-to-Concern timing, and content-free test-notice copy before the rehearsal is recorded. The current prototype binds this review only inside browser memory, sends no notice, and requires another review after any included Plan, contact, Editable Document, or Attachment identity changes.
+_Avoid_: Readiness certification, provider test, delivery proof, Arm authorization
+
 **Armed**:
 The Contingency Plan lifecycle state in which its Check-in timeline is active. Arming requires an authenticated, recent Owner action against the current policy revision after rehearsal.
 _Avoid_: Released, guaranteed

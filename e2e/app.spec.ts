@@ -12,7 +12,13 @@ async function readDownload(download: Download): Promise<string> {
 
 async function armDemo(page: Page): Promise<void> {
   await expect(page.getByText('Lifecycle: draft')).toBeVisible();
-  await page.getByRole('button', { name: 'Rehearse Draft' }).click();
+  await page.getByRole('button', { name: 'Review rehearsal' }).click();
+  await expect(
+    page.getByRole('dialog', {
+      name: 'Review what this local rehearsal will test',
+    }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Run local rehearsal' }).click();
   await page.getByRole('button', { name: 'Arm rehearsal' }).click();
   await expect(page.getByText('Lifecycle: armed')).toBeVisible();
 }
@@ -35,6 +41,118 @@ test('keeps the release boundary visible while rehearsing the timeline', async (
     page.getByLabel('Current timeline stage: reminder'),
   ).toBeVisible();
   await expect(page.getByText('Reminder stage entered')).toBeVisible();
+});
+
+test('reviews the bounded Draft run-sheet and invalidates it after an edit', async ({
+  page,
+}) => {
+  const review = page.getByRole('button', { name: 'Review rehearsal' });
+  await review.click();
+  const dialog = page.getByRole('dialog', {
+    name: 'Review what this local rehearsal will test',
+  });
+  await expect(dialog).toContainText('Day 25Reminder begins');
+  await expect(dialog).toContainText('Day 30Check-in due');
+  await expect(dialog).toContainText('Day 37Concern may begin');
+  await expect(dialog).toContainText('3notice previews0messages sent');
+  await expect(dialog).toContainText(
+    'No private Envelope content is included.',
+  );
+  const keepDraft = page.getByRole('button', { name: 'Keep Draft' });
+  const runRehearsal = page.getByRole('button', {
+    name: 'Run local rehearsal',
+  });
+  await expect(dialog).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(runRehearsal).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(keepDraft).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(runRehearsal).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(keepDraft).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(review).toBeFocused();
+
+  await review.click();
+  await runRehearsal.click();
+  await expect(
+    page.getByRole('button', { name: 'Arm rehearsal' }),
+  ).toBeVisible();
+  await expect(page.getByText('Locally rehearsed')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  await page
+    .getByLabel('Envelope Markdown content')
+    .fill('# Changed after local rehearsal');
+  await page.getByRole('button', { name: 'Overview', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Review changes' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Arm rehearsal' })).toHaveCount(
+    0,
+  );
+});
+
+test('invalidates an accepted review when an Attachment is added or removed', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Review rehearsal' }).click();
+  await page.getByRole('button', { name: 'Run local rehearsal' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Arm rehearsal' }),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  await page.getByLabel('Add Attachment candidates').setInputFiles({
+    buffer: Buffer.from('%PDF review identity fixture'),
+    mimeType: 'application/pdf',
+    name: 'review-identity.pdf',
+  });
+  await page.getByRole('button', { name: 'Keep as Attachments' }).click();
+  await page.getByRole('button', { name: 'Overview', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Review changes' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Arm rehearsal' })).toHaveCount(
+    0,
+  );
+
+  await page.getByRole('button', { name: 'Review changes' }).click();
+  await page.getByRole('button', { name: 'Run local rehearsal' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Arm rehearsal' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  await page
+    .getByRole('button', { name: 'Remove review-identity.pdf' })
+    .click();
+  await page.getByRole('button', { name: 'Overview', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Review changes' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Arm rehearsal' })).toHaveCount(
+    0,
+  );
+});
+
+test('keeps the rehearsal review completion reachable at 375px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('button', { name: 'Review rehearsal' }).click();
+  const complete = page.getByRole('button', { name: 'Run local rehearsal' });
+  await complete.scrollIntoViewIfNeeded();
+  const completeBox = await complete.boundingBox();
+  const viewport = await page.locator('body').evaluate((body) => ({
+    clientWidth: body.clientWidth,
+    scrollWidth: body.scrollWidth,
+  }));
+
+  expect(completeBox).not.toBeNull();
+  expect(completeBox!.y + completeBox!.height).toBeLessThanOrEqual(812);
+  expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth);
 });
 
 test('imports and edits Markdown only inside the temporary session', async ({
@@ -213,7 +331,7 @@ test('keeps the Draft next action above mobile navigation', async ({
 }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const nextAction = await page
-    .getByRole('button', { name: 'Rehearse Draft' })
+    .getByRole('button', { name: 'Review rehearsal' })
     .boundingBox();
   const navigation = await page.locator('.app-rail').boundingBox();
 
@@ -439,6 +557,19 @@ test('has no serious or critical automated accessibility violations', async ({
   );
 
   expect(dialogViolations, 'restore dialog accessibility').toEqual([]);
+
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Overview', exact: true }).click();
+  await page.getByRole('button', { name: 'Review rehearsal' }).click();
+  const rehearsalDialogResults = await new AxeBuilder({ page }).analyze();
+  const rehearsalDialogViolations = rehearsalDialogResults.violations.filter(
+    ({ impact }) => ['serious', 'critical'].includes(impact ?? ''),
+  );
+
+  expect(
+    rehearsalDialogViolations,
+    'rehearsal review dialog accessibility',
+  ).toEqual([]);
 });
 
 test('uses the motion-aware working-concept icon with a reduced-motion fallback', async ({

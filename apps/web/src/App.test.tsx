@@ -13,7 +13,10 @@ vi.mock('virtual:pwa-register/react', () => ({
 }));
 
 async function armDemo(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Rehearse Draft' }));
+  await user.click(screen.getByRole('button', { name: 'Review rehearsal' }));
+  await user.click(
+    await screen.findByRole('button', { name: 'Run local rehearsal' }),
+  );
   await user.click(
     await screen.findByRole('button', { name: 'Arm rehearsal' }),
   );
@@ -36,13 +39,125 @@ describe('Vidha synthetic foundation app', () => {
       screen.getByRole('button', { name: 'Rehearse Check-in' }),
     ).toBeDisabled();
     expect(
-      screen.getByRole('button', { name: 'Rehearse Draft' }),
+      screen.getByRole('button', { name: 'Review rehearsal' }),
     ).toBeEnabled();
     expect(screen.getByText('Lifecycle: draft')).toBeVisible();
     expect(
       screen.getByText('Sam Rivera', { selector: 'strong' }),
     ).toBeVisible();
     expect(screen.getByText('Guardian · synthetic')).toBeVisible();
+  });
+
+  it('reviews the complete local rehearsal before it can be marked complete', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const review = screen.getByRole('button', { name: 'Review rehearsal' });
+    await user.click(review);
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Review what this local rehearsal will test',
+    });
+    expect(dialog).toHaveTextContent('Day 25Reminder begins');
+    expect(dialog).toHaveTextContent('Day 30Check-in due');
+    expect(dialog).toHaveTextContent('Day 37Concern may begin');
+    expect(dialog).toHaveTextContent(
+      'No Guardian Attestation or Release follows.',
+    );
+    expect(dialog).toHaveTextContent('3notice previews0messages sent');
+    expect(dialog).toHaveTextContent(
+      'No private Envelope content is included.',
+    );
+    expect(dialog).toHaveTextContent('The house, without guesswork');
+    expect(dialog).toHaveTextContent('Juniper’s ordinary week');
+    expect(dialog).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Keep Draft' })).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: 'Keep Draft' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(review).toHaveFocus());
+
+    await user.click(review);
+    await user.click(
+      await screen.findByRole('button', { name: 'Run local rehearsal' }),
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Arm rehearsal' }),
+    ).toBeEnabled();
+    expect(screen.getByText('Locally rehearsed')).toBeVisible();
+    expect(screen.getByText('Synthetic Plan rehearsed')).toBeVisible();
+  });
+
+  it('records one rehearsal when completion is activated repeatedly', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Review rehearsal' }));
+    const complete = await screen.findByRole('button', {
+      name: 'Run local rehearsal',
+    });
+    fireEvent.click(complete);
+    fireEvent.click(complete);
+    const dialog = screen.getByRole('dialog', {
+      name: 'Review what this local rehearsal will test',
+    });
+    const cancel = new Event('cancel', { cancelable: true });
+    fireEvent(dialog, cancel);
+
+    expect(complete).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Keep Draft' })).toBeDisabled();
+    expect(cancel.defaultPrevented).toBe(true);
+    expect(dialog).toBeVisible();
+    expect(
+      await screen.findByRole('button', { name: 'Arm rehearsal' }),
+    ).toBeEnabled();
+    expect(screen.getAllByText('Synthetic Plan rehearsed')).toHaveLength(1);
+  });
+
+  it('requires a new review after an Editable Document changes', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Review rehearsal' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Run local rehearsal' }),
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Arm rehearsal' }),
+    ).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    await user.type(screen.getByLabelText('Envelope Markdown content'), '!');
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
+
+    expect(
+      await screen.findByRole('button', { name: 'Review changes' }),
+    ).toBeEnabled();
+    expect(screen.getByText('Review required')).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Arm rehearsal' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows document blockers and keeps rehearsal completion disabled', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    await user.clear(screen.getByLabelText('Document title'));
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Review rehearsal' }),
+    );
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Review what this local rehearsal will test',
+    });
+    expect(dialog).toHaveTextContent('Editable Documents need attention');
+    expect(dialog).toHaveTextContent(/title must be 1-200 visible characters/i);
+    expect(
+      screen.getByRole('button', { name: 'Run local rehearsal' }),
+    ).toBeDisabled();
   });
 
   it('advances the rehearsal by exactly one stage', async () => {

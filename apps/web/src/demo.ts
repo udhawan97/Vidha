@@ -44,6 +44,27 @@ export interface DemoImportSource {
 
 export const demoRecipients = ['Mira Chen', 'Sam Rivera'] as const;
 
+export const demoContacts = [
+  {
+    contactId: 'guardian-noah',
+    label: 'Noah Williams',
+    role: 'Guardian',
+    status: 'synthetic_verified',
+  },
+  {
+    contactId: 'recipient-mira',
+    label: 'Mira Chen',
+    role: 'Recipient',
+    status: 'synthetic_verified',
+  },
+  {
+    contactId: 'recipient-sam',
+    label: 'Sam Rivera',
+    role: 'Recipient',
+    status: 'synthetic_verified',
+  },
+] as const;
+
 function createDocumentDraft(
   input: DemoEditableDocumentDraft,
 ): DemoEditableDocumentDraft {

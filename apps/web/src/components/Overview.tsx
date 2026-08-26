@@ -1,19 +1,27 @@
+import {
+  DraftRehearsalError,
+  acceptDraftRehearsalReview,
+  createDraftRehearsalReview,
+  type DraftRehearsalInput,
+  type DraftRehearsalReview,
+} from '@vidha/application';
 import type { DomainEvent, PlanState } from '@vidha/domain';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { DemoEnvelope } from '../demo';
+import { demoContacts, type DemoEnvelope } from '../demo';
 import { ContinuityLine } from './ContinuityLine';
+import { DraftRehearsalDialog } from './DraftRehearsalDialog';
 
 interface OverviewProps {
   readonly plan: PlanState;
   readonly envelopes: readonly DemoEnvelope[];
-  readonly onArm: () => void;
+  readonly onArm: () => Promise<void>;
   readonly onAdvance: () => void;
   readonly onCheckIn: () => void;
   readonly onDisable: () => void;
   readonly onPause: () => void;
   readonly onOpenEnvelope: (envelopeId: string) => void;
-  readonly onRehearse: () => void;
+  readonly onRehearse: (reviewIdentity: string) => Promise<void>;
   readonly onResume: () => void;
 }
 
@@ -89,6 +97,25 @@ function formatEventTime(timestamp: number): string {
   }).format(timestamp);
 }
 
+function rehearsalInput(
+  plan: PlanState,
+  envelopes: readonly DemoEnvelope[],
+): DraftRehearsalInput {
+  return {
+    contacts: demoContacts,
+    envelopes: envelopes.map((envelope) => ({
+      attachmentSourceIds: envelope.attachments.map(
+        (attachment) => attachment.sourceId,
+      ),
+      document: { ...envelope.documentDraft },
+      envelopeId: envelope.id,
+      protectionMode: envelope.protectionMode,
+      releasePolicy: envelope.releasePolicy,
+    })),
+    plan,
+  };
+}
+
 export function Overview({
   plan,
   envelopes,
@@ -103,11 +130,57 @@ export function Overview({
 }: OverviewProps) {
   const [confirming, setConfirming] = useState(false);
   const [confirmingDisable, setConfirmingDisable] = useState(false);
+  const [acceptedRehearsalIdentity, setAcceptedRehearsalIdentity] = useState<
+    string | null
+  >(null);
+  const [currentRehearsal, setCurrentRehearsal] =
+    useState<DraftRehearsalReview | null>(null);
+  const [pendingRehearsal, setPendingRehearsal] =
+    useState<DraftRehearsalReview | null>(null);
+  const [completingRehearsal, setCompletingRehearsal] = useState(false);
+  const [rehearsalIssue, setRehearsalIssue] = useState<string | null>(null);
+  const rehearsalTriggerRef = useRef<HTMLButtonElement>(null);
+  const rehearsalCompletionRef = useRef(false);
+  const currentRehearsalInput = useMemo(
+    () => rehearsalInput(plan, envelopes),
+    [envelopes, plan],
+  );
   const isArmed = plan.lifecycle === 'armed';
   const copy = isArmed
     ? stageCopy[plan.cycle.stage]
     : lifecycleCopy[plan.lifecycle];
   const canAdvance = isArmed && plan.cycle.stage !== 'concern';
+  const rehearsalIsCurrent =
+    plan.hasRehearsed &&
+    acceptedRehearsalIdentity !== null &&
+    currentRehearsal?.reviewIdentity === acceptedRehearsalIdentity;
+
+  useEffect(() => {
+    if (plan.lifecycle !== 'draft') {
+      return;
+    }
+    let ignore = false;
+    void createDraftRehearsalReview(currentRehearsalInput, Date.now())
+      .then((review) => {
+        if (!ignore) {
+          setCurrentRehearsal(review);
+          setRehearsalIssue(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!ignore) {
+          setCurrentRehearsal(null);
+          setRehearsalIssue(
+            error instanceof Error
+              ? error.message
+              : 'The local rehearsal review could not be prepared.',
+          );
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [currentRehearsalInput, plan.lifecycle]);
 
   function confirmCheckIn() {
     onCheckIn();
@@ -119,14 +192,88 @@ export function Overview({
     setConfirmingDisable(false);
   }
 
+  async function reviewDraftRehearsal() {
+    setRehearsalIssue(null);
+    try {
+      const review = await createDraftRehearsalReview(
+        currentRehearsalInput,
+        Date.now(),
+      );
+      setCurrentRehearsal(review);
+      setPendingRehearsal(review);
+    } catch (error) {
+      setRehearsalIssue(
+        error instanceof Error
+          ? error.message
+          : 'The local rehearsal review could not be prepared.',
+      );
+    }
+  }
+
+  async function completeDraftRehearsal() {
+    if (pendingRehearsal === null || rehearsalCompletionRef.current) {
+      return;
+    }
+    rehearsalCompletionRef.current = true;
+    setCompletingRehearsal(true);
+    const reviewed = pendingRehearsal;
+    try {
+      const acceptance = await acceptDraftRehearsalReview(
+        reviewed,
+        rehearsalInput(plan, envelopes),
+      );
+      await onRehearse(acceptance.reviewIdentity);
+      setAcceptedRehearsalIdentity(acceptance.reviewIdentity);
+      setPendingRehearsal(null);
+      setRehearsalIssue(null);
+    } catch (error) {
+      setPendingRehearsal(null);
+      setRehearsalIssue(
+        error instanceof DraftRehearsalError || error instanceof Error
+          ? error.message
+          : 'The Plan changed. Review the local rehearsal again.',
+      );
+    } finally {
+      rehearsalCompletionRef.current = false;
+      setCompletingRehearsal(false);
+    }
+  }
+
+  async function armReviewedDraft() {
+    try {
+      const latest = await createDraftRehearsalReview(
+        rehearsalInput(plan, envelopes),
+        Date.now(),
+      );
+      if (
+        acceptedRehearsalIdentity === null ||
+        latest.reviewIdentity !== acceptedRehearsalIdentity
+      ) {
+        setCurrentRehearsal(latest);
+        setRehearsalIssue(
+          'The Plan or an Envelope changed after rehearsal. Review the local rehearsal again before arming.',
+        );
+        return;
+      }
+      await onArm();
+    } catch (error) {
+      setRehearsalIssue(
+        error instanceof Error
+          ? error.message
+          : 'The reviewed Draft could not be armed.',
+      );
+    }
+  }
+
   const lifecycleControls = (
     <div className="lifecycle-controls" aria-label="Plan lifecycle controls">
       <span>Plan controls</span>
       {plan.lifecycle === 'draft' ? (
-        plan.hasRehearsed ? (
+        rehearsalIsCurrent ? (
           <button
             className="button button-primary"
-            onClick={onArm}
+            onClick={() => void armReviewedDraft()}
+            ref={rehearsalTriggerRef}
             type="button"
           >
             Arm rehearsal
@@ -134,10 +281,11 @@ export function Overview({
         ) : (
           <button
             className="button button-primary"
-            onClick={onRehearse}
+            onClick={() => void reviewDraftRehearsal()}
+            ref={rehearsalTriggerRef}
             type="button"
           >
-            Rehearse Draft
+            {plan.hasRehearsed ? 'Review changes' : 'Review rehearsal'}
           </button>
         )
       ) : plan.lifecycle === 'armed' ? (
@@ -164,6 +312,11 @@ export function Overview({
       )}
       {plan.lifecycle === 'disabled' ? (
         <p>Disabled is terminal in this synthetic foundation.</p>
+      ) : null}
+      {plan.lifecycle === 'draft' && rehearsalIssue !== null ? (
+        <p className="rehearsal-inline-issue" role="alert">
+          {rehearsalIssue}
+        </p>
       ) : null}
     </div>
   );
@@ -238,7 +391,21 @@ export function Overview({
               <p className="eyebrow">Prepared handoffs</p>
               <h2 id="prepared-title">Two demo Envelopes</h2>
             </div>
-            <span className="readiness-mark">Rehearsal ready</span>
+            <span
+              className={`readiness-mark ${
+                rehearsalIsCurrent
+                  ? 'is-reviewed'
+                  : currentRehearsal?.canComplete === false
+                    ? 'needs-attention'
+                    : ''
+              }`}
+            >
+              {rehearsalIsCurrent
+                ? 'Locally rehearsed'
+                : currentRehearsal?.canComplete === false
+                  ? 'Needs attention'
+                  : 'Review required'}
+            </span>
           </div>
           <div className="envelope-rows">
             {envelopes.map((envelope, index) => (
@@ -369,6 +536,18 @@ export function Overview({
           </div>
         </div>
       ) : null}
+
+      {pendingRehearsal === null ? null : (
+        <DraftRehearsalDialog
+          completing={completingRehearsal}
+          onCancel={() => {
+            if (!rehearsalCompletionRef.current) setPendingRehearsal(null);
+          }}
+          onComplete={completeDraftRehearsal}
+          returnFocusRef={rehearsalTriggerRef}
+          review={pendingRehearsal}
+        />
+      )}
 
       {confirmingDisable ? (
         <div className="dialog-backdrop" role="presentation">

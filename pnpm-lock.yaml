@@ -124,6 +124,9 @@ importers:
 
   packages/application:
     dependencies:
+      '@vidha/documents':
+        specifier: workspace:*
+        version: link:../documents
       '@vidha/domain':
         specifier: workspace:*
         version: link:../domain

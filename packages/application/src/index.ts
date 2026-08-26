@@ -15,3 +15,18 @@ export {
   type ReminderChallenge,
   type ReminderInspection,
 } from './application';
+export {
+  DRAFT_REHEARSAL_SCHEMA,
+  DRAFT_REHEARSAL_SCHEMA_VERSION,
+  DraftRehearsalError,
+  acceptDraftRehearsalReview,
+  createDraftRehearsalReview,
+  type DraftRehearsalAcceptance,
+  type DraftRehearsalCheck,
+  type DraftRehearsalContactInput,
+  type DraftRehearsalEnvelopeInput,
+  type DraftRehearsalInput,
+  type DraftRehearsalNoticeIntent,
+  type DraftRehearsalReview,
+  type DraftRehearsalTimelineStep,
+} from './draftRehearsal';

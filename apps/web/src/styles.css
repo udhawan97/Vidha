@@ -576,6 +576,15 @@ h2 {
   font-size: 0.7rem;
 }
 
+.lifecycle-controls .rehearsal-inline-issue {
+  flex-basis: 100%;
+  padding: 8px 10px;
+  border-left: 3px solid var(--concern);
+  background: var(--danger-soft);
+  color: var(--concern);
+  font-weight: 700;
+}
+
 .overview-columns {
   display: grid;
   gap: clamp(22px, 3vw, 42px);
@@ -621,6 +630,17 @@ h2 {
   color: var(--tide);
   font-size: 0.63rem;
   font-weight: 800;
+}
+
+.readiness-mark.is-reviewed {
+  border-color: var(--tide);
+  background: var(--mist-soft);
+}
+
+.readiness-mark.needs-attention {
+  border-color: var(--concern);
+  background: var(--danger-soft);
+  color: var(--concern);
 }
 
 .envelope-rows {
@@ -843,6 +863,246 @@ h2 {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 26px;
+}
+
+.rehearsal-review-dialog {
+  width: min(920px, calc(100% - 40px));
+  max-height: calc(100dvh - 40px);
+  margin: auto;
+  overflow-y: auto;
+  padding: clamp(24px, 4vw, 46px);
+}
+
+.rehearsal-review-dialog::backdrop {
+  background: rgb(12 32 35 / 66%);
+  backdrop-filter: blur(7px);
+}
+
+.rehearsal-dialog-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.rehearsal-dialog-heading h2 {
+  max-width: 560px;
+  margin-bottom: 0;
+}
+
+.rehearsal-tally {
+  display: grid;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  grid-template-columns: auto 1fr;
+}
+
+.rehearsal-tally strong {
+  color: var(--thread);
+  font-family: 'Newsreader Variable', Georgia, serif;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 560;
+}
+
+.rehearsal-tally span {
+  color: var(--ink-faint);
+  font-size: 0.61rem;
+  font-weight: 760;
+}
+
+.rehearsal-review-grid {
+  display: grid;
+  gap: clamp(24px, 4vw, 46px);
+  margin-top: 26px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.rehearsal-review-grid .review-label,
+.rehearsal-handoffs .review-label,
+.rehearsal-notice-preview .review-label {
+  margin-bottom: 14px;
+}
+
+.rehearsal-timeline,
+.rehearsal-checks {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rehearsal-timeline li {
+  position: relative;
+  display: grid;
+  min-height: 62px;
+  align-content: start;
+  gap: 3px 16px;
+  padding: 5px 0 18px 32px;
+  grid-template-columns: 62px minmax(0, 1fr);
+}
+
+.rehearsal-timeline li::before {
+  position: absolute;
+  top: 7px;
+  bottom: -7px;
+  left: 8px;
+  width: 1px;
+  background: var(--line);
+  content: '';
+}
+
+.rehearsal-timeline li::after {
+  position: absolute;
+  top: 7px;
+  left: 3px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--paper-strong);
+  border-radius: 50%;
+  background: var(--tide);
+  box-shadow: 0 0 0 1px var(--tide);
+  content: '';
+}
+
+.rehearsal-timeline li.is-stop::before {
+  display: none;
+}
+
+.rehearsal-timeline li.is-stop::after {
+  background: var(--thread);
+  box-shadow: 0 0 0 1px var(--thread);
+}
+
+.rehearsal-timeline li > span {
+  color: var(--ink-faint);
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.rehearsal-timeline li > strong {
+  font-size: 0.75rem;
+}
+
+.rehearsal-timeline li > small {
+  color: var(--ink-faint);
+  font-size: 0.64rem;
+  line-height: 1.5;
+  grid-column: 2;
+}
+
+.rehearsal-checks li {
+  display: grid;
+  align-items: start;
+  gap: 10px;
+  padding: 8px 0 12px;
+  border-top: 1px solid var(--line);
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.rehearsal-checks li > span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--mist-soft);
+  color: var(--tide);
+  font-size: 0.66rem;
+  font-weight: 850;
+}
+
+.rehearsal-checks li.is-blocked > span {
+  background: var(--danger-soft);
+  color: var(--concern);
+}
+
+.rehearsal-checks li > div {
+  display: grid;
+  gap: 3px;
+}
+
+.rehearsal-checks strong {
+  font-size: 0.72rem;
+}
+
+.rehearsal-checks small {
+  color: var(--ink-faint);
+  font-size: 0.63rem;
+  line-height: 1.55;
+}
+
+.rehearsal-handoffs {
+  margin-top: 22px;
+}
+
+.rehearsal-handoffs > div {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rehearsal-handoffs article {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--canvas);
+}
+
+.rehearsal-handoffs strong {
+  font-size: 0.73rem;
+}
+
+.rehearsal-handoffs span,
+.rehearsal-handoffs small,
+.rehearsal-notice-preview span {
+  color: var(--ink-faint);
+  font-size: 0.63rem;
+  line-height: 1.5;
+}
+
+.rehearsal-notice-preview .review-label,
+.rehearsal-notice-preview span {
+  color: var(--ink);
+}
+
+.rehearsal-notice-preview {
+  display: grid;
+  align-items: start;
+  gap: 18px;
+  margin-top: 18px;
+  padding: 18px;
+  border-left: 3px solid var(--thread);
+  background: var(--thread-soft);
+  grid-template-columns: minmax(170px, 0.55fr) minmax(0, 1.45fr);
+}
+
+.rehearsal-notice-preview blockquote {
+  margin: 0;
+  color: var(--ink);
+  font-family: 'Newsreader Variable', Georgia, serif;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.rehearsal-stop-note {
+  margin: 16px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--concern);
+  color: var(--ink-faint) !important;
+  font-size: 0.68rem !important;
 }
 
 .workspace-heading {
@@ -1817,6 +2077,33 @@ h2 {
   .dialog-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .rehearsal-review-dialog {
+    width: calc(100% - 24px);
+    max-height: calc(100dvh - 24px);
+    margin: 12px auto;
+    padding: 22px 18px;
+  }
+
+  .rehearsal-dialog-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .rehearsal-tally {
+    width: 100%;
+  }
+
+  .rehearsal-review-grid,
+  .rehearsal-handoffs > div,
+  .rehearsal-notice-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .rehearsal-review-grid {
+    gap: 18px;
   }
 
   .version-restore-dialog {

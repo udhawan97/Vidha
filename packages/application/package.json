@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@vidha/domain": "workspace:*",
+    "@vidha/documents": "workspace:*",
     "@vidha/identity": "workspace:*"
   }
 }
