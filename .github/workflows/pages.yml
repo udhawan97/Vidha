@@ -1,14 +1,12 @@
-# Publishes the static informational page in site/ to the gh-pages
-# branch, which GitHub Pages serves at udhawan97.github.io/Vidha/.
+# Publishes the static informational page in site/ with GitHub's
+# supported Pages artifact and deployment workflow.
 #
 # The page describes the pre-alpha design and makes no shipped claim;
 # the runnable release candidate remains the source of truth for the
 # public surface (AGENTS.md, docs/public-surface/FACT_SHEET.md).
 #
-# Branch publishing is used because this account's GITHUB_TOKEN cannot
-# create a Pages site via the API ("Resource not accessible by
-# integration" from actions/configure-pages enablement); a gh-pages
-# branch activates Pages without a repository-settings step.
+# The Pages site must be enabled once by a repository administrator;
+# workflow tokens deliberately do not own that repository setting.
 name: Publish project page
 
 on:
@@ -20,26 +18,25 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  publish:
+  deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Push site/ to gh-pages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd site
-          touch .nojekyll
-          git init -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "publish site from ${GITHUB_SHA}"
-          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
