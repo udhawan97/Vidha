@@ -12,7 +12,11 @@ export function UpdateNotice() {
   }
 
   return (
-    <aside className="update-notice" aria-live="polite">
+    <aside
+      aria-label="Application update status"
+      className="update-notice"
+      aria-live="polite"
+    >
       <div>
         <strong>
           {needRefresh ? 'A new build is ready.' : 'Ready offline.'}

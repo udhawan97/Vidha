@@ -18,6 +18,9 @@ function extensionsFor(kind: (typeof attachmentGroups)[number]['kind']) {
 export function OwnerGuide() {
   return (
     <div className="guide-view">
+      <span className="folio-marker" aria-hidden="true" lang="ja">
+        三・手引
+      </span>
       <header className="guide-hero">
         <div>
           <p className="eyebrow">Owner guide · synthetic rehearsal</p>

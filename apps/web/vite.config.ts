@@ -13,8 +13,8 @@ export default defineConfig({
         short_name: 'Vidha',
         description:
           'A pre-alpha contingency-relay prototype for deliberate, recipient-specific handoffs.',
-        theme_color: '#1f565b',
-        background_color: '#eef4f3',
+        theme_color: '#141f45',
+        background_color: '#f7f0e2',
         display: 'standalone',
         start_url: '/',
         scope: '/',

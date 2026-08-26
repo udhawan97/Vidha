@@ -531,17 +531,12 @@ test('keeps every primary view inside the documented responsive widths', async (
   }
 });
 
-test('has no serious or critical automated accessibility violations', async ({
-  page,
-}) => {
+test('has no automated accessibility violations', async ({ page }) => {
   for (const view of ['Overview', 'Envelopes', 'Guide']) {
     await page.getByRole('button', { name: view, exact: true }).click();
     const results = await new AxeBuilder({ page }).analyze();
-    const materialViolations = results.violations.filter(({ impact }) =>
-      ['serious', 'critical'].includes(impact ?? ''),
-    );
 
-    expect(materialViolations, `${view} accessibility`).toEqual([]);
+    expect(results.violations, `${view} accessibility`).toEqual([]);
   }
 
   await page.getByRole('button', { name: 'Envelopes', exact: true }).click();
@@ -552,27 +547,21 @@ test('has no serious or critical automated accessibility violations', async ({
     .getByRole('button', { name: `Review Version 1: ${originalTitle}` })
     .click();
   const dialogResults = await new AxeBuilder({ page }).analyze();
-  const dialogViolations = dialogResults.violations.filter(({ impact }) =>
-    ['serious', 'critical'].includes(impact ?? ''),
-  );
 
-  expect(dialogViolations, 'restore dialog accessibility').toEqual([]);
+  expect(dialogResults.violations, 'restore dialog accessibility').toEqual([]);
 
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Overview', exact: true }).click();
   await page.getByRole('button', { name: 'Review rehearsal' }).click();
   const rehearsalDialogResults = await new AxeBuilder({ page }).analyze();
-  const rehearsalDialogViolations = rehearsalDialogResults.violations.filter(
-    ({ impact }) => ['serious', 'critical'].includes(impact ?? ''),
-  );
 
   expect(
-    rehearsalDialogViolations,
+    rehearsalDialogResults.violations,
     'rehearsal review dialog accessibility',
   ).toEqual([]);
 });
 
-test('uses the motion-aware working-concept icon with a reduced-motion fallback', async ({
+test('uses the courier mark and stops its continuity-line motion when requested', async ({
   page,
 }) => {
   const embeddedMark = page.locator('img[src="/vidha-mark.svg"]');
@@ -587,65 +576,142 @@ test('uses the motion-aware working-concept icon with a reduced-motion fallback'
     page.locator('link[rel="icon"][media*="reduced-motion: no-preference"]'),
   ).toHaveAttribute('href', '/vidha-mark.svg');
 
-  await page.goto('/vidha-mark.svg');
-  const continuitySpan = page.locator('.continuity-span');
-  await expect(continuitySpan).toHaveCount(1);
-  await expect
-    .poll(() =>
-      continuitySpan.evaluate(
-        (element) => getComputedStyle(element).animationName,
-      ),
-    )
-    .toContain('relay-span');
-  await expect
-    .poll(() =>
-      continuitySpan.evaluate(
-        (element) => getComputedStyle(element).animationIterationCount,
-      ),
-    )
-    .toBe('1');
+  for (const asset of [
+    '/vidha-mark.svg',
+    '/vidha-mark-reversed.svg',
+    '/vidha-mark-maskable.svg',
+  ]) {
+    await page.goto(asset);
+    await expect(page.locator('title')).toContainText('working-concept');
+    await expect(page.locator('desc')).toContainText('clearance');
+    await expect(
+      page.locator('script, style, foreignObject, a, image, use'),
+    ).toHaveCount(0);
+    expect(
+      await page
+        .locator('*')
+        .evaluateAll((elements) =>
+          elements.some((element) =>
+            element.getAttributeNames().some((name) => name.startsWith('on')),
+          ),
+        ),
+    ).toBe(false);
+    if (asset === '/vidha-mark-maskable.svg') {
+      await expect(page.locator('svg > g')).toHaveAttribute(
+        'transform',
+        'translate(30 35) scale(.5)',
+      );
+    }
+  }
 
-  const openDestination = page.locator('.open-destination');
+  await page.goto('/');
+  await armDemo(page);
+  const courier = page.locator('.continuity-courier');
+  await expect(courier).toBeVisible();
   await expect
     .poll(() =>
-      openDestination.evaluate(
-        (element) => getComputedStyle(element).animationName,
-      ),
+      courier.evaluate((element) => getComputedStyle(element).animationName),
     )
-    .toContain('relay-arrival');
-  await expect
-    .poll(() =>
-      openDestination.evaluate(
-        (element) => getComputedStyle(element).animationIterationCount,
-      ),
-    )
-    .toBe('1');
+    .toContain('courier-bob');
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect
     .poll(() =>
-      continuitySpan.evaluate(
-        (element) => getComputedStyle(element).animationName,
+      courier.evaluate(
+        (element) => getComputedStyle(element).animationIterationCount,
       ),
     )
-    .toBe('none');
-  await expect
-    .poll(() =>
-      openDestination.evaluate(
-        (element) => getComputedStyle(element).animationName,
-      ),
-    )
-    .toBe('none');
+    .toBe('1');
+  const reducedFrame = await courier.screenshot();
+  await page.waitForTimeout(500);
+  expect((await courier.screenshot()).equals(reducedFrame)).toBe(true);
+});
 
-  await page.goto('/');
-  const reducedMark = page.locator('img[src="/vidha-mark.svg"]');
-  await expect(reducedMark).toBeVisible();
-  await expect
-    .poll(() => reducedMark.evaluate((image) => image.currentSrc))
-    .toContain('/pwa-192.png');
-  const reducedFrame = await reducedMark.screenshot();
-  await page.waitForTimeout(4_000);
-  expect((await reducedMark.screenshot()).equals(reducedFrame)).toBe(true);
+test('keeps every mobile courier stage aligned, visible, and keyboard reachable', async ({
+  page,
+}) => {
+  for (const width of [320, 414]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/');
+    await armDemo(page);
+    const scrollRegion = page.locator('.continuity-scroll');
+    await expect(scrollRegion).toHaveAttribute('tabindex', '0');
+
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    });
+    let reachedTimeline = false;
+    for (let tabIndex = 0; tabIndex < 12; tabIndex += 1) {
+      await page.keyboard.press('Tab');
+      reachedTimeline = await scrollRegion.evaluate(
+        (element) => document.activeElement === element,
+      );
+      if (reachedTimeline) break;
+    }
+    expect(reachedTimeline).toBe(true);
+    await scrollRegion.evaluate((element) => {
+      element.scrollTo({ behavior: 'auto', left: 0 });
+    });
+    await expect
+      .poll(() => scrollRegion.evaluate((element) => element.scrollLeft))
+      .toBe(0);
+    const initialScroll = await scrollRegion.evaluate(
+      (element) => element.scrollLeft,
+    );
+    await page.keyboard.press('ArrowRight');
+    await expect
+      .poll(() => scrollRegion.evaluate((element) => element.scrollLeft))
+      .toBeGreaterThan(initialScroll);
+    await scrollRegion.evaluate((element) => {
+      element.scrollTo({ behavior: 'auto', left: 0 });
+    });
+
+    for (let stageIndex = 0; stageIndex < 4; stageIndex += 1) {
+      const courier = page.locator('.continuity-courier');
+      const currentKnot = page.locator(
+        '.continuity-point.is-current .continuity-knot',
+      );
+      await expect(courier).toHaveCount(1);
+      await expect(currentKnot).toHaveCount(1);
+      await expect
+        .poll(async () => {
+          const courierBox = await courier.boundingBox();
+          const knotBox = await currentKnot.boundingBox();
+          if (courierBox === null || knotBox === null) {
+            return Number.POSITIVE_INFINITY;
+          }
+          return Math.abs(
+            courierBox.x +
+              courierBox.width / 2 -
+              (knotBox.x + knotBox.width / 2),
+          );
+        })
+        .toBeLessThanOrEqual(2);
+
+      for (const element of [currentKnot, courier]) {
+        await expect
+          .poll(() =>
+            element.evaluate((node) => {
+              const region = node.closest('.continuity-scroll');
+              if (region === null) return false;
+              const nodeBox = node.getBoundingClientRect();
+              const regionBox = region.getBoundingClientRect();
+              return (
+                nodeBox.left >= regionBox.left &&
+                nodeBox.right <= regionBox.right
+              );
+            }),
+          )
+          .toBe(true);
+      }
+
+      if (stageIndex < 3) {
+        await page.getByRole('button', { name: 'Advance one stage' }).click();
+      }
+    }
+  }
 });
 
 test('fits the viewport and exposes installable PWA infrastructure', async ({

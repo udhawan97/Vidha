@@ -946,6 +946,9 @@ export function DocumentWorkspace({
       )}
 
       <div className="workspace-shell">
+        <span className="folio-marker" aria-hidden="true" lang="ja">
+          二・封筒
+        </span>
         <aside className="document-list" aria-label="Demo Envelopes">
           <div className="document-list-heading">
             <span>Envelopes</span>

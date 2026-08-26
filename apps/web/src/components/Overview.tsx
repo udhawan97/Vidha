@@ -425,7 +425,13 @@ export function Overview({
 
   return (
     <div className="overview-view">
+      <span className="folio-marker" aria-hidden="true" lang="ja">
+        一・現状
+      </span>
       <section className={`status-field stage-${plan.cycle.stage}`}>
+        <span className="status-watermark" aria-hidden="true">
+          Contingency relay
+        </span>
         <div className="status-heading">
           <div>
             <p className="eyebrow">{copy.eyebrow}</p>

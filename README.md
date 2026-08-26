@@ -1,13 +1,13 @@
 <p align="center">
   <picture>
-    <source media="(prefers-reduced-motion: reduce)" srcset="apps/web/public/pwa-512.png" />
-    <img src="apps/web/public/vidha-mark.svg" width="112" alt="Vidha Continuity Span working-concept icon: a held origin connected to an open destination" />
+    <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/vidha-mark-reversed.svg" />
+    <img src="apps/web/public/vidha-mark.svg" width="144" height="108" alt="Vidha courier working-concept mark: a small bird standing on a marigold continuity line" />
   </picture>
 </p>
 
 <h1 align="center">Vidha</h1>
 
-<p align="center"><strong>Prepare what matters. Release it carefully.</strong></p>
+<p align="center"><strong>Brief the handoff. Rehearse the relay.</strong></p>
 
 <p align="center">
   An open-source contingency relay for one adult Owner—designed around explicit Check-ins, human verification by default, and recipient-specific Envelopes.
@@ -23,7 +23,7 @@
 > [!IMPORTANT]
 > **Pre-alpha · local synthetic prototype · working name.** There is no hosted service, download, real account, notification delivery, Release path, tag, or GitHub release. The prototype uses disposable synthetic data; refresh clears its browser session. Do not enter personal or sensitive information.
 
-“Vidha” and the Continuity Span icon are provisional working concepts. Name and logo clearance are incomplete, and this project makes no exclusivity or ownership claim.
+“Vidha” and the courier mark are provisional working concepts. Name and logo clearance are incomplete, and this project makes no exclusivity, cultural-origin, or ownership claim.
 
 ## What is Vidha?
 
@@ -42,6 +42,10 @@ The repository currently provides two kinds of evidence. Neither is a release:
 | Hosted service or v1 download | **Unavailable**           | Planned only; no public deployment, installer, supported-browser matrix, or update guarantee exists                                                                                                                                              |
 
 The browser prototype deliberately stops at Concern. Guardian Attestations, Veto Window, Delivery Hold, Automatic Fallback, real notifications, Recipient retrieval, and Release are not implemented. Bounded Guardian Attestations are the default intended Release Policy; Automatic Fallback must be explicitly enabled for an individual Envelope.
+
+![Vidha local synthetic prototype showing the Draft rehearsal overview in the ivory, indigo, and marigold editorial system](docs/assets/vidha-overview.png)
+
+_Current local WebKit capture using only the repository’s synthetic demo data. It is a pre-alpha rehearsal—not a hosted service or release._
 
 ## Run the local prototype
 

@@ -302,7 +302,7 @@ export function App() {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <aside className="app-rail">
+      <aside aria-label="Application navigation" className="app-rail">
         <button
           aria-label="Open overview"
           className="wordmark"
@@ -311,12 +311,13 @@ export function App() {
         >
           <picture>
             <source
-              media="(prefers-reduced-motion: reduce)"
-              srcSet="/pwa-192.png"
+              media="(prefers-color-scheme: dark)"
+              srcSet="/vidha-mark-reversed.svg"
             />
-            <img alt="" src="/vidha-mark.svg" />
+            <img alt="" height="450" src="/vidha-mark.svg" width="600" />
           </picture>
-          <span>Vidha</span>
+          <span className="wordmark-name">Vidha</span>
+          <span className="wordmark-subtitle">Contingency relay</span>
         </button>
         <nav aria-label="Primary navigation">
           <button
@@ -326,7 +327,7 @@ export function App() {
             type="button"
           >
             <span className="nav-glyph" aria-hidden="true">
-              ◉
+              01
             </span>
             <span>Overview</span>
           </button>
@@ -337,7 +338,7 @@ export function App() {
             type="button"
           >
             <span className="nav-glyph" aria-hidden="true">
-              ≡
+              02
             </span>
             <span>Envelopes</span>
           </button>
@@ -348,7 +349,7 @@ export function App() {
             type="button"
           >
             <span className="nav-glyph" aria-hidden="true">
-              ↗
+              03
             </span>
             <span>Guide</span>
           </button>
@@ -361,9 +362,12 @@ export function App() {
 
       <div className="app-surface">
         <header className="topbar">
-          <div>
+          <div className="build-label-wrap">
             <span className="build-label">
               Pre-alpha prototype · synthetic data
+            </span>
+            <span className="topbar-motto">
+              Brief the handoff. Rehearse the relay.
             </span>
           </div>
           <div className="owner-chip" aria-label="Synthetic Owner profile">
