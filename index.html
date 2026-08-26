@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vidha pre-alpha — rehearse a careful contingency relay</title>
+    <meta
+      name="description"
+      content="Vidha is a pre-alpha open-source contingency-relay project for deliberate, recipient-specific handoffs. This public page describes the design; there is no hosted service or release."
+    />
+    <meta name="theme-color" content="#141f45" />
+    <link rel="icon" href="vidha-mark.svg" type="image/svg+xml" />
+    <link rel="icon" href="pwa-192.png" type="image/png" sizes="192x192" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #141f45;
+        --ink-soft: #384365;
+        --muted: #5f5a58;
+        --paper: #f7f0e2;
+        --paper-strong: #fdf9f0;
+        --paper-soft: #efe6d2;
+        --line: #cfc3aa;
+        --thread: #e9a427;
+        --peacock: #0e7c74;
+        --concern: #a93224;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #f7f0e2;
+          --ink-soft: #dfd5be;
+          --muted: #bdb39e;
+          --paper: #0c1430;
+          --paper-strong: #141f45;
+          --paper-soft: #1c294f;
+          --line: #46516f;
+          --thread: #f1b94c;
+          --peacock: #64b8ad;
+          --concern: #ef715f;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        min-width: 320px;
+        margin: 0;
+        background:
+          linear-gradient(rgb(20 31 69 / 3%) 1px, transparent 1px) 0 0 / 100%
+            28px,
+          var(--paper);
+        color: var(--ink);
+        font:
+          1rem/1.65 ui-sans-serif,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: inherit;
+        text-decoration-color: var(--thread);
+        text-decoration-thickness: 2px;
+        text-underline-offset: 4px;
+      }
+
+      a:focus-visible {
+        outline: 3px solid var(--thread);
+        outline-offset: 4px;
+      }
+
+      .frame {
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+        border-right: 1px solid var(--line);
+        border-left: 1px solid var(--line);
+        background: color-mix(in srgb, var(--paper) 94%, transparent);
+      }
+
+      .site-header {
+        display: grid;
+        align-items: stretch;
+        min-height: 114px;
+        border-bottom: 1px solid var(--line);
+        grid-template-columns: 176px minmax(0, 1fr) auto;
+      }
+
+      .brand {
+        display: grid;
+        align-content: center;
+        justify-items: start;
+        padding: 14px 22px;
+        border-right: 1px solid var(--line);
+        text-decoration: none;
+      }
+
+      .brand img {
+        display: block;
+        width: 76px;
+        height: 57px;
+        object-fit: contain;
+      }
+
+      .brand strong,
+      h1,
+      h2,
+      .stage strong {
+        font-family: 'Iowan Old Style', 'Hiragino Mincho ProN', Georgia, serif;
+      }
+
+      .brand strong {
+        margin-top: -4px;
+        font-size: 1.14rem;
+        letter-spacing: -0.025em;
+      }
+
+      .brand small,
+      .eyebrow,
+      .status,
+      .folio,
+      .stage span,
+      .kicker {
+        font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .brand small {
+        color: var(--muted);
+        font-size: 0.5rem;
+      }
+
+      .header-note {
+        align-self: center;
+        max-width: 510px;
+        padding: 20px clamp(22px, 4vw, 50px);
+        color: var(--ink-soft);
+        font-family: 'Iowan Old Style', Georgia, serif;
+        font-size: 0.94rem;
+        font-style: italic;
+      }
+
+      .status {
+        align-self: stretch;
+        display: grid;
+        place-items: center;
+        padding: 14px 24px;
+        border-left: 1px solid var(--line);
+        color: #fdf9f0;
+        background: #141f45;
+        font-size: 0.58rem;
+        text-align: center;
+      }
+
+      main {
+        position: relative;
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        gap: clamp(32px, 6vw, 84px);
+        padding: clamp(58px, 9vw, 118px) clamp(28px, 8vw, 108px) 72px;
+        border-bottom: 5px solid var(--thread);
+        grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.72fr);
+      }
+
+      .folio {
+        position: absolute;
+        top: 66px;
+        left: 24px;
+        color: var(--muted);
+        font-size: 0.6rem;
+        writing-mode: vertical-rl;
+      }
+
+      .eyebrow {
+        margin: 0 0 18px;
+        color: var(--peacock);
+        font-size: 0.64rem;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin: 0;
+        font-size: clamp(3.25rem, 8vw, 7.6rem);
+        font-weight: 520;
+        letter-spacing: -0.062em;
+        line-height: 0.86;
+      }
+
+      h1 em {
+        color: var(--concern);
+        font-weight: inherit;
+      }
+
+      .lede {
+        align-self: end;
+        margin: 0 0 8px;
+        padding: 24px 0 0 22px;
+        border-top: 1px solid var(--line);
+        border-left: 2px solid var(--thread);
+        color: var(--ink-soft);
+        font-family: 'Iowan Old Style', Georgia, serif;
+        font-size: clamp(1.08rem, 2vw, 1.36rem);
+        line-height: 1.48;
+      }
+
+      .reality {
+        padding: 28px clamp(28px, 8vw, 108px);
+        border-bottom: 1px solid var(--line);
+        background: var(--paper-soft);
+      }
+
+      .reality strong {
+        color: var(--concern);
+      }
+
+      .relay {
+        position: relative;
+        padding: 68px clamp(28px, 8vw, 108px) 54px;
+        overflow-x: auto;
+      }
+
+      .relay-inner {
+        position: relative;
+        min-width: 660px;
+        padding-top: 66px;
+      }
+
+      .relay-inner::before {
+        position: absolute;
+        top: 80px;
+        left: 12.5%;
+        width: 75%;
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          var(--thread) 0 66.667%,
+          var(--line) 66.667%
+        );
+        content: '';
+      }
+
+      .courier {
+        position: absolute;
+        top: 0;
+        left: 62.5%;
+        width: 78px;
+        height: 59px;
+        transform: translateX(-50%);
+      }
+
+      .courier img {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .stages {
+        position: relative;
+        display: grid;
+        margin: 0;
+        padding: 0;
+        grid-template-columns: repeat(4, 1fr);
+        list-style: none;
+      }
+
+      .stage {
+        display: grid;
+        gap: 8px;
+        justify-items: center;
+        text-align: center;
+      }
+
+      .knot {
+        width: 17px;
+        height: 17px;
+        border: 4px solid var(--paper);
+        outline: 1px solid var(--line);
+        background: var(--thread);
+        transform: rotate(45deg);
+      }
+
+      .stage:last-child .knot {
+        background: var(--concern);
+      }
+
+      .stage strong {
+        font-size: 1.08rem;
+      }
+
+      .stage span {
+        color: var(--muted);
+        font-size: 0.54rem;
+      }
+
+      .sections {
+        display: grid;
+        border-top: 1px solid var(--line);
+        grid-template-columns: 1fr 1fr;
+      }
+
+      section.editorial {
+        position: relative;
+        padding: clamp(42px, 6vw, 76px) clamp(28px, 6vw, 72px);
+      }
+
+      section.editorial + section.editorial {
+        border-left: 1px solid var(--line);
+      }
+
+      h2 {
+        max-width: 540px;
+        margin: 0 0 30px;
+        font-size: clamp(2rem, 4vw, 4rem);
+        font-weight: 520;
+        letter-spacing: -0.045em;
+        line-height: 0.98;
+      }
+
+      .kicker {
+        margin: 0 0 14px;
+        color: var(--peacock);
+        font-size: 0.58rem;
+      }
+
+      .facts {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .facts li {
+        padding: 16px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .facts strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--ink);
+      }
+
+      .facts span {
+        color: var(--muted);
+      }
+
+      .target {
+        background: #141f45;
+        color: #f7f0e2;
+      }
+
+      .target .kicker,
+      .target .facts strong {
+        color: #f1b94c;
+      }
+
+      .target .facts span {
+        color: #d5cbb5;
+      }
+
+      .target .facts li {
+        border-top-color: #46516f;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 28px clamp(28px, 6vw, 72px);
+        border-top: 1px solid var(--line);
+      }
+
+      .links a {
+        min-height: 44px;
+        padding: 10px 15px;
+        border: 1px solid var(--line);
+        background: var(--paper-strong);
+        text-decoration: none;
+      }
+
+      .links a:hover {
+        border-color: var(--thread);
+      }
+
+      footer {
+        display: grid;
+        gap: 18px 42px;
+        padding: 34px clamp(28px, 6vw, 72px) 48px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.84rem;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      footer p {
+        margin: 0;
+      }
+
+      @media (max-width: 780px) {
+        .frame {
+          width: 100%;
+          border: 0;
+        }
+
+        .site-header {
+          grid-template-columns: 150px minmax(0, 1fr);
+        }
+
+        .header-note {
+          display: none;
+        }
+
+        .hero,
+        .sections {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          padding-left: 54px;
+        }
+
+        .folio {
+          left: 18px;
+        }
+
+        section.editorial + section.editorial {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+      }
+
+      @media (max-width: 470px) {
+        .site-header {
+          min-height: 96px;
+          grid-template-columns: 132px minmax(0, 1fr);
+        }
+
+        .brand {
+          padding: 10px 16px;
+        }
+
+        .brand img {
+          width: 62px;
+          height: 46px;
+        }
+
+        .status {
+          padding: 10px 14px;
+          font-size: 0.5rem;
+        }
+
+        .hero {
+          padding-top: 54px;
+          padding-right: 20px;
+          padding-bottom: 48px;
+          padding-left: 44px;
+        }
+
+        h1 {
+          font-size: clamp(2.9rem, 17vw, 4.6rem);
+        }
+
+        .reality,
+        .relay,
+        section.editorial,
+        .links,
+        footer {
+          padding-right: 20px;
+          padding-left: 20px;
+        }
+
+        footer {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <header class="site-header">
+        <a class="brand" href="#top" aria-label="Vidha home">
+          <img src="vidha-mark.svg" alt="" width="76" height="57" />
+          <strong>Vidha</strong>
+          <small>Contingency relay</small>
+        </a>
+        <p class="header-note">Brief the handoff. Rehearse the relay.</p>
+        <div class="status">Pre-alpha<br />Design page</div>
+      </header>
+
+      <main id="top">
+        <div class="hero">
+          <span class="folio" aria-hidden="true" lang="ja">一・手渡し</span>
+          <div>
+            <p class="eyebrow">Open source · recipient specific · deliberate</p>
+            <h1>Rehearse a careful <em>relay.</em></h1>
+          </div>
+          <p class="lede">
+            Vidha is a contingency relay for one adult Owner: a way to prepare
+            recipient-specific Envelopes, make explicit Check-ins, and let a
+            bounded human process answer prolonged silence. A missed Check-in
+            may enter Concern. It never proves death.
+          </p>
+        </div>
+
+        <div class="reality">
+          <strong>What exists:</strong> a local synthetic prototype that stops
+          at Concern. There is no hosted service, download, notification
+          delivery, Recipient retrieval, Release path, tag, or v1 release. Never
+          enter personal or sensitive material.
+        </div>
+
+        <div
+          class="relay"
+          aria-label="Intended Check-in to Concern sequence"
+          tabindex="0"
+        >
+          <div class="relay-inner">
+            <picture class="courier">
+              <source
+                media="(prefers-color-scheme: dark)"
+                srcset="vidha-courier-reversed.svg"
+              />
+              <img src="vidha-courier.svg" alt="" width="78" height="59" />
+            </picture>
+            <ol class="stages">
+              <li class="stage">
+                <i class="knot" aria-hidden="true"></i>
+                <strong>Checked in</strong><span>Owner action</span>
+              </li>
+              <li class="stage">
+                <i class="knot" aria-hidden="true"></i>
+                <strong>Reminder</strong><span>One stage</span>
+              </li>
+              <li class="stage">
+                <i class="knot" aria-hidden="true"></i>
+                <strong>Due</strong><span>Grace remains</span>
+              </li>
+              <li class="stage">
+                <i class="knot" aria-hidden="true"></i>
+                <strong>Concern</strong><span>Not proof of death</span>
+              </li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="sections">
+          <section class="editorial" aria-labelledby="current-title">
+            <p class="kicker">Runnable local evidence</p>
+            <h2 id="current-title">
+              The prototype rehearses; it does not relay.
+            </h2>
+            <ul class="facts">
+              <li>
+                <strong>Disposable by design</strong>
+                <span
+                  >Synthetic demo data clears with the browser session.</span
+                >
+              </li>
+              <li>
+                <strong>Explicit Owner Check-in</strong>
+                <span
+                  >Email opens, previews, and unauthenticated GET requests never
+                  count.</span
+                >
+              </li>
+              <li>
+                <strong>One stage at a time</strong>
+                <span
+                  >The controllable clock advances through On Time, Reminder,
+                  Due, and Concern.</span
+                >
+              </li>
+              <li>
+                <strong>No Release path</strong>
+                <span
+                  >Guardian Attestation, Veto Window, Delivery Hold, and
+                  Recipient retrieval are absent.</span
+                >
+              </li>
+            </ul>
+          </section>
+
+          <section class="editorial target" aria-labelledby="target-title">
+            <p class="kicker">Target model · not implemented</p>
+            <h2 id="target-title">
+              A careful handoff needs more than a timer.
+            </h2>
+            <ul class="facts">
+              <li>
+                <strong>Recipient-specific Envelopes</strong>
+                <span
+                  >Each intended handoff has one Recipient, Protection Mode, and
+                  Release Policy.</span
+                >
+              </li>
+              <li>
+                <strong>Bounded human verification</strong>
+                <span
+                  >Guardian Attestations are intended to report limited facts,
+                  never declare death.</span
+                >
+              </li>
+              <li>
+                <strong>Owner veto remains visible</strong>
+                <span
+                  >Concern, final notice, and the full Veto Window cannot
+                  collapse into one time jump.</span
+                >
+              </li>
+              <li>
+                <strong>Private content stays out of notices</strong>
+                <span
+                  >A notification would lead an authenticated Recipient to
+                  content; it would not contain it.</span
+                >
+              </li>
+            </ul>
+          </section>
+        </div>
+
+        <nav class="links" aria-label="Project documentation">
+          <a href="https://github.com/udhawan97/Vidha">Repository</a>
+          <a href="https://github.com/udhawan97/Vidha/blob/main/README.md"
+            >Prototype status</a
+          >
+          <a
+            href="https://github.com/udhawan97/Vidha/blob/main/docs/product/PRODUCT_BRIEF.md"
+            >Product brief</a
+          >
+          <a
+            href="https://github.com/udhawan97/Vidha/blob/main/docs/security/THREAT_MODEL.md"
+            >Threat model</a
+          >
+          <a
+            href="https://github.com/udhawan97/Vidha/blob/main/docs/release/V1_RELEASE_GATES.md"
+            >V1 release gates</a
+          >
+        </nav>
+      </main>
+
+      <footer>
+        <p>
+          “Vidha” and the courier mark are provisional working concepts. Name,
+          identity, rights, and trademark clearance are incomplete; no
+          exclusivity, cultural-origin, or ownership claim is made.
+        </p>
+        <p>
+          AGPL-3.0 · This informational page describes a pre-alpha design. It is
+          not a service, download, or release.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>
