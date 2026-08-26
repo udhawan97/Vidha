@@ -17,6 +17,16 @@ import { createDemoPlan, demoEnvelopes, type DemoEnvelope } from './demo';
 
 type View = 'guide' | 'overview' | 'workspace';
 
+type OwnerActionName =
+  | 'advance'
+  | 'arm'
+  | 'check-in'
+  | 'disable'
+  | 'pause'
+  | 'rehearse'
+  | 'restart'
+  | 'resume';
+
 interface DemoClock extends Clock {
   set(at: number): void;
 }
@@ -86,60 +96,127 @@ function nextStageTime(plan: PlanState): number | null {
   }
 }
 
+function createDemoEnvelopeSession(): DemoEnvelope[] {
+  return demoEnvelopes.map((envelope) => ({
+    ...envelope,
+    documentDraft: { ...envelope.documentDraft },
+    importSource:
+      envelope.importSource === null
+        ? null
+        : {
+            ...envelope.importSource,
+            conversionWarnings: [...envelope.importSource.conversionWarnings],
+            originalBytes: Uint8Array.from(envelope.importSource.originalBytes),
+          },
+    attachments: envelope.attachments.map((attachment) => ({
+      ...attachment,
+      originalBytes: Uint8Array.from(attachment.originalBytes),
+      warnings: [...attachment.warnings],
+    })),
+  }));
+}
+
+function actionFailure(label: string, error: unknown): string {
+  const detail =
+    error instanceof Error
+      ? error.message
+      : 'The local action returned an unknown error.';
+  return `The ${label} was not recorded. ${detail}`;
+}
+
 export function App() {
-  const [runtime] = useState(createDemoRuntime);
+  const [runtime, setRuntime] = useState(createDemoRuntime);
   const [view, setView] = useState<View>('overview');
   const [selectedEnvelopeId, setSelectedEnvelopeId] = useState(
     demoEnvelopes[0]?.id ?? '',
   );
   const [plan, setPlan] = useState(runtime.initialPlan);
-  const [envelopes, setEnvelopes] = useState<DemoEnvelope[]>(() =>
-    demoEnvelopes.map((envelope) => ({
-      ...envelope,
-      attachments: envelope.attachments.map((attachment) => ({
-        ...attachment,
-        originalBytes: Uint8Array.from(attachment.originalBytes),
-        warnings: [...attachment.warnings],
-      })),
-    })),
+  const [envelopes, setEnvelopes] = useState<DemoEnvelope[]>(
+    createDemoEnvelopeSession,
   );
+  const [sessionRevision, setSessionRevision] = useState(1);
+  const [pendingAction, setPendingAction] = useState<OwnerActionName | null>(
+    null,
+  );
+  const [actionIssue, setActionIssue] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(
     'Synthetic rehearsal loaded.',
   );
   const commandSequence = useRef(0);
+  const actionInFlight = useRef<{
+    readonly action: OwnerActionName;
+    readonly promise: Promise<void>;
+  } | null>(null);
 
   function commandKey(label: string) {
     commandSequence.current += 1;
     return `demo-${label}-${commandSequence.current}`;
   }
 
-  async function advanceStage() {
+  function runOwnerAction(
+    action: OwnerActionName,
+    failureLabel: string,
+    operation: () => Promise<void>,
+  ): Promise<void> {
+    if (actionInFlight.current !== null) {
+      return actionInFlight.current.action === action
+        ? actionInFlight.current.promise
+        : Promise.reject(
+            new Error(
+              'Another synthetic Owner action is still being recorded.',
+            ),
+          );
+    }
+    setPendingAction(action);
+    setActionIssue(null);
+    const trackedPromise = Promise.resolve()
+      .then(operation)
+      .catch((error: unknown) => {
+        const issue = actionFailure(failureLabel, error);
+        setActionIssue(issue);
+        throw error;
+      })
+      .finally(() => {
+        if (actionInFlight.current?.promise === trackedPromise) {
+          actionInFlight.current = null;
+          setPendingAction(null);
+        }
+      });
+    actionInFlight.current = { action, promise: trackedPromise };
+    return trackedPromise;
+  }
+
+  function advanceStage() {
     const at = nextStageTime(plan);
     if (at === null) {
-      return;
+      return Promise.resolve();
     }
-    await runtime.ready;
-    runtime.clock.set(Math.max(at, plan.lastCommandAt));
-    const result = await runtime.application.advanceScheduled(
-      plan.planId,
-      commandKey('advance'),
-    );
-    const next = result.state;
-    setPlan(next);
-    setAnnouncement(
-      `Rehearsal advanced to ${next.cycle.stage.replace('_', ' ')}.`,
-    );
+    return runOwnerAction('advance', 'synthetic timeline advance', async () => {
+      await runtime.ready;
+      runtime.clock.set(Math.max(at, plan.lastCommandAt));
+      const result = await runtime.application.advanceScheduled(
+        plan.planId,
+        commandKey('advance'),
+      );
+      const next = result.state;
+      setPlan(next);
+      setAnnouncement(
+        `Rehearsal advanced to ${next.cycle.stage.replace('_', ' ')}.`,
+      );
+    });
   }
 
-  async function checkIn() {
-    await executeOwnerAction(
-      { type: 'OWNER_CHECK_IN' },
-      commandKey('check-in'),
-    );
-    setAnnouncement('Synthetic authenticated Check-in recorded.');
+  function checkIn() {
+    return runOwnerAction('check-in', 'synthetic Check-in', async () => {
+      await executeOwnerAction(
+        { type: 'OWNER_CHECK_IN' },
+        commandKey('check-in'),
+      );
+      setAnnouncement('Synthetic authenticated Check-in recorded.');
+    });
   }
 
-  async function changeLifecycle(
+  function changeLifecycle(
     lifecycle: Extract<PlanLifecycle, 'armed' | 'paused' | 'disabled'>,
   ) {
     const actionType =
@@ -148,27 +225,56 @@ export function App() {
         : lifecycle === 'paused'
           ? 'PAUSE_PLAN'
           : 'DISABLE_PLAN';
-    await executeOwnerAction(
-      { type: actionType, expectedPolicyRevision: plan.policyRevision },
-      commandKey(lifecycle),
-    );
-    setAnnouncement(`Synthetic Plan lifecycle changed to ${lifecycle}.`);
+    const actionName =
+      lifecycle === 'armed'
+        ? 'resume'
+        : lifecycle === 'paused'
+          ? 'pause'
+          : 'disable';
+    return runOwnerAction(actionName, `${lifecycle} action`, async () => {
+      await executeOwnerAction(
+        { type: actionType, expectedPolicyRevision: plan.policyRevision },
+        commandKey(lifecycle),
+      );
+      setAnnouncement(`Synthetic Plan lifecycle changed to ${lifecycle}.`);
+    });
   }
 
-  async function rehearsePlan(reviewIdentity: string) {
-    await executeOwnerAction(
-      { type: 'REHEARSE_PLAN', expectedPolicyRevision: plan.policyRevision },
-      `draft-rehearsal:${reviewIdentity}`,
-    );
-    setAnnouncement('Synthetic Draft rehearsal completed.');
+  function rehearsePlan(reviewIdentity: string) {
+    return runOwnerAction('rehearse', 'Draft rehearsal', async () => {
+      await executeOwnerAction(
+        { type: 'REHEARSE_PLAN', expectedPolicyRevision: plan.policyRevision },
+        `draft-rehearsal:${reviewIdentity}`,
+      );
+      setAnnouncement('Synthetic Draft rehearsal completed.');
+    });
   }
 
-  async function armPlan() {
-    await executeOwnerAction(
-      { type: 'ARM_PLAN', expectedPolicyRevision: plan.policyRevision },
-      commandKey('arm'),
-    );
-    setAnnouncement('Synthetic Plan lifecycle changed to armed.');
+  function armPlan() {
+    return runOwnerAction('arm', 'Arm action', async () => {
+      await executeOwnerAction(
+        { type: 'ARM_PLAN', expectedPolicyRevision: plan.policyRevision },
+        commandKey('arm'),
+      );
+      setAnnouncement('Synthetic Plan lifecycle changed to armed.');
+    });
+  }
+
+  function restartLocalRehearsal() {
+    return runOwnerAction('restart', 'fresh local rehearsal', async () => {
+      const freshRuntime = createDemoRuntime();
+      await freshRuntime.ready;
+      setRuntime(freshRuntime);
+      setPlan(freshRuntime.initialPlan);
+      setEnvelopes(createDemoEnvelopeSession());
+      setSelectedEnvelopeId(demoEnvelopes[0]?.id ?? '');
+      setView('overview');
+      setSessionRevision((current) => current + 1);
+      commandSequence.current = 0;
+      setAnnouncement(
+        'Fresh disposable rehearsal loaded. The Disabled Plan was not resumed.',
+      );
+    });
   }
 
   async function executeOwnerAction(
@@ -272,7 +378,10 @@ export function App() {
         <main id="main-content">
           <div hidden={view !== 'overview'}>
             <Overview
+              actionIssue={actionIssue}
+              actionPending={pendingAction !== null}
               envelopes={envelopes}
+              key={`overview-${sessionRevision}`}
               onArm={armPlan}
               onAdvance={advanceStage}
               onCheckIn={checkIn}
@@ -283,6 +392,7 @@ export function App() {
                 setView('workspace');
               }}
               onRehearse={rehearsePlan}
+              onRestart={restartLocalRehearsal}
               onResume={() => changeLifecycle('armed')}
               plan={plan}
             />
@@ -290,6 +400,7 @@ export function App() {
           <div hidden={view !== 'workspace'}>
             <DocumentWorkspace
               envelopes={envelopes}
+              key={`workspace-${sessionRevision}`}
               onSelectEnvelope={setSelectedEnvelopeId}
               selectedEnvelopeId={selectedEnvelopeId}
               setEnvelopes={setEnvelopes}

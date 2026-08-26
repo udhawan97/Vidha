@@ -412,6 +412,113 @@ describe('Vidha synthetic foundation app', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('contains explicit Owner confirmations and records a repeated activation once', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await armDemo(user);
+
+    const checkIn = screen.getByRole('button', { name: 'Rehearse Check-in' });
+    await user.click(checkIn);
+    const dialog = screen.getByRole('dialog', {
+      name: 'Confirm this rehearsal Check-in?',
+    });
+    const cancel = screen.getByRole('button', { name: 'Go back' });
+    const confirm = screen.getByRole('button', { name: 'Confirm Check-in' });
+    expect(dialog).toBeVisible();
+    expect(cancel).toHaveFocus();
+    await user.tab();
+    expect(confirm).toHaveFocus();
+    await user.tab();
+    expect(cancel).toHaveFocus();
+    const cancelEvent = new Event('cancel', { cancelable: true });
+    fireEvent(dialog, cancelEvent);
+    expect(cancelEvent.defaultPrevented).toBe(true);
+    await waitFor(() => expect(checkIn).toHaveFocus());
+
+    await user.click(checkIn);
+    const repeatedConfirm = screen.getByRole('button', {
+      name: 'Confirm Check-in',
+    });
+    fireEvent.click(repeatedConfirm);
+    fireEvent.click(repeatedConfirm);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog', {
+          name: 'Confirm this rehearsal Check-in?',
+        }),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getAllByText('Authenticated Check-in recorded')).toHaveLength(
+      1,
+    );
+  });
+
+  it('starts a separate disposable Draft after terminal disable', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    await user.clear(screen.getByLabelText('Document title'));
+    await user.type(screen.getByLabelText('Document title'), 'Changed session');
+    await user.upload(screen.getByLabelText('Add Attachment candidates'), [
+      new File(['%PDF-synthetic'], 'cleared-on-restart.pdf', {
+        type: 'application/pdf',
+      }),
+    ]);
+    await user.click(
+      await screen.findByRole('button', { name: 'Keep as Attachments' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
+    await armDemo(user);
+
+    await user.click(screen.getByRole('button', { name: 'Disable rehearsal' }));
+    const disableDialog = screen.getByRole('dialog', {
+      name: 'Disable this rehearsal Plan?',
+    });
+    expect(disableDialog).toHaveTextContent('this Plan will not resume');
+    expect(
+      screen.getByRole('button', { name: 'Keep rehearsal' }),
+    ).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Confirm disable' }));
+
+    expect(await screen.findByText('Lifecycle: disabled')).toBeVisible();
+    const restart = screen.getByRole('button', {
+      name: 'Start fresh local rehearsal',
+    });
+    await user.click(restart);
+    const restartDialog = screen.getByRole('dialog', {
+      name: 'Start a fresh local rehearsal?',
+    });
+    expect(restartDialog).toHaveTextContent(
+      'The Disabled Plan remains terminal.',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Keep ended rehearsal' }),
+    ).toHaveFocus();
+    await user.click(
+      screen.getByRole('button', { name: 'Start fresh rehearsal' }),
+    );
+
+    expect(await screen.findByText('Lifecycle: draft')).toBeVisible();
+    expect(screen.getByText('Synthetic Plan drafted')).toBeVisible();
+    expect(
+      screen.queryByText('Rehearsal plan disabled'),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    expect(screen.getByLabelText('Document title')).toHaveValue(
+      'The house, without guesswork',
+    );
+    expect(
+      screen.queryByText('cleared-on-restart.pdf'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Review Version/u }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('0/8')).toBeVisible();
+  });
+
   it('reviews a document-only version restore and preserves the current draft', async () => {
     const user = userEvent.setup();
     render(<App />);
