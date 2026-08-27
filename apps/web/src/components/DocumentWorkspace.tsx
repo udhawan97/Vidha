@@ -40,6 +40,7 @@ import {
 
 interface DocumentWorkspaceProps {
   readonly envelopes: DemoEnvelope[];
+  readonly onSessionWork: () => void;
   readonly onSelectEnvelope: (envelopeId: string) => void;
   readonly selectedEnvelopeId: string;
   readonly setEnvelopes: Dispatch<SetStateAction<DemoEnvelope[]>>;
@@ -152,6 +153,7 @@ function summarizeMarkdown(markdown: string): string {
 
 export function DocumentWorkspace({
   envelopes,
+  onSessionWork,
   onSelectEnvelope,
   selectedEnvelopeId,
   setEnvelopes,
@@ -227,6 +229,7 @@ export function DocumentWorkspace({
     versionsByEnvelope[selectedEnvelope.id] ?? createEditableDocumentHistory();
 
   function updateActiveEnvelope(patch: Partial<DemoEnvelope>) {
+    onSessionWork();
     setSessionStatus('Editing in this session…');
     setHistoryByEnvelope((current) => {
       const history = current[selectedEnvelope.id] ?? {
@@ -324,6 +327,7 @@ export function DocumentWorkspace({
         ...current,
         [selectedEnvelope.id]: result.history,
       }));
+      if (result.created) onSessionWork();
       setSessionStatus(
         result.created
           ? `Session Version ${result.version.versionNumber} saved`
@@ -500,6 +504,7 @@ export function DocumentWorkspace({
       const inspected = await importIntake.inspect(prepared);
       const reviewable = await importIntake.review(inspected);
       setPendingImport(reviewable);
+      onSessionWork();
       setSessionStatus('Editable copy ready for explicit review');
     } catch (error) {
       setPendingImport(null);
@@ -584,6 +589,7 @@ export function DocumentWorkspace({
       setImportError(errors.join(' '));
     }
     if (candidates.length > 0) {
+      onSessionWork();
       setSessionStatus(
         `${candidates.length} Attachment candidate${candidates.length === 1 ? '' : 's'} staged for review`,
       );

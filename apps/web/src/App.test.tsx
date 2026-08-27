@@ -48,6 +48,22 @@ describe('Vidha synthetic foundation app', () => {
     expect(screen.getByText('Guardian · synthetic')).toBeVisible();
   });
 
+  it('marks accepted document work as navigation-sensitive session state', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const untouched = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(untouched);
+    expect(untouched.defaultPrevented).toBe(false);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    await user.type(screen.getByLabelText('Document title'), '!');
+
+    const changed = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(changed);
+    expect(changed.defaultPrevented).toBe(true);
+  });
+
   it('reviews the complete local rehearsal before it can be marked complete', async () => {
     const user = userEvent.setup();
     render(<App />);

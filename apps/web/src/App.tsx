@@ -134,6 +134,7 @@ export function App() {
   const [envelopes, setEnvelopes] = useState<DemoEnvelope[]>(
     createDemoEnvelopeSession,
   );
+  const [hasSessionWork, setHasSessionWork] = useState(false);
   const [sessionRevision, setSessionRevision] = useState(1);
   const [pendingAction, setPendingAction] = useState<OwnerActionName | null>(
     null,
@@ -200,6 +201,7 @@ export function App() {
       );
       const next = result.state;
       setPlan(next);
+      setHasSessionWork(true);
       setAnnouncement(
         `Rehearsal advanced to ${next.cycle.stage.replace('_', ' ')}.`,
       );
@@ -270,6 +272,7 @@ export function App() {
       setSelectedEnvelopeId(demoEnvelopes[0]?.id ?? '');
       setView('overview');
       setSessionRevision((current) => current + 1);
+      setHasSessionWork(false);
       commandSequence.current = 0;
       setAnnouncement(
         'Fresh disposable rehearsal loaded. The Disabled Plan was not resumed.',
@@ -295,6 +298,7 @@ export function App() {
       },
     );
     setPlan(result.state);
+    setHasSessionWork(true);
   }
 
   return (
@@ -405,6 +409,7 @@ export function App() {
             <DocumentWorkspace
               envelopes={envelopes}
               key={`workspace-${sessionRevision}`}
+              onSessionWork={() => setHasSessionWork(true)}
               onSelectEnvelope={setSelectedEnvelopeId}
               selectedEnvelopeId={selectedEnvelopeId}
               setEnvelopes={setEnvelopes}
@@ -419,7 +424,10 @@ export function App() {
       <p className="visually-hidden" aria-live="polite">
         {announcement}
       </p>
-      <UpdateNotice />
+      <UpdateNotice
+        actionPending={pendingAction !== null}
+        hasSessionWork={hasSessionWork}
+      />
     </div>
   );
 }

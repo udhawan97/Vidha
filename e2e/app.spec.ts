@@ -742,3 +742,26 @@ test('fits the viewport and exposes installable PWA infrastructure', async ({
     )
     .toBe(true);
 });
+
+test('protects accepted session work from an ordinary reload', async ({
+  page,
+}) => {
+  expect(
+    await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+  ).toBe(false);
+
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  await page.getByLabel('Document title').fill('Changed session title');
+
+  expect(
+    await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+  ).toBe(true);
+});

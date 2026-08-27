@@ -1997,6 +1997,11 @@ h2 {
   font-size: 0.65rem;
 }
 
+.update-notice .update-issue {
+  color: var(--concern);
+  font-weight: 750;
+}
+
 .update-actions {
   display: flex;
   align-items: center;
