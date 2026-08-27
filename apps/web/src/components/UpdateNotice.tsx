@@ -6,11 +6,13 @@ import { OwnerActionDialog } from './OwnerActionDialog';
 interface UpdateNoticeProps {
   readonly actionPending: boolean;
   readonly hasSessionWork: boolean;
+  readonly otherTabBlocksUpdate: boolean;
 }
 
 export function UpdateNotice({
   actionPending,
   hasSessionWork,
+  otherTabBlocksUpdate,
 }: UpdateNoticeProps) {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -39,6 +41,13 @@ export function UpdateNotice({
 
   async function applyUpdate() {
     if (actionPending || updatePending) return;
+    if (otherTabBlocksUpdate) {
+      setConfirmationOpen(false);
+      setUpdateIssue(
+        'Another tab contains changed work or an Owner action in progress. Close it before updating this build.',
+      );
+      return;
+    }
     confirmedReloadRef.current = true;
     setUpdateIssue(null);
     setUpdatePending(true);
@@ -54,7 +63,7 @@ export function UpdateNotice({
   }
 
   function requestUpdate() {
-    if (actionPending || updatePending) return;
+    if (actionPending || updatePending || otherTabBlocksUpdate) return;
     if (hasSessionWork) {
       setUpdateIssue(null);
       setConfirmationOpen(true);
@@ -69,16 +78,20 @@ export function UpdateNotice({
 
   const updateDescription = actionPending
     ? 'Finish the current Owner action before updating this local rehearsal.'
-    : hasSessionWork
-      ? 'Updating reloads this browser-only rehearsal. Download anything you want to keep before continuing.'
-      : 'This untouched disposable rehearsal can reload into the new build.';
+    : otherTabBlocksUpdate
+      ? 'Another tab contains changed work or an Owner action in progress. Close it before updating; tabs do not synchronize.'
+      : hasSessionWork
+        ? 'Updating reloads this browser-only rehearsal. Download anything you want to keep before continuing.'
+        : 'This untouched disposable rehearsal can reload into the new build.';
   const updateLabel = actionPending
     ? 'Owner action in progress'
-    : updatePending
-      ? 'Updating…'
-      : hasSessionWork
-        ? 'Review update'
-        : 'Update now';
+    : otherTabBlocksUpdate
+      ? 'Other tab needs attention'
+      : updatePending
+        ? 'Updating…'
+        : hasSessionWork
+          ? 'Review update'
+          : 'Update now';
 
   return (
     <>
@@ -106,7 +119,7 @@ export function UpdateNotice({
           {needRefresh ? (
             <button
               className="button button-primary"
-              disabled={actionPending || updatePending}
+              disabled={actionPending || updatePending || otherTabBlocksUpdate}
               onClick={requestUpdate}
               ref={updateTriggerRef}
               type="button"

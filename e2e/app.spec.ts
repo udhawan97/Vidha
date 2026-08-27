@@ -765,3 +765,42 @@ test('protects accepted session work from an ordinary reload', async ({
     }),
   ).toBe(true);
 });
+
+test('detects separate rehearsal tabs and clears the warning when a peer leaves', async ({
+  context,
+  page,
+}) => {
+  const peer = await context.newPage();
+  await peer.goto('/');
+
+  const firstTabNotice = page.getByRole('complementary', {
+    name: 'Multi-tab rehearsal status',
+  });
+  const secondTabNotice = peer.getByRole('complementary', {
+    name: 'Multi-tab rehearsal status',
+  });
+  await expect(firstTabNotice).toContainText('Another rehearsal tab is open.');
+  await expect(secondTabNotice).toContainText('Another rehearsal tab is open.');
+
+  await peer.getByRole('button', { name: 'Envelopes' }).click();
+  await peer.getByLabel('Document title').fill('Changed in the second tab');
+  await expect(firstTabNotice).toContainText(
+    'Another tab contains changed rehearsal work.',
+  );
+  await expect(firstTabNotice).toContainText('Tabs do not synchronize.');
+  await expect(firstTabNotice).toContainText(
+    'Only tab presence and content-free work/action flags are shared.',
+  );
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(
+    await page.locator('body').evaluate((body) => body.scrollWidth),
+  ).toBeLessThanOrEqual(
+    await page.locator('body').evaluate((body) => body.clientWidth),
+  );
+
+  await peer.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
+  });
+  await peer.close();
+  await expect(firstTabNotice).toHaveCount(0);
+});

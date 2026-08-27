@@ -8,6 +8,7 @@ Vidha is a contingency relay for one adult Owner. It keeps each handoff in a rec
 
 - Use only the included synthetic content. Do not enter personal or sensitive information.
 - Refresh, a confirmed app update, or a confirmed **Start fresh local rehearsal** action clears the browser session. After accepted session work, common reload paths show a browser warning and a waiting build requires **Update and clear session**; neither warning stores or recovers anything.
+- Keep one rehearsal tab open. Same-origin tabs exchange only ephemeral presence, changed-work, and action-pending flags; no Plan, Editable Document, Attachment, Recipient, filename, or event data is copied or merged. If another tab reports work, finish or download there and close it before updating or starting fresh here.
 - No file is uploaded, scanned by a malware engine, encrypted, persisted, or sent.
 - Timeline rehearsal stops at **Concern**. Nothing in this build can authorize Release.
 
@@ -24,6 +25,7 @@ Vidha is a contingency relay for one adult Owner. It keeps each handoff in a rec
 9. Treat **Disable rehearsal** as terminal for that synthetic Plan. **Start fresh local rehearsal** explicitly clears session edits, Attachments, Document Versions, and local events before loading a separate Draft; it never resumes the Disabled Plan.
 10. Open **Guide** in the app for the consequences of Standard Mode, Sealed Mode, Guardian Attestation first, and Automatic Fallback without presenting unimplemented targets as available.
 11. If a new build is waiting after you change the rehearsal, choose **Review update**. Download any portable copies or originals you need, then either **Keep working** or explicitly **Update and clear session**. Finish any in-flight Owner action first. A failed update leaves the rehearsal open and protected from ordinary reload.
+12. If the multi-tab notice appears, choose one tab. Tabs contain separate rehearsals; changed work or an Owner action in another tab holds app update and fresh-session clearing here until that peer closes. Presence detection is not persistence, content synchronization, recovery, or a production lock.
 
 ## Current file contract
 

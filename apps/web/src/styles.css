@@ -2002,6 +2002,45 @@ h2 {
   font-weight: 750;
 }
 
+.peer-notice {
+  display: grid;
+  align-items: start;
+  gap: 14px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--thread-soft);
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.peer-notice-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--thread);
+  border-radius: 50%;
+  color: var(--thread-ink);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.peer-notice strong {
+  font-size: 0.78rem;
+}
+
+.peer-notice p {
+  margin: 4px 0;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.peer-notice small {
+  color: var(--ink-faint);
+  font-size: 0.62rem;
+}
+
 .update-actions {
   display: flex;
   align-items: center;
@@ -2430,6 +2469,7 @@ h2 {
 .guide-panel,
 .guide-safety,
 .update-notice,
+.peer-notice,
 .portable-copy-control select {
   border-radius: 0;
 }
@@ -2944,6 +2984,10 @@ h2 {
     right: 16px;
     bottom: calc(80px + env(safe-area-inset-bottom));
     width: calc(100vw - 32px);
+  }
+
+  .peer-notice {
+    padding: 14px 16px;
   }
 }
 

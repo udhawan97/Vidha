@@ -32,7 +32,13 @@ describe('UpdateNotice', () => {
 
   it('updates an untouched disposable rehearsal without another confirmation', async () => {
     const user = userEvent.setup();
-    render(<UpdateNotice actionPending={false} hasSessionWork={false} />);
+    render(
+      <UpdateNotice
+        actionPending={false}
+        hasSessionWork={false}
+        otherTabBlocksUpdate={false}
+      />,
+    );
 
     await user.click(screen.getByRole('button', { name: 'Update now' }));
 
@@ -43,7 +49,13 @@ describe('UpdateNotice', () => {
 
   it('requires explicit data-loss confirmation when the session contains work', async () => {
     const user = userEvent.setup();
-    render(<UpdateNotice actionPending={false} hasSessionWork />);
+    render(
+      <UpdateNotice
+        actionPending={false}
+        hasSessionWork
+        otherTabBlocksUpdate={false}
+      />,
+    );
 
     const beforeConfirmation = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(beforeConfirmation);
@@ -71,7 +83,13 @@ describe('UpdateNotice', () => {
 
   it('returns focus after canceling the update confirmation', async () => {
     const user = userEvent.setup();
-    render(<UpdateNotice actionPending={false} hasSessionWork />);
+    render(
+      <UpdateNotice
+        actionPending={false}
+        hasSessionWork
+        otherTabBlocksUpdate={false}
+      />,
+    );
 
     const reviewUpdate = screen.getByRole('button', { name: 'Review update' });
     await user.click(reviewUpdate);
@@ -86,7 +104,13 @@ describe('UpdateNotice', () => {
   });
 
   it('waits for an in-flight Owner action before offering an update', () => {
-    render(<UpdateNotice actionPending hasSessionWork />);
+    render(
+      <UpdateNotice
+        actionPending
+        hasSessionWork
+        otherTabBlocksUpdate={false}
+      />,
+    );
 
     expect(
       screen.getByRole('button', { name: 'Owner action in progress' }),
@@ -101,7 +125,13 @@ describe('UpdateNotice', () => {
     serviceWorker.updateServiceWorker.mockRejectedValue(
       new Error('synthetic update failure'),
     );
-    render(<UpdateNotice actionPending={false} hasSessionWork />);
+    render(
+      <UpdateNotice
+        actionPending={false}
+        hasSessionWork
+        otherTabBlocksUpdate={false}
+      />,
+    );
 
     await user.click(screen.getByRole('button', { name: 'Review update' }));
     await user.click(
@@ -117,5 +147,23 @@ describe('UpdateNotice', () => {
     const afterFailure = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(afterFailure);
     expect(afterFailure.defaultPrevented).toBe(true);
+  });
+
+  it('holds an update while another tab contains changed work', () => {
+    render(
+      <UpdateNotice
+        actionPending={false}
+        hasSessionWork={false}
+        otherTabBlocksUpdate
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Other tab needs attention' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/close it before updating; tabs do not synchronize/i),
+    ).toBeVisible();
+    expect(serviceWorker.updateServiceWorker).not.toHaveBeenCalled();
   });
 });

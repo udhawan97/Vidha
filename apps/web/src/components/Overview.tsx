@@ -27,6 +27,7 @@ interface OverviewProps {
   readonly onRehearse: (reviewIdentity: string) => Promise<void>;
   readonly onRestart: () => Promise<void>;
   readonly onResume: () => Promise<void>;
+  readonly otherTabBlocksSessionReset: boolean;
 }
 
 type OwnerConfirmation = 'check-in' | 'disable' | 'restart';
@@ -172,6 +173,7 @@ export function Overview({
   onRehearse,
   onRestart,
   onResume,
+  otherTabBlocksSessionReset,
 }: OverviewProps) {
   const [confirmation, setConfirmation] = useState<OwnerConfirmation | null>(
     null,
@@ -391,9 +393,15 @@ export function Overview({
             Disabled is terminal. A fresh rehearsal creates a separate local
             Draft.
           </p>
+          {otherTabBlocksSessionReset ? (
+            <p className="owner-action-inline-issue" role="status">
+              Another tab has changed work or an Owner action in progress. Close
+              it before starting fresh here.
+            </p>
+          ) : null}
           <button
             className="button button-primary"
-            disabled={actionPending}
+            disabled={actionPending || otherTabBlocksSessionReset}
             onClick={() => openConfirmation('restart')}
             ref={restartTriggerRef}
             type="button"

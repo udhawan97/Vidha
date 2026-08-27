@@ -44,9 +44,11 @@ export function OwnerGuide() {
         <p>
           Everything clears on refresh. After accepted session work, the browser
           warns before common reload paths and a waiting app update names what
-          it will clear; that warning is not storage or recovery. Files are not
-          uploaded, scanned, encrypted, persisted, or sent. Use only the
-          included synthetic examples—never personal material.
+          it will clear; that warning is not storage or recovery. Keep one
+          rehearsal tab open: tabs exchange only content-free presence and work
+          flags, never Plan or document state. Files are not uploaded, scanned,
+          encrypted, persisted, or sent. Use only the included synthetic
+          examples—never personal material.
         </p>
       </section>
 

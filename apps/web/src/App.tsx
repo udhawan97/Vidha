@@ -12,8 +12,10 @@ import { useRef, useState } from 'react';
 import { DocumentWorkspace } from './components/DocumentWorkspace';
 import { OwnerGuide } from './components/OwnerGuide';
 import { Overview } from './components/Overview';
+import { RehearsalPeerNotice } from './components/RehearsalPeerNotice';
 import { UpdateNotice } from './components/UpdateNotice';
 import { createDemoPlan, demoEnvelopes, type DemoEnvelope } from './demo';
+import { useRehearsalPeers } from './useRehearsalPeers';
 
 type View = 'guide' | 'overview' | 'workspace';
 
@@ -148,6 +150,12 @@ export function App() {
     readonly action: OwnerActionName;
     readonly promise: Promise<void>;
   } | null>(null);
+  const rehearsalPeers = useRehearsalPeers({
+    actionPending: pendingAction !== null,
+    hasSessionWork,
+  });
+  const otherTabBlocksDestructiveAction =
+    rehearsalPeers.peerActionPending || rehearsalPeers.peerHasSessionWork;
 
   function commandKey(label: string) {
     commandSequence.current += 1;
@@ -263,6 +271,13 @@ export function App() {
   }
 
   function restartLocalRehearsal() {
+    if (otherTabBlocksDestructiveAction) {
+      return Promise.reject(
+        new Error(
+          'Another tab contains changed rehearsal work or an unsettled Owner action. Close it before starting fresh here.',
+        ),
+      );
+    }
     return runOwnerAction('restart', 'fresh local rehearsal', async () => {
       const freshRuntime = createDemoRuntime();
       await freshRuntime.ready;
@@ -383,6 +398,8 @@ export function App() {
           </div>
         </header>
 
+        <RehearsalPeerNotice {...rehearsalPeers} />
+
         <main id="main-content">
           <div hidden={view !== 'overview'}>
             <Overview
@@ -402,6 +419,7 @@ export function App() {
               onRehearse={rehearsePlan}
               onRestart={restartLocalRehearsal}
               onResume={() => changeLifecycle('armed')}
+              otherTabBlocksSessionReset={otherTabBlocksDestructiveAction}
               plan={plan}
             />
           </div>
@@ -427,6 +445,7 @@ export function App() {
       <UpdateNotice
         actionPending={pendingAction !== null}
         hasSessionWork={hasSessionWork}
+        otherTabBlocksUpdate={otherTabBlocksDestructiveAction}
       />
     </div>
   );

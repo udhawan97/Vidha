@@ -4,6 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 
+const rehearsalPeers = vi.hoisted(() => ({
+  detectionAvailable: true,
+  peerActionPending: false,
+  peerCount: 0,
+  peerHasSessionWork: false,
+}));
+
+vi.mock('./useRehearsalPeers', () => ({
+  useRehearsalPeers: () => rehearsalPeers,
+}));
+
 vi.mock('virtual:pwa-register/react', () => ({
   useRegisterSW: () => ({
     needRefresh: [false, vi.fn()],
@@ -26,6 +37,10 @@ async function armDemo(user: ReturnType<typeof userEvent.setup>) {
 describe('Vidha synthetic foundation app', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    rehearsalPeers.detectionAvailable = true;
+    rehearsalPeers.peerActionPending = false;
+    rehearsalPeers.peerCount = 0;
+    rehearsalPeers.peerHasSessionWork = false;
   });
 
   it('makes the safety boundary visible on first render', () => {
@@ -533,6 +548,32 @@ describe('Vidha synthetic foundation app', () => {
       screen.queryByRole('button', { name: /Review Version/u }),
     ).not.toBeInTheDocument();
     expect(screen.getByText('0/8')).toBeVisible();
+  });
+
+  it('holds a fresh-session reset when another tab contains changed work', async () => {
+    rehearsalPeers.peerCount = 1;
+    rehearsalPeers.peerHasSessionWork = true;
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(
+      screen.getByRole('complementary', {
+        name: 'Multi-tab rehearsal status',
+      }),
+    ).toHaveTextContent('Another tab contains changed rehearsal work.');
+
+    await armDemo(user);
+    await user.click(screen.getByRole('button', { name: 'Disable rehearsal' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm disable' }));
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Start fresh local rehearsal',
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/close it before starting fresh here/i),
+    ).toBeVisible();
   });
 
   it('reviews a document-only version restore and preserves the current draft', async () => {
