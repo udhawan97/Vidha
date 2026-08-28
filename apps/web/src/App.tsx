@@ -426,10 +426,11 @@ export function App() {
           <div hidden={view !== 'workspace'}>
             <DocumentWorkspace
               envelopes={envelopes}
-              key={`workspace-${sessionRevision}`}
+              key={`workspace-${sessionRevision}-${plan.lifecycle === 'disabled' ? 'ended' : 'active'}`}
               onSessionWork={() => setHasSessionWork(true)}
               onSelectEnvelope={setSelectedEnvelopeId}
               selectedEnvelopeId={selectedEnvelopeId}
+              sessionEnded={plan.lifecycle === 'disabled'}
               setEnvelopes={setEnvelopes}
             />
           </div>

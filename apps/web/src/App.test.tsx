@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,6 +38,14 @@ async function armDemo(user: ReturnType<typeof userEvent.setup>) {
     await screen.findByRole('button', { name: 'Arm rehearsal' }),
   );
   expect(await screen.findByText('Lifecycle: armed')).toBeVisible();
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
 }
 
 describe('Vidha synthetic foundation app', () => {
@@ -306,6 +320,238 @@ describe('Vidha synthetic foundation app', () => {
       }),
     ).not.toBeInTheDocument();
     expect(existingDraft).toHaveValue(existingMarkdown);
+  });
+
+  it('binds delayed editable imports to the Envelope that initiated them', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    const firstEnvelope = screen.getByRole('button', {
+      name: /The house, without guesswork/,
+    });
+    const secondEnvelope = screen.getByRole('button', {
+      name: /Juniper’s ordinary week/,
+    });
+    const read = deferred<ArrayBuffer>();
+    const file = new File(['# Origin-bound note'], 'origin-bound.md', {
+      type: 'text/markdown',
+    });
+    vi.spyOn(file, 'arrayBuffer').mockReturnValue(read.promise);
+
+    fireEvent.change(screen.getByLabelText('Import Markdown or plain text'), {
+      target: { files: [file] },
+    });
+    await user.click(secondEnvelope);
+    read.resolve(new TextEncoder().encode('# Origin-bound note').buffer);
+
+    await waitFor(() => {
+      expect(screen.getByText('Review ready')).toBeVisible();
+    });
+    expect(
+      screen.queryByRole('heading', {
+        name: 'Review before replacing this draft',
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Recipient')).toHaveValue('Sam Rivera');
+
+    await user.click(firstEnvelope);
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Review before replacing this draft',
+      }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'Create editable copy' }),
+    );
+    expect(screen.getByLabelText('Recipient')).toHaveValue('Mira Chen');
+    expect(screen.getByLabelText('Envelope Markdown content')).toHaveValue(
+      '# Origin-bound note',
+    );
+
+    await user.click(secondEnvelope);
+    expect(screen.getByLabelText('Recipient')).toHaveValue('Sam Rivera');
+    expect(screen.getByLabelText('Document title')).toHaveValue(
+      'Juniper’s ordinary week',
+    );
+  });
+
+  it('binds delayed Attachment candidates to the initiating Envelope', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    const firstEnvelope = screen.getByRole('button', {
+      name: /The house, without guesswork/,
+    });
+    const secondEnvelope = screen.getByRole('button', {
+      name: /Juniper’s ordinary week/,
+    });
+    const read = deferred<ArrayBuffer>();
+    const file = new File(['%PDF origin'], 'origin-bound.pdf', {
+      type: 'application/pdf',
+    });
+    vi.spyOn(file, 'arrayBuffer').mockReturnValue(read.promise);
+
+    fireEvent.change(screen.getByLabelText('Add Attachment candidates'), {
+      target: { files: [file] },
+    });
+    await user.click(secondEnvelope);
+    read.resolve(new TextEncoder().encode('%PDF origin').buffer);
+
+    await waitFor(() => {
+      expect(screen.getByText('Review ready')).toBeVisible();
+    });
+    expect(
+      screen.queryByRole('heading', {
+        name: 'Keep 1 file with this Envelope?',
+      }),
+    ).not.toBeInTheDocument();
+
+    await user.click(firstEnvelope);
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Keep 1 file with this Envelope?',
+      }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'Keep as Attachments' }),
+    );
+    expect(screen.getByText('origin-bound.pdf')).toBeVisible();
+
+    await user.click(secondEnvelope);
+    expect(screen.queryByText('origin-bound.pdf')).not.toBeInTheDocument();
+    expect(screen.getByText('0/8')).toBeVisible();
+  });
+
+  it('keeps both pending file-review types with their Envelope until explicit discard', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    const firstEnvelope = screen.getByRole('button', {
+      name: /The house, without guesswork/,
+    });
+    const secondEnvelope = screen.getByRole('button', {
+      name: /Juniper’s ordinary week/,
+    });
+    const importTrigger = screen.getByRole('button', {
+      name: 'Import editable text',
+    });
+    await user.upload(
+      screen.getByLabelText('Import Markdown or plain text'),
+      new File(['# Keep review'], 'keep-review.md', { type: 'text/markdown' }),
+    );
+    await screen.findByRole('heading', {
+      name: 'Review before replacing this draft',
+    });
+
+    await user.click(secondEnvelope);
+    expect(
+      screen.queryByRole('heading', {
+        name: 'Review before replacing this draft',
+      }),
+    ).not.toBeInTheDocument();
+    await user.click(firstEnvelope);
+    expect(
+      screen.getByRole('heading', {
+        name: 'Review before replacing this draft',
+      }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(importTrigger).toHaveFocus());
+
+    const attachmentTrigger = screen.getByRole('button', { name: 'Add files' });
+    await user.upload(
+      screen.getByLabelText('Add Attachment candidates'),
+      new File(['%PDF keep review'], 'keep-review.pdf', {
+        type: 'application/pdf',
+      }),
+    );
+    await screen.findByRole('heading', {
+      name: 'Keep 1 file with this Envelope?',
+    });
+    await user.click(secondEnvelope);
+    await user.click(firstEnvelope);
+    expect(
+      screen.getByRole('heading', {
+        name: 'Keep 1 file with this Envelope?',
+      }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(attachmentTrigger).toHaveFocus());
+  });
+
+  it('announces a ready import without stealing focus after the Owner moves', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    const read = deferred<ArrayBuffer>();
+    const file = new File(['# Delayed review'], 'delayed-review.md', {
+      type: 'text/markdown',
+    });
+    vi.spyOn(file, 'arrayBuffer').mockReturnValue(read.promise);
+    fireEvent.change(screen.getByLabelText('Import Markdown or plain text'), {
+      target: { files: [file] },
+    });
+    const download = screen.getByRole('button', { name: 'Download copy' });
+    download.focus();
+    read.resolve(new TextEncoder().encode('# Delayed review').buffer);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Review before replacing this draft',
+      }),
+    ).toBeVisible();
+    expect(download).toHaveFocus();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Editable copy review ready',
+    );
+  });
+
+  it('moves focus to a ready import review when focus stays at its trigger', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    const trigger = screen.getByRole('button', {
+      name: 'Import editable text',
+    });
+    trigger.focus();
+    const read = deferred<ArrayBuffer>();
+    const file = new File(['# Focused review'], 'focused-review.md', {
+      type: 'text/markdown',
+    });
+    vi.spyOn(file, 'arrayBuffer').mockReturnValue(read.promise);
+    fireEvent.change(screen.getByLabelText('Import Markdown or plain text'), {
+      target: { files: [file] },
+    });
+    read.resolve(new TextEncoder().encode('# Focused review').buffer);
+
+    const heading = await screen.findByRole('heading', {
+      name: 'Review before replacing this draft',
+    });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Editable copy review ready',
+    );
+  });
+
+  it('does not report a draft update without an Owner mutation', () => {
+    vi.useFakeTimers();
+    try {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: 'Envelopes' }));
+      act(() => vi.advanceTimersByTime(1_000));
+
+      expect(
+        screen.queryByText('Session draft updated'),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('Synthetic session draft')).toBeVisible();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('stages multiple file types as reviewable Attachment candidates', async () => {

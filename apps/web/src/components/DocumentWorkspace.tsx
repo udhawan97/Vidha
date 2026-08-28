@@ -43,6 +43,7 @@ interface DocumentWorkspaceProps {
   readonly onSessionWork: () => void;
   readonly onSelectEnvelope: (envelopeId: string) => void;
   readonly selectedEnvelopeId: string;
+  readonly sessionEnded: boolean;
   readonly setEnvelopes: Dispatch<SetStateAction<DemoEnvelope[]>>;
 }
 
@@ -65,6 +66,30 @@ interface PendingDocumentRestore {
   readonly historyIdentity: string;
   readonly plan: EditableDocumentRestorePlan;
   readonly reviewedDocument: EditableDocumentV1;
+}
+
+type FileReviewKind = 'attachment' | 'import';
+
+interface ActiveFileOperation {
+  readonly envelopeId: string;
+  readonly focusAtStart: Element | null;
+  readonly focusOrigin: HTMLElement | null;
+  readonly input: HTMLInputElement;
+  readonly kind: FileReviewKind;
+  readonly requestId: number;
+}
+
+type PendingImportReview = ReviewableTextImport & {
+  readonly envelopeId: string;
+  readonly focusOrigin: HTMLElement | null;
+  readonly requestId: number;
+};
+
+interface PendingAttachmentReview {
+  readonly candidates: readonly AttachmentCandidate[];
+  readonly envelopeId: string;
+  readonly focusOrigin: HTMLElement | null;
+  readonly requestId: number;
 }
 
 const MAX_IMPORT_BYTES = 256 * 1024;
@@ -151,11 +176,21 @@ function summarizeMarkdown(markdown: string): string {
     : plainText || 'This version has no Markdown content.';
 }
 
+function withoutRecordKey<T>(
+  record: Readonly<Record<string, T>>,
+  key: string,
+): Record<string, T> {
+  const next = { ...record };
+  delete next[key];
+  return next;
+}
+
 export function DocumentWorkspace({
   envelopes,
   onSessionWork,
   onSelectEnvelope,
   selectedEnvelopeId,
+  sessionEnded,
   setEnvelopes,
 }: DocumentWorkspaceProps) {
   const [editorMode, setEditorMode] = useState<EditorMode>('write');
@@ -163,11 +198,16 @@ export function DocumentWorkspace({
   const [exportFormat, setExportFormat] =
     useState<PortableDocumentFormat>('markdown');
   const [importError, setImportError] = useState<string | null>(null);
-  const [pendingImport, setPendingImport] =
-    useState<ReviewableTextImport | null>(null);
-  const [pendingAttachments, setPendingAttachments] = useState<
-    readonly AttachmentCandidate[]
-  >([]);
+  const [pendingImportsByEnvelope, setPendingImportsByEnvelope] = useState<
+    Record<string, PendingImportReview>
+  >({});
+  const [pendingAttachmentsByEnvelope, setPendingAttachmentsByEnvelope] =
+    useState<Record<string, PendingAttachmentReview>>({});
+  const [activeFileOperation, setActiveFileOperation] =
+    useState<ActiveFileOperation | null>(null);
+  const [approvingImportRequestId, setApprovingImportRequestId] = useState<
+    number | null
+  >(null);
   const [historyByEnvelope, setHistoryByEnvelope] = useState<
     Record<string, DraftHistory>
   >({});
@@ -179,6 +219,20 @@ export function DocumentWorkspace({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const attachmentRef = useRef<HTMLInputElement>(null);
+  const importTriggerRef = useRef<HTMLButtonElement>(null);
+  const attachmentTriggerRef = useRef<HTMLButtonElement>(null);
+  const nextImportFocusOriginRef = useRef<HTMLElement | null>(null);
+  const nextAttachmentFocusOriginRef = useRef<HTMLElement | null>(null);
+  const importReviewTitleRef = useRef<HTMLHeadingElement>(null);
+  const attachmentReviewTitleRef = useRef<HTMLHeadingElement>(null);
+  const fileOperationSequenceRef = useRef(0);
+  const activeFileOperationRef = useRef<ActiveFileOperation | null>(null);
+  const approvingImportRequestRef = useRef<number | null>(null);
+  const selectedEnvelopeIdRef = useRef(selectedEnvelopeId);
+  const envelopesRef = useRef(envelopes);
+  const sessionEndedRef = useRef(sessionEnded);
+  const pendingImportsRef = useRef(pendingImportsByEnvelope);
+  const pendingAttachmentsRef = useRef(pendingAttachmentsByEnvelope);
   const restoreDialogRef = useRef<HTMLDialogElement>(null);
   const restoreTriggerRef = useRef<HTMLButtonElement>(null);
   const activeEnvelope =
@@ -186,14 +240,44 @@ export function DocumentWorkspace({
     envelopes[0];
 
   useEffect(() => {
-    if (activeEnvelope === undefined) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setSessionStatus('Session draft updated');
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [activeEnvelope]);
+    selectedEnvelopeIdRef.current = selectedEnvelopeId;
+    envelopesRef.current = envelopes;
+    sessionEndedRef.current = sessionEnded;
+    pendingImportsRef.current = pendingImportsByEnvelope;
+    pendingAttachmentsRef.current = pendingAttachmentsByEnvelope;
+  }, [
+    envelopes,
+    pendingAttachmentsByEnvelope,
+    pendingImportsByEnvelope,
+    selectedEnvelopeId,
+    sessionEnded,
+  ]);
+
+  useEffect(() => {
+    const pendingImport = pendingImportsRef.current[selectedEnvelopeId];
+    const pendingAttachments =
+      pendingAttachmentsRef.current[selectedEnvelopeId];
+    setSessionStatus(
+      pendingImport !== undefined
+        ? 'Editable copy review ready'
+        : pendingAttachments !== undefined
+          ? 'Attachment review ready'
+          : activeFileOperationRef.current?.envelopeId === selectedEnvelopeId
+            ? 'Preparing file review…'
+            : sessionEndedRef.current
+              ? 'Synthetic session ended'
+              : 'Synthetic session draft',
+    );
+  }, [selectedEnvelopeId]);
+
+  useEffect(
+    () => () => {
+      fileOperationSequenceRef.current += 1;
+      activeFileOperationRef.current = null;
+      approvingImportRequestRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     const dialog = restoreDialogRef.current;
@@ -227,19 +311,33 @@ export function DocumentWorkspace({
   };
   const activeVersions =
     versionsByEnvelope[selectedEnvelope.id] ?? createEditableDocumentHistory();
+  const pendingImport = pendingImportsByEnvelope[selectedEnvelope.id] ?? null;
+  const pendingAttachmentReview =
+    pendingAttachmentsByEnvelope[selectedEnvelope.id] ?? null;
+  const pendingAttachments = pendingAttachmentReview?.candidates ?? [];
 
-  function updateActiveEnvelope(patch: Partial<DemoEnvelope>) {
+  function updateEnvelopeById(
+    envelopeId: string,
+    patch: Partial<DemoEnvelope>,
+    status = 'Editing in this session…',
+  ): boolean {
+    const currentEnvelope = envelopesRef.current.find(
+      (envelope) => envelope.id === envelopeId,
+    );
+    if (currentEnvelope === undefined) {
+      return false;
+    }
     onSessionWork();
-    setSessionStatus('Editing in this session…');
+    setSessionStatus(status);
     setHistoryByEnvelope((current) => {
-      const history = current[selectedEnvelope.id] ?? {
+      const history = current[envelopeId] ?? {
         past: [],
         future: [],
       };
       return {
         ...current,
-        [selectedEnvelope.id]: {
-          past: [...history.past, snapshotEnvelope(selectedEnvelope)].slice(
+        [envelopeId]: {
+          past: [...history.past, snapshotEnvelope(currentEnvelope)].slice(
             -MAX_UNDO_STEPS,
           ),
           future: [],
@@ -248,11 +346,14 @@ export function DocumentWorkspace({
     });
     setEnvelopes((current) =>
       current.map((envelope) =>
-        envelope.id === selectedEnvelope.id
-          ? { ...envelope, ...patch }
-          : envelope,
+        envelope.id === envelopeId ? { ...envelope, ...patch } : envelope,
       ),
     );
+    return true;
+  }
+
+  function updateActiveEnvelope(patch: Partial<DemoEnvelope>) {
+    updateEnvelopeById(selectedEnvelope.id, patch);
   }
 
   function updateActiveDocument(
@@ -486,58 +587,194 @@ export function DocumentWorkspace({
     });
   }
 
+  function beginFileOperation(
+    kind: FileReviewKind,
+    input: HTMLInputElement,
+    focusOrigin: HTMLElement | null,
+  ): ActiveFileOperation | null {
+    if (sessionEndedRef.current) {
+      setImportError('This synthetic session has ended.');
+      return null;
+    }
+    if (activeFileOperationRef.current !== null) {
+      setImportError('Wait for the current file review to finish preparing.');
+      return null;
+    }
+    if (
+      pendingImportsByEnvelope[selectedEnvelope.id] !== undefined ||
+      pendingAttachmentsByEnvelope[selectedEnvelope.id] !== undefined
+    ) {
+      setImportError(
+        'Approve or discard the current file review before choosing another file.',
+      );
+      return null;
+    }
+    const operation: ActiveFileOperation = {
+      envelopeId: selectedEnvelope.id,
+      focusAtStart: document.activeElement,
+      focusOrigin,
+      input,
+      kind,
+      requestId: ++fileOperationSequenceRef.current,
+    };
+    activeFileOperationRef.current = operation;
+    setActiveFileOperation(operation);
+    setImportError(null);
+    setSessionStatus(
+      kind === 'import'
+        ? 'Preparing editable copy review…'
+        : 'Preparing Attachment review…',
+    );
+    return operation;
+  }
+
+  function isCurrentFileOperation(operation: ActiveFileOperation): boolean {
+    return (
+      !sessionEndedRef.current &&
+      activeFileOperationRef.current?.requestId === operation.requestId &&
+      activeFileOperationRef.current.envelopeId === operation.envelopeId
+    );
+  }
+
+  function finishFileOperation(operation: ActiveFileOperation) {
+    if (activeFileOperationRef.current?.requestId !== operation.requestId) {
+      return;
+    }
+    activeFileOperationRef.current = null;
+    setActiveFileOperation(null);
+  }
+
+  function announceReadyReview(
+    operation: ActiveFileOperation,
+    titleRef: { readonly current: HTMLHeadingElement | null },
+    status: string,
+  ) {
+    if (selectedEnvelopeIdRef.current !== operation.envelopeId) {
+      return;
+    }
+    const focused = document.activeElement;
+    const shouldMoveFocus =
+      focused === operation.focusAtStart ||
+      focused === operation.focusOrigin ||
+      focused === operation.input ||
+      focused === document.body;
+    setSessionStatus(status);
+    if (shouldMoveFocus) {
+      window.requestAnimationFrame(() => {
+        if (
+          !sessionEndedRef.current &&
+          selectedEnvelopeIdRef.current === operation.envelopeId
+        ) {
+          titleRef.current?.focus();
+        }
+      });
+    }
+  }
+
+  function restoreFileTriggerFocus(focusOrigin: HTMLElement | null) {
+    window.requestAnimationFrame(() => {
+      if (focusOrigin?.isConnected) {
+        focusOrigin.focus();
+      }
+    });
+  }
+
   async function importTextFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = '';
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
     if (file === undefined) {
       return;
     }
+    const focusOrigin =
+      nextImportFocusOriginRef.current ?? importTriggerRef.current;
+    nextImportFocusOriginRef.current = null;
+    const operation = beginFileOperation('import', input, focusOrigin);
+    if (operation === null) {
+      return;
+    }
 
-    setImportError(null);
-    setPendingAttachments([]);
     try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!isCurrentFileOperation(operation)) return;
       const prepared = await importIntake.prepare({
-        bytes: new Uint8Array(await file.arrayBuffer()),
+        bytes,
         declaredMediaType: file.type,
         filename: file.name,
       });
+      if (!isCurrentFileOperation(operation)) return;
       const inspected = await importIntake.inspect(prepared);
+      if (!isCurrentFileOperation(operation)) return;
       const reviewable = await importIntake.review(inspected);
-      setPendingImport(reviewable);
+      if (!isCurrentFileOperation(operation)) return;
+      const nextPendingImports = {
+        ...pendingImportsRef.current,
+        [operation.envelopeId]: {
+          ...reviewable,
+          envelopeId: operation.envelopeId,
+          focusOrigin: operation.focusOrigin,
+          requestId: operation.requestId,
+        },
+      };
+      pendingImportsRef.current = nextPendingImports;
+      setPendingImportsByEnvelope(nextPendingImports);
       onSessionWork();
-      setSessionStatus('Editable copy ready for explicit review');
-    } catch (error) {
-      setPendingImport(null);
-      setImportError(
-        error instanceof ImportIntakeError
-          ? error.message
-          : 'The import could not be inspected.',
+      finishFileOperation(operation);
+      announceReadyReview(
+        operation,
+        importReviewTitleRef,
+        'Editable copy review ready',
       );
+    } catch (error) {
+      if (!isCurrentFileOperation(operation)) return;
+      finishFileOperation(operation);
+      if (selectedEnvelopeIdRef.current === operation.envelopeId) {
+        setImportError(
+          error instanceof ImportIntakeError
+            ? error.message
+            : 'The import could not be inspected.',
+        );
+        setSessionStatus('Editable copy review failed');
+      }
     }
   }
 
   async function stageAttachmentFiles(event: ChangeEvent<HTMLInputElement>) {
-    const files = [...(event.currentTarget.files ?? [])];
-    event.currentTarget.value = '';
+    const input = event.currentTarget;
+    const files = [...(input.files ?? [])];
+    input.value = '';
     if (files.length === 0) {
       return;
     }
+    const focusOrigin =
+      nextAttachmentFocusOriginRef.current ?? attachmentTriggerRef.current;
+    nextAttachmentFocusOriginRef.current = null;
+    const operation = beginFileOperation('attachment', input, focusOrigin);
+    if (operation === null) {
+      return;
+    }
+    const originEnvelope = envelopesRef.current.find(
+      (envelope) => envelope.id === operation.envelopeId,
+    );
+    if (originEnvelope === undefined) {
+      finishFileOperation(operation);
+      return;
+    }
 
-    setImportError(null);
-    setPendingImport(null);
     const candidates: AttachmentCandidate[] = [];
     const errors: string[] = [];
     const existingSourceIds = new Set(
-      selectedEnvelope.attachments.map((attachment) => attachment.sourceId),
+      originEnvelope.attachments.map((attachment) => attachment.sourceId),
     );
-    let totalBytes = selectedEnvelope.attachments.reduce(
+    let totalBytes = originEnvelope.attachments.reduce(
       (total, attachment) => total + attachment.sizeBytes,
       0,
     );
 
     for (const file of files) {
+      if (!isCurrentFileOperation(operation)) return;
       if (
-        selectedEnvelope.attachments.length + candidates.length >=
+        originEnvelope.attachments.length + candidates.length >=
         MAX_ATTACHMENTS
       ) {
         errors.push(
@@ -546,14 +783,17 @@ export function DocumentWorkspace({
         continue;
       }
       try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (!isCurrentFileOperation(operation)) return;
         const candidate = await prepareAttachmentCandidate(
           {
-            bytes: new Uint8Array(await file.arrayBuffer()),
+            bytes,
             declaredMediaType: file.type,
             filename: file.name,
           },
           { maxBytes: MAX_ATTACHMENT_BYTES },
         );
+        if (!isCurrentFileOperation(operation)) return;
         if (
           existingSourceIds.has(candidate.sourceId) ||
           candidates.some(
@@ -584,82 +824,216 @@ export function DocumentWorkspace({
       }
     }
 
-    setPendingAttachments(candidates);
-    if (errors.length > 0) {
-      setImportError(errors.join(' '));
-    }
+    if (!isCurrentFileOperation(operation)) return;
     if (candidates.length > 0) {
+      setPendingAttachmentsByEnvelope((current) => ({
+        ...current,
+        [operation.envelopeId]: {
+          candidates,
+          envelopeId: operation.envelopeId,
+          focusOrigin: operation.focusOrigin,
+          requestId: operation.requestId,
+        },
+      }));
       onSessionWork();
-      setSessionStatus(
-        `${candidates.length} Attachment candidate${candidates.length === 1 ? '' : 's'} staged for review`,
-      );
+    }
+    finishFileOperation(operation);
+    if (selectedEnvelopeIdRef.current === operation.envelopeId) {
+      if (errors.length > 0) {
+        setImportError(errors.join(' '));
+      }
+      if (candidates.length > 0) {
+        announceReadyReview(
+          operation,
+          attachmentReviewTitleRef,
+          `${candidates.length} Attachment review${candidates.length === 1 ? '' : 's'} ready`,
+        );
+      } else {
+        setSessionStatus('Attachment review found no files to keep');
+      }
     }
   }
 
   function approvePendingAttachments() {
-    if (pendingAttachments.length === 0) {
+    if (pendingAttachmentReview === null) {
       return;
     }
-    updateActiveEnvelope({
-      attachments: [
-        ...selectedEnvelope.attachments,
-        ...pendingAttachments.map((candidate) => ({
-          sourceId: candidate.sourceId,
-          filename: candidate.filename,
-          mediaType: candidate.mediaType,
-          kind: candidate.kind,
-          sizeBytes: candidate.sizeBytes,
-          originalBytes: Uint8Array.from(candidate.originalBytes),
-          warnings: [...candidate.warnings],
-        })),
-      ],
-    });
-    setPendingAttachments([]);
-    setSessionStatus(
+    const latestEnvelope = envelopesRef.current.find(
+      (envelope) => envelope.id === pendingAttachmentReview.envelopeId,
+    );
+    const sourceIds = new Set(
+      latestEnvelope?.attachments.map((attachment) => attachment.sourceId) ??
+        [],
+    );
+    const existingBytes =
+      latestEnvelope?.attachments.reduce(
+        (total, attachment) => total + attachment.sizeBytes,
+        0,
+      ) ?? 0;
+    const candidateBytes = pendingAttachments.reduce(
+      (total, attachment) => total + attachment.sizeBytes,
+      0,
+    );
+    if (
+      latestEnvelope === undefined ||
+      selectedEnvelopeIdRef.current !== pendingAttachmentReview.envelopeId ||
+      latestEnvelope.attachments.length + pendingAttachments.length >
+        MAX_ATTACHMENTS ||
+      existingBytes + candidateBytes > MAX_ATTACHMENT_TOTAL_BYTES ||
+      pendingAttachments.some((candidate) => sourceIds.has(candidate.sourceId))
+    ) {
+      setPendingAttachmentsByEnvelope((current) =>
+        withoutRecordKey(current, pendingAttachmentReview.envelopeId),
+      );
+      setImportError(
+        'The Envelope changed after this review. Choose the files again before keeping them.',
+      );
+      setSessionStatus('Attachment review expired');
+      return;
+    }
+    updateEnvelopeById(
+      pendingAttachmentReview.envelopeId,
+      {
+        attachments: [
+          ...latestEnvelope.attachments,
+          ...pendingAttachments.map((candidate) => ({
+            sourceId: candidate.sourceId,
+            filename: candidate.filename,
+            mediaType: candidate.mediaType,
+            kind: candidate.kind,
+            sizeBytes: candidate.sizeBytes,
+            originalBytes: Uint8Array.from(candidate.originalBytes),
+            warnings: [...candidate.warnings],
+          })),
+        ],
+      },
       `${pendingAttachments.length} Attachment${pendingAttachments.length === 1 ? '' : 's'} kept in this session`,
+    );
+    setPendingAttachmentsByEnvelope((current) =>
+      withoutRecordKey(current, pendingAttachmentReview.envelopeId),
     );
   }
 
   async function approvePendingImport() {
-    if (pendingImport === null) {
+    if (pendingImport === null || approvingImportRequestRef.current !== null) {
       return;
     }
+    const reviewed = pendingImport;
+    approvingImportRequestRef.current = reviewed.requestId;
+    setApprovingImportRequestId(reviewed.requestId);
     try {
-      const approved = await importIntake.approve(pendingImport);
+      const approved = await importIntake.approve(reviewed);
+      const latestPending = pendingImportsRef.current[reviewed.envelopeId];
+      const latestEnvelope = envelopesRef.current.find(
+        (envelope) => envelope.id === reviewed.envelopeId,
+      );
+      if (
+        sessionEndedRef.current ||
+        selectedEnvelopeIdRef.current !== reviewed.envelopeId
+      ) {
+        return;
+      }
+      if (
+        latestPending?.requestId !== reviewed.requestId ||
+        latestEnvelope === undefined
+      ) {
+        setImportError(
+          'The Envelope or import changed after this review. Review the source again before creating a copy.',
+        );
+        setSessionStatus('Editable copy review expired');
+        return;
+      }
       const canonicalDocument = createEditableDocument({
         title: filenameToTitle(approved.filename),
         markdown: approved.text,
-        recipientLabel: selectedEnvelope.documentDraft.recipientLabel,
+        recipientLabel: latestEnvelope.documentDraft.recipientLabel,
       });
-      updateActiveEnvelope({
-        documentDraft: {
-          title: canonicalDocument.title,
-          recipientLabel: canonicalDocument.recipientLabel,
-          markdown: canonicalDocument.markdown,
+      updateEnvelopeById(
+        reviewed.envelopeId,
+        {
+          documentDraft: {
+            title: canonicalDocument.title,
+            recipientLabel: canonicalDocument.recipientLabel,
+            markdown: canonicalDocument.markdown,
+          },
+          importSource: {
+            filename: approved.filename,
+            mediaType: approved.declaredMediaType || approved.detectedMediaType,
+            detectedMediaType: approved.detectedMediaType,
+            sizeBytes: approved.sizeBytes,
+            sourceId: approved.sourceId,
+            scannerId: approved.scan.scannerId,
+            converterId: approved.converterId,
+            conversionWarnings: [...approved.conversionWarnings],
+            schemaVersion: 1,
+            originalBytes: Uint8Array.from(approved.originalBytes),
+            text: approved.text,
+          },
         },
-        importSource: {
-          filename: approved.filename,
-          mediaType: approved.declaredMediaType || approved.detectedMediaType,
-          detectedMediaType: approved.detectedMediaType,
-          sizeBytes: approved.sizeBytes,
-          sourceId: approved.sourceId,
-          scannerId: approved.scan.scannerId,
-          converterId: approved.converterId,
-          conversionWarnings: [...approved.conversionWarnings],
-          schemaVersion: 1,
-          originalBytes: Uint8Array.from(approved.originalBytes),
-          text: approved.text,
-        },
-      });
-      setPendingImport(null);
-      setSessionStatus('Editable copy created from the reviewed source');
-    } catch (error) {
-      setImportError(
-        error instanceof ImportIntakeError
-          ? error.message
-          : 'The inspected import could not be approved.',
+        'Editable copy created from the reviewed source',
       );
+      if (
+        pendingImportsRef.current[reviewed.envelopeId]?.requestId ===
+        reviewed.requestId
+      ) {
+        const nextPendingImports = withoutRecordKey(
+          pendingImportsRef.current,
+          reviewed.envelopeId,
+        );
+        pendingImportsRef.current = nextPendingImports;
+        setPendingImportsByEnvelope(nextPendingImports);
+      }
+    } catch (error) {
+      if (
+        !sessionEndedRef.current &&
+        selectedEnvelopeIdRef.current === reviewed.envelopeId
+      ) {
+        setImportError(
+          error instanceof ImportIntakeError
+            ? error.message
+            : 'The inspected import could not be approved.',
+        );
+      }
+    } finally {
+      if (approvingImportRequestRef.current === reviewed.requestId) {
+        approvingImportRequestRef.current = null;
+        setApprovingImportRequestId(null);
+      }
     }
+  }
+
+  function discardPendingImport() {
+    if (pendingImport === null) return;
+    const discarded = pendingImport;
+    if (
+      pendingImportsRef.current[discarded.envelopeId]?.requestId !==
+      discarded.requestId
+    ) {
+      return;
+    }
+    const nextPendingImports = withoutRecordKey(
+      pendingImportsRef.current,
+      discarded.envelopeId,
+    );
+    pendingImportsRef.current = nextPendingImports;
+    setPendingImportsByEnvelope(nextPendingImports);
+    setSessionStatus('Editable copy review discarded');
+    restoreFileTriggerFocus(discarded.focusOrigin ?? importTriggerRef.current);
+  }
+
+  function discardPendingAttachments() {
+    if (pendingAttachmentReview === null) return;
+    const discarded = pendingAttachmentReview;
+    setPendingAttachmentsByEnvelope((current) => {
+      if (current[discarded.envelopeId]?.requestId !== discarded.requestId) {
+        return current;
+      }
+      return withoutRecordKey(current, discarded.envelopeId);
+    });
+    setSessionStatus('Attachment review discarded');
+    restoreFileTriggerFocus(
+      discarded.focusOrigin ?? attachmentTriggerRef.current,
+    );
   }
 
   function removeAttachment(sourceId: string) {
@@ -784,14 +1158,34 @@ export function DocumentWorkspace({
           />
           <button
             className="button button-quiet"
-            onClick={() => importRef.current?.click()}
+            disabled={
+              sessionEnded ||
+              activeFileOperation !== null ||
+              pendingImport !== null ||
+              pendingAttachmentReview !== null
+            }
+            onClick={(event) => {
+              nextImportFocusOriginRef.current = event.currentTarget;
+              importRef.current?.click();
+            }}
+            ref={importTriggerRef}
             type="button"
           >
             Import editable text
           </button>
           <button
             className="button button-quiet"
-            onClick={() => attachmentRef.current?.click()}
+            disabled={
+              sessionEnded ||
+              activeFileOperation !== null ||
+              pendingImport !== null ||
+              pendingAttachmentReview !== null
+            }
+            onClick={(event) => {
+              nextAttachmentFocusOriginRef.current = event.currentTarget;
+              attachmentRef.current?.click();
+            }}
+            ref={attachmentTriggerRef}
             type="button"
           >
             Add files
@@ -835,7 +1229,11 @@ export function DocumentWorkspace({
         >
           <div>
             <p className="eyebrow">Editable copy review</p>
-            <h2 id="pending-import-title">
+            <h2
+              id="pending-import-title"
+              ref={importReviewTitleRef}
+              tabIndex={-1}
+            >
               Review before replacing this draft
             </h2>
             <p>
@@ -885,13 +1283,15 @@ export function DocumentWorkspace({
           <div className="pending-import-actions">
             <button
               className="button button-quiet"
-              onClick={() => setPendingImport(null)}
+              disabled={approvingImportRequestId === pendingImport.requestId}
+              onClick={discardPendingImport}
               type="button"
             >
               Discard
             </button>
             <button
               className="button button-primary"
+              disabled={approvingImportRequestId === pendingImport.requestId}
               onClick={() => void approvePendingImport()}
               type="button"
             >
@@ -908,7 +1308,11 @@ export function DocumentWorkspace({
         >
           <div>
             <p className="eyebrow">Attachment review</p>
-            <h2 id="pending-attachments-title">
+            <h2
+              id="pending-attachments-title"
+              ref={attachmentReviewTitleRef}
+              tabIndex={-1}
+            >
               Keep {pendingAttachments.length} file
               {pendingAttachments.length === 1 ? '' : 's'} with this Envelope?
             </h2>
@@ -935,7 +1339,7 @@ export function DocumentWorkspace({
           <div className="pending-import-actions">
             <button
               className="button button-quiet"
-              onClick={() => setPendingAttachments([])}
+              onClick={discardPendingAttachments}
               type="button"
             >
               Discard
@@ -960,31 +1364,63 @@ export function DocumentWorkspace({
             <span>Envelopes</span>
             <span>{envelopes.length}</span>
           </div>
-          {envelopes.map((envelope) => (
-            <button
-              aria-current={
-                envelope.id === selectedEnvelope.id ? 'page' : undefined
-              }
-              className={
-                envelope.id === selectedEnvelope.id
-                  ? 'document-choice is-selected'
-                  : 'document-choice'
-              }
-              key={envelope.id}
-              onClick={() => {
-                onSelectEnvelope(envelope.id);
-                setPendingImport(null);
-                setPendingAttachments([]);
-                setPendingRestore(null);
-                setImportError(null);
-              }}
-              type="button"
-            >
-              <strong>{envelope.documentDraft.title}</strong>
-              <span>For {envelope.documentDraft.recipientLabel}</span>
-              <span>{`${envelope.attachments.length} Attachment${envelope.attachments.length === 1 ? '' : 's'}`}</span>
-            </button>
-          ))}
+          {envelopes.map((envelope) => {
+            const hasPendingReview =
+              pendingImportsByEnvelope[envelope.id] !== undefined ||
+              pendingAttachmentsByEnvelope[envelope.id] !== undefined;
+            const isPreparingReview =
+              activeFileOperation?.envelopeId === envelope.id;
+            return (
+              <button
+                aria-current={
+                  envelope.id === selectedEnvelope.id ? 'page' : undefined
+                }
+                className={
+                  envelope.id === selectedEnvelope.id
+                    ? 'document-choice is-selected'
+                    : 'document-choice'
+                }
+                key={envelope.id}
+                onClick={() => {
+                  selectedEnvelopeIdRef.current = envelope.id;
+                  onSelectEnvelope(envelope.id);
+                  setPendingRestore(null);
+                  setImportError(null);
+                  setSessionStatus(
+                    pendingImportsByEnvelope[envelope.id] !== undefined
+                      ? 'Editable copy review ready'
+                      : pendingAttachmentsByEnvelope[envelope.id] !== undefined
+                        ? 'Attachment review ready'
+                        : activeFileOperation?.envelopeId === envelope.id
+                          ? 'Preparing file review…'
+                          : 'Synthetic session draft',
+                  );
+                }}
+                onFocus={(event) => {
+                  if (
+                    typeof event.currentTarget.scrollIntoView === 'function'
+                  ) {
+                    event.currentTarget.scrollIntoView({
+                      behavior: 'auto',
+                      block: 'nearest',
+                      inline: 'nearest',
+                    });
+                  }
+                }}
+                type="button"
+              >
+                <strong>{envelope.documentDraft.title}</strong>
+                <span>For {envelope.documentDraft.recipientLabel}</span>
+                <span>
+                  {hasPendingReview
+                    ? 'Review ready'
+                    : isPreparingReview
+                      ? 'Preparing review'
+                      : `${envelope.attachments.length} Attachment${envelope.attachments.length === 1 ? '' : 's'}`}
+                </span>
+              </button>
+            );
+          })}
           <div className="list-boundary">
             <span aria-hidden="true">＋</span>
             <p>
@@ -1074,7 +1510,9 @@ export function DocumentWorkspace({
             <button onClick={saveDocumentVersion} type="button">
               Save version
             </button>
-            <span className="editor-status">{sessionStatus}</span>
+            <span aria-live="polite" className="editor-status" role="status">
+              {sessionStatus}
+            </span>
           </div>
 
           {editorMode === 'write' ? (
@@ -1176,7 +1614,16 @@ export function DocumentWorkspace({
                 <span>No file is attached in this session.</span>
                 <button
                   className="text-action"
-                  onClick={() => attachmentRef.current?.click()}
+                  disabled={
+                    sessionEnded ||
+                    activeFileOperation !== null ||
+                    pendingImport !== null ||
+                    pendingAttachmentReview !== null
+                  }
+                  onClick={(event) => {
+                    nextAttachmentFocusOriginRef.current = event.currentTarget;
+                    attachmentRef.current?.click();
+                  }}
                   type="button"
                 >
                   Add supporting files

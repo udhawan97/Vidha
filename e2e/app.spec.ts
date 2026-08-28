@@ -185,6 +185,70 @@ test('imports and edits Markdown only inside the temporary session', async ({
   await expect(page.getByText('Not executable in this build')).toBeVisible();
 });
 
+test('keeps a delayed import with the Envelope that initiated it', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const readFile = File.prototype.arrayBuffer;
+    let releaseRead: (() => void) | undefined;
+    (
+      window as typeof window & { releaseVidhaFileRead?: () => void }
+    ).releaseVidhaFileRead = () => releaseRead?.();
+    File.prototype.arrayBuffer = async function delayedArrayBuffer() {
+      await new Promise<void>((resolve) => {
+        releaseRead = resolve;
+      });
+      return readFile.call(this);
+    };
+  });
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  const firstEnvelope = page.getByRole('button', {
+    name: /The house, without guesswork/,
+  });
+  const secondEnvelope = page.getByRole('button', {
+    name: /Juniper’s ordinary week/,
+  });
+
+  await page.getByLabel('Import Markdown or plain text').setInputFiles({
+    buffer: Buffer.from('# Origin-bound browser note'),
+    mimeType: 'text/markdown',
+    name: 'origin-bound-browser.md',
+  });
+  await expect(firstEnvelope).toContainText('Preparing review');
+  await secondEnvelope.click();
+  await page.evaluate(() => {
+    (
+      window as typeof window & { releaseVidhaFileRead?: () => void }
+    ).releaseVidhaFileRead?.();
+  });
+
+  await expect(firstEnvelope).toContainText('Review ready');
+  await expect(
+    page.getByRole('heading', {
+      name: 'Review before replacing this draft',
+    }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel('Recipient')).toHaveValue('Sam Rivera');
+
+  await firstEnvelope.click();
+  await expect(
+    page.getByRole('heading', {
+      name: 'Review before replacing this draft',
+    }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Create editable copy' }).click();
+  await expect(page.getByLabel('Recipient')).toHaveValue('Mira Chen');
+  await expect(page.getByLabel('Envelope Markdown content')).toHaveValue(
+    '# Origin-bound browser note',
+  );
+
+  await secondEnvelope.click();
+  await expect(page.getByLabel('Recipient')).toHaveValue('Sam Rivera');
+  await expect(page.getByLabel('Document title')).toHaveValue(
+    'Juniper’s ordinary week',
+  );
+});
+
 test('rehearses explicit Plan pause, fresh resume, and terminal disable', async ({
   page,
 }) => {
@@ -362,6 +426,33 @@ test('keeps conversion review actions reachable at 375px', async ({ page }) => {
   expect(navigation).not.toBeNull();
   expect(acceptBox!.y + acceptBox!.height).toBeLessThan(navigation!.y);
   expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth);
+});
+
+test('keeps the keyboard-focused Envelope fully visible at 375px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  const firstEnvelope = page.getByRole('button', {
+    name: /The house, without guesswork/,
+  });
+  const secondEnvelope = page.getByRole('button', {
+    name: /Juniper’s ordinary week/,
+  });
+  await firstEnvelope.focus();
+  await page.keyboard.press('Tab');
+  await expect(secondEnvelope).toBeFocused();
+
+  const [railBox, focusedBox] = await Promise.all([
+    page.locator('.document-list').boundingBox(),
+    secondEnvelope.boundingBox(),
+  ]);
+  expect(railBox).not.toBeNull();
+  expect(focusedBox).not.toBeNull();
+  expect(focusedBox!.x).toBeGreaterThanOrEqual(railBox!.x - 1);
+  expect(focusedBox!.x + focusedBox!.width).toBeLessThanOrEqual(
+    railBox!.x + railBox!.width + 1,
+  );
 });
 
 test('restores decoded imported text and offers text and HTML copies', async ({
