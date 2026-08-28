@@ -40,11 +40,17 @@ import {
 
 interface DocumentWorkspaceProps {
   readonly envelopes: DemoEnvelope[];
+  readonly onFileReviewStateChange: (state: FileReviewState) => void;
   readonly onSessionWork: () => void;
   readonly onSelectEnvelope: (envelopeId: string) => void;
   readonly selectedEnvelopeId: string;
   readonly sessionEnded: boolean;
   readonly setEnvelopes: Dispatch<SetStateAction<DemoEnvelope[]>>;
+}
+
+export interface FileReviewState {
+  readonly busy: boolean;
+  readonly envelopeIds: readonly string[];
 }
 
 type EditorMode = 'write' | 'preview';
@@ -187,6 +193,7 @@ function withoutRecordKey<T>(
 
 export function DocumentWorkspace({
   envelopes,
+  onFileReviewStateChange,
   onSessionWork,
   onSelectEnvelope,
   selectedEnvelopeId,
@@ -277,6 +284,37 @@ export function DocumentWorkspace({
       approvingImportRequestRef.current = null;
     },
     [],
+  );
+
+  useEffect(() => {
+    const envelopeIds = Array.from(
+      new Set([
+        ...Object.keys(pendingImportsByEnvelope),
+        ...Object.keys(pendingAttachmentsByEnvelope),
+        ...(activeFileOperation === null
+          ? []
+          : [activeFileOperation.envelopeId]),
+      ]),
+    ).sort();
+    onFileReviewStateChange({
+      busy: activeFileOperation !== null || approvingImportRequestId !== null,
+      envelopeIds,
+    });
+  }, [
+    activeFileOperation,
+    approvingImportRequestId,
+    onFileReviewStateChange,
+    pendingAttachmentsByEnvelope,
+    pendingImportsByEnvelope,
+  ]);
+
+  useEffect(
+    () => () =>
+      onFileReviewStateChange({
+        busy: false,
+        envelopeIds: [],
+      }),
+    [onFileReviewStateChange],
   );
 
   useEffect(() => {

@@ -7,9 +7,12 @@ import {
 } from '@vidha/application';
 import type { PlanLifecycle, PlanState } from '@vidha/domain';
 import { MemoryPlanStore } from '@vidha/persistence/memory';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
-import { DocumentWorkspace } from './components/DocumentWorkspace';
+import {
+  DocumentWorkspace,
+  type FileReviewState,
+} from './components/DocumentWorkspace';
 import { OwnerGuide } from './components/OwnerGuide';
 import { Overview } from './components/Overview';
 import { RehearsalPeerNotice } from './components/RehearsalPeerNotice';
@@ -126,6 +129,11 @@ function actionFailure(label: string, error: unknown): string {
   return `The ${label} was not recorded. ${detail}`;
 }
 
+const emptyFileReviewState: FileReviewState = {
+  busy: false,
+  envelopeIds: [],
+};
+
 export function App() {
   const [runtime, setRuntime] = useState(createDemoRuntime);
   const [view, setView] = useState<View>('overview');
@@ -137,6 +145,8 @@ export function App() {
     createDemoEnvelopeSession,
   );
   const [hasSessionWork, setHasSessionWork] = useState(false);
+  const [fileReviewState, setFileReviewState] =
+    useState<FileReviewState>(emptyFileReviewState);
   const [sessionRevision, setSessionRevision] = useState(1);
   const [pendingAction, setPendingAction] = useState<OwnerActionName | null>(
     null,
@@ -152,10 +162,25 @@ export function App() {
   } | null>(null);
   const rehearsalPeers = useRehearsalPeers({
     actionPending: pendingAction !== null,
+    fileReviewPending: fileReviewState.busy,
     hasSessionWork,
   });
   const otherTabBlocksDestructiveAction =
-    rehearsalPeers.peerActionPending || rehearsalPeers.peerHasSessionWork;
+    rehearsalPeers.peerActionPending ||
+    rehearsalPeers.peerFileReviewPending ||
+    rehearsalPeers.peerHasSessionWork;
+
+  const handleFileReviewStateChange = useCallback((next: FileReviewState) => {
+    setFileReviewState((current) =>
+      current.busy === next.busy &&
+      current.envelopeIds.length === next.envelopeIds.length &&
+      current.envelopeIds.every(
+        (envelopeId, index) => envelopeId === next.envelopeIds[index],
+      )
+        ? current
+        : next,
+    );
+  }, []);
 
   function commandKey(label: string) {
     commandSequence.current += 1;
@@ -288,6 +313,7 @@ export function App() {
       setView('overview');
       setSessionRevision((current) => current + 1);
       setHasSessionWork(false);
+      setFileReviewState(emptyFileReviewState);
       commandSequence.current = 0;
       setAnnouncement(
         'Fresh disposable rehearsal loaded. The Disabled Plan was not resumed.',
@@ -406,6 +432,8 @@ export function App() {
               actionIssue={actionIssue}
               actionPending={pendingAction !== null}
               envelopes={envelopes}
+              fileReviewBusy={fileReviewState.busy}
+              fileReviewEnvelopeIds={fileReviewState.envelopeIds}
               key={`overview-${sessionRevision}`}
               onArm={armPlan}
               onAdvance={advanceStage}
@@ -427,6 +455,7 @@ export function App() {
             <DocumentWorkspace
               envelopes={envelopes}
               key={`workspace-${sessionRevision}-${plan.lifecycle === 'disabled' ? 'ended' : 'active'}`}
+              onFileReviewStateChange={handleFileReviewStateChange}
               onSessionWork={() => setHasSessionWork(true)}
               onSelectEnvelope={setSelectedEnvelopeId}
               selectedEnvelopeId={selectedEnvelopeId}
@@ -445,6 +474,7 @@ export function App() {
       </p>
       <UpdateNotice
         actionPending={pendingAction !== null}
+        fileReviewPending={fileReviewState.busy}
         hasSessionWork={hasSessionWork}
         otherTabBlocksUpdate={otherTabBlocksDestructiveAction}
       />

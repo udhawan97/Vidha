@@ -5,12 +5,14 @@ import { OwnerActionDialog } from './OwnerActionDialog';
 
 interface UpdateNoticeProps {
   readonly actionPending: boolean;
+  readonly fileReviewPending: boolean;
   readonly hasSessionWork: boolean;
   readonly otherTabBlocksUpdate: boolean;
 }
 
 export function UpdateNotice({
   actionPending,
+  fileReviewPending,
   hasSessionWork,
   otherTabBlocksUpdate,
 }: UpdateNoticeProps) {
@@ -26,7 +28,7 @@ export function UpdateNotice({
   const confirmedReloadRef = useRef(false);
 
   useEffect(() => {
-    if (!hasSessionWork) {
+    if (!hasSessionWork && !fileReviewPending) {
       confirmedReloadRef.current = false;
       return;
     }
@@ -37,14 +39,14 @@ export function UpdateNotice({
     }
     window.addEventListener('beforeunload', protectSessionWork);
     return () => window.removeEventListener('beforeunload', protectSessionWork);
-  }, [hasSessionWork]);
+  }, [fileReviewPending, hasSessionWork]);
 
   async function applyUpdate() {
-    if (actionPending || updatePending) return;
+    if (actionPending || fileReviewPending || updatePending) return;
     if (otherTabBlocksUpdate) {
       setConfirmationOpen(false);
       setUpdateIssue(
-        'Another tab contains changed work or an Owner action in progress. Close it before updating this build.',
+        'Another tab contains changed work, a file review, or an Owner action in progress. Close it before updating this build.',
       );
       return;
     }
@@ -63,7 +65,13 @@ export function UpdateNotice({
   }
 
   function requestUpdate() {
-    if (actionPending || updatePending || otherTabBlocksUpdate) return;
+    if (
+      actionPending ||
+      fileReviewPending ||
+      updatePending ||
+      otherTabBlocksUpdate
+    )
+      return;
     if (hasSessionWork) {
       setUpdateIssue(null);
       setConfirmationOpen(true);
@@ -78,20 +86,24 @@ export function UpdateNotice({
 
   const updateDescription = actionPending
     ? 'Finish the current Owner action before updating this local rehearsal.'
-    : otherTabBlocksUpdate
-      ? 'Another tab contains changed work or an Owner action in progress. Close it before updating; tabs do not synchronize.'
-      : hasSessionWork
-        ? 'Updating reloads this browser-only rehearsal. Download anything you want to keep before continuing.'
-        : 'This untouched disposable rehearsal can reload into the new build.';
+    : fileReviewPending
+      ? 'Finish the current file review before updating this local rehearsal.'
+      : otherTabBlocksUpdate
+        ? 'Another tab contains changed work, a file review, or an Owner action in progress. Close it before updating; tabs do not synchronize.'
+        : hasSessionWork
+          ? 'Updating reloads this browser-only rehearsal. Download anything you want to keep before continuing.'
+          : 'This untouched disposable rehearsal can reload into the new build.';
   const updateLabel = actionPending
     ? 'Owner action in progress'
-    : otherTabBlocksUpdate
-      ? 'Other tab needs attention'
-      : updatePending
-        ? 'Updating…'
-        : hasSessionWork
-          ? 'Review update'
-          : 'Update now';
+    : fileReviewPending
+      ? 'File review in progress'
+      : otherTabBlocksUpdate
+        ? 'Other tab needs attention'
+        : updatePending
+          ? 'Updating…'
+          : hasSessionWork
+            ? 'Review update'
+            : 'Update now';
 
   return (
     <>
@@ -119,7 +131,12 @@ export function UpdateNotice({
           {needRefresh ? (
             <button
               className="button button-primary"
-              disabled={actionPending || updatePending || otherTabBlocksUpdate}
+              disabled={
+                actionPending ||
+                fileReviewPending ||
+                updatePending ||
+                otherTabBlocksUpdate
+              }
               onClick={requestUpdate}
               ref={updateTriggerRef}
               type="button"

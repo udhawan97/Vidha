@@ -14,6 +14,7 @@ const rehearsalPeers = vi.hoisted(() => ({
   detectionAvailable: true,
   peerActionPending: false,
   peerCount: 0,
+  peerFileReviewPending: false,
   peerHasSessionWork: false,
 }));
 
@@ -54,6 +55,7 @@ describe('Vidha synthetic foundation app', () => {
     rehearsalPeers.detectionAvailable = true;
     rehearsalPeers.peerActionPending = false;
     rehearsalPeers.peerCount = 0;
+    rehearsalPeers.peerFileReviewPending = false;
     rehearsalPeers.peerHasSessionWork = false;
   });
 
@@ -92,6 +94,58 @@ describe('Vidha synthetic foundation app', () => {
     window.dispatchEvent(changed);
     expect(changed.defaultPrevented).toBe(true);
   });
+
+  it('holds Draft rehearsal while a file review is preparing or awaiting a decision', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    const read = deferred<ArrayBuffer>();
+    const file = new File(['# Unsettled review'], 'unsettled-review.md', {
+      type: 'text/markdown',
+    });
+    vi.spyOn(file, 'arrayBuffer').mockReturnValue(read.promise);
+    fireEvent.change(screen.getByLabelText('Import Markdown or plain text'), {
+      target: { files: [file] },
+    });
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
+
+    const review = screen.getByRole('button', { name: 'Review rehearsal' });
+    await waitFor(() => expect(review).toBeDisabled());
+    expect(
+      screen.getByText(/selected file is still being prepared for review/i),
+    ).toBeVisible();
+    const duringRead = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(duringRead);
+    expect(duringRead.defaultPrevented).toBe(true);
+
+    read.resolve(new TextEncoder().encode('# Unsettled review').buffer);
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    expect(
+      await screen.findByRole(
+        'heading',
+        { name: 'Review before replacing this draft' },
+        { timeout: 10_000 },
+      ),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
+    expect(
+      screen.getByRole('status', { name: 'Draft file review hold' }),
+    ).toHaveTextContent('1 file review is waiting for a decision.');
+    expect(review).toBeDisabled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Open pending file review' }),
+    );
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Review before replacing this draft',
+      }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
+    await waitFor(() => expect(review).toBeEnabled());
+  }, 15_000);
 
   it('reviews the complete local rehearsal before it can be marked complete', async () => {
     const user = userEvent.setup();

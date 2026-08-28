@@ -8,7 +8,7 @@ Vidha is a contingency relay for one adult Owner. It keeps each handoff in a rec
 
 - Use only the included synthetic content. Do not enter personal or sensitive information.
 - Refresh, a confirmed app update, or a confirmed **Start fresh local rehearsal** action clears the browser session. After accepted session work, common reload paths show a browser warning and a waiting build requires **Update and clear session**; neither warning stores or recovers anything.
-- Keep one rehearsal tab open. Same-origin tabs exchange only ephemeral presence, changed-work, and action-pending flags; no Plan, Editable Document, Attachment, Recipient, filename, or event data is copied or merged. If another tab reports work, finish or download there and close it before updating or starting fresh here.
+- Keep one rehearsal tab open. Same-origin tabs exchange only ephemeral presence, changed-work, action-pending, and file-review-pending flags; no Plan, Editable Document, Attachment, Recipient, filename, Envelope identifier, or event data is copied or merged. If another tab reports work, finish or download there and close it before updating or starting fresh here.
 - No file is uploaded, scanned by a malware engine, encrypted, persisted, or sent.
 - Timeline rehearsal stops at **Concern**. Nothing in this build can authorize Release.
 
@@ -19,13 +19,13 @@ Vidha is a contingency relay for one adult Owner. It keeps each handoff in a rec
 3. Write the first action the Recipient should take. Add where they can verify it, what may change, and who else can help.
 4. Import TXT or Markdown only when it should become an **Editable Document**. Compare the converted preview, conversion notes, and source-preservation consequences before choosing **Create editable copy**.
 5. Use **Add files** for supporting originals that should remain **Attachments** rather than editable content.
-6. Review every staged file before keeping it with the Envelope. Download or remove an Attachment from the Envelope settings.
+6. Review every staged file before keeping it with the Envelope. While a file is preparing or any file decision is waiting, **Review rehearsal** and **Arm rehearsal** stay unavailable; the Overview links back to the affected Envelope. Download or remove an Attachment from the Envelope settings.
 7. Save a **Document Version** before a larger change. Restoring shows which title, Recipient, and Markdown fields will change and preserves the current draft first; it never changes Attachments or imported-source provenance. This bounded history clears on refresh and is not autosave or backup. Choose one portable-copy format, then download exact Markdown/text source or a standalone escaped semantic HTML reading copy.
 8. Return to **Overview** and choose **Review rehearsal**. The run-sheet shows the complete Day 25 reminder, Day 30 due date, and Day 37 Concern boundary, every prepared synthetic handoff, readiness blockers, and the exact content-free test-notice preview. **Run local rehearsal** records only a synthetic `PLAN_REHEARSED` event and sends zero messages. Changing an included Editable Document or Attachment requires another review before the UI offers **Arm rehearsal**.
 9. Treat **Disable rehearsal** as terminal for that synthetic Plan. **Start fresh local rehearsal** explicitly clears session edits, Attachments, Document Versions, and local events before loading a separate Draft; it never resumes the Disabled Plan.
 10. Open **Guide** in the app for the consequences of Standard Mode, Sealed Mode, Guardian Attestation first, and Automatic Fallback without presenting unimplemented targets as available.
-11. If a new build is waiting after you change the rehearsal, choose **Review update**. Download any portable copies or originals you need, then either **Keep working** or explicitly **Update and clear session**. Finish any in-flight Owner action first. A failed update leaves the rehearsal open and protected from ordinary reload.
-12. If the multi-tab notice appears, choose one tab. Tabs contain separate rehearsals; changed work or an Owner action in another tab holds app update and fresh-session clearing here until that peer closes. Presence detection is not persistence, content synchronization, recovery, or a production lock.
+11. If a new build is waiting after you change the rehearsal, choose **Review update**. Download any portable copies or originals you need, then either **Keep working** or explicitly **Update and clear session**. Finish any in-flight Owner action or file preparation/approval first. A failed update leaves the rehearsal open and protected from ordinary reload.
+12. If the multi-tab notice appears, choose one tab. Tabs contain separate rehearsals; changed work, an Owner action, or file preparation in another tab holds app update and fresh-session clearing here until that peer closes. Presence detection is not persistence, content synchronization, recovery, or a production lock.
 
 ## Current file contract
 

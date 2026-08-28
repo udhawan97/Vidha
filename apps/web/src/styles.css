@@ -571,6 +571,7 @@ h2 {
 .lifecycle-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 12px;
   padding-top: 12px;
@@ -599,6 +600,29 @@ h2 {
   background: var(--danger-soft);
   color: var(--concern);
   font-weight: 700;
+}
+
+.file-review-hold {
+  display: flex;
+  min-width: 0;
+  flex: 1 0 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--thread);
+  background: var(--thread-soft);
+}
+
+.lifecycle-controls .file-review-hold p {
+  min-width: 0;
+  flex: 1 1 320px;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.file-review-hold .button {
+  flex: 0 0 auto;
 }
 
 .overview-columns {
