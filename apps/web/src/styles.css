@@ -64,7 +64,8 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 a:focus-visible,
-.continuity-scroll:focus-visible {
+.continuity-scroll:focus-visible,
+.editor-toolbar:focus-visible {
   outline: 3px solid var(--thread);
   outline-offset: 3px;
 }
@@ -1165,6 +1166,54 @@ h2 {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 9px;
+}
+
+.ended-session-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: calc(clamp(28px, 4vw, 54px) * -0.55) 0 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--concern);
+  border-radius: 10px;
+  background: var(--danger-soft);
+}
+
+.ended-session-notice > div {
+  min-width: 0;
+}
+
+.ended-session-notice .eyebrow {
+  margin-bottom: 3px;
+  color: var(--ink);
+}
+
+.ended-session-notice strong {
+  font-family: 'Newsreader Variable', Georgia, serif;
+  font-size: 1.18rem;
+}
+
+.ended-session-notice p:last-child {
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+}
+
+.ended-session-notice > span {
+  flex: 0 0 auto;
+  color: var(--concern);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace-view.is-ended .document-title-input,
+.workspace-view.is-ended .document-textarea {
+  cursor: text;
+  background: color-mix(in srgb, var(--paper-strong) 88%, var(--mist));
 }
 
 .portable-copy-control {
@@ -2848,6 +2897,7 @@ h2 {
 
   .pending-import,
   .pending-import-actions,
+  .ended-session-notice,
   .lifecycle-controls {
     align-items: stretch;
     flex-direction: column;

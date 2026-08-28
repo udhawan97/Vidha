@@ -47,9 +47,11 @@ export function OwnerGuide() {
           it will clear; that warning is not storage or recovery. Keep one
           rehearsal tab open: tabs exchange only content-free presence, work,
           action, and file-review flags, never Plan or document state. An
-          unsettled file decision holds Draft rehearsal and Arm. Files are not
-          uploaded, scanned, encrypted, persisted, or sent. Use only the
-          included synthetic examples—never personal material.
+          unsettled file decision holds Draft rehearsal and Arm. Disable keeps
+          accepted local work available only as a read-only view for inspection
+          and download until refresh or a confirmed fresh rehearsal clears it.
+          Files are not uploaded, scanned, encrypted, persisted, or sent. Use
+          only the included synthetic examples—never personal material.
         </p>
       </section>
 

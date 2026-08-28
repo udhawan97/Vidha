@@ -147,6 +147,43 @@ describe('Vidha synthetic foundation app', () => {
     await waitFor(() => expect(review).toBeEnabled());
   }, 15_000);
 
+  it('cancels a late file review when the rehearsal becomes terminal', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await armDemo(user);
+
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    const read = deferred<ArrayBuffer>();
+    const file = new File(['# Too late'], 'late-review.md', {
+      type: 'text/markdown',
+    });
+    vi.spyOn(file, 'arrayBuffer').mockReturnValue(read.promise);
+    fireEvent.change(screen.getByLabelText('Import Markdown or plain text'), {
+      target: { files: [file] },
+    });
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
+    await user.click(screen.getByRole('button', { name: 'Disable rehearsal' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm disable' }));
+    expect(await screen.findByText('Lifecycle: disabled')).toBeVisible();
+
+    await act(async () => {
+      read.resolve(new TextEncoder().encode('# Too late').buffer);
+      await read.promise;
+    });
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    expect(
+      screen.getByRole('status', { name: 'Ended rehearsal workspace' }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('heading', {
+        name: 'Review before replacing this draft',
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Document title')).toHaveValue(
+      'The house, without guesswork',
+    );
+  });
+
   it('reviews the complete local rehearsal before it can be marked complete', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -815,6 +852,39 @@ describe('Vidha synthetic foundation app', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm disable' }));
 
     expect(await screen.findByText('Lifecycle: disabled')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Envelopes' }));
+    expect(
+      screen.getByRole('status', { name: 'Ended rehearsal workspace' }),
+    ).toHaveTextContent('This ended rehearsal is read-only.');
+    const endedTitle = screen.getByLabelText('Document title');
+    expect(endedTitle).toHaveValue('Changed session');
+    expect(endedTitle).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Envelope Markdown content')).toHaveAttribute(
+      'readonly',
+    );
+    expect(screen.getByLabelText('Recipient')).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Import editable text' }),
+    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add files' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save version' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /Review Version 1/u }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Remove cleared-on-restart.pdf' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Download cleared-on-restart.pdf' }),
+    ).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Download copy' })).toBeEnabled();
+    fireEvent.change(endedTitle, { target: { value: 'Mutation attempt' } });
+    expect(endedTitle).toHaveValue('Changed session');
+    expect(
+      screen.getByText(/ended rehearsal is read-only.*start a fresh/i),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
     const restart = screen.getByRole('button', {
       name: 'Start fresh local rehearsal',
     });
