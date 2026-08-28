@@ -67,7 +67,7 @@ Open the local URL printed by Vite. You can:
 - stage up to eight common document, image, audio, video, data, contact, or ZIP files as session-only Attachment candidates, with a 5 MB per-file and 20 MB per-Envelope fixture limit;
 - review, download, or remove exact Attachment bytes without claiming upload, scanning, safe preview, encryption, persistence, or delivery;
 - save up to six document-only session versions, review exactly which fields a restore changes, preserve the current draft before restoring, inspect conversion provenance, restore or download the original source, and download a portable Markdown, text, or escaped semantic HTML copy from schema v1;
-- receive a browser warning before common reload paths after accepted session work, explicitly review everything a waiting app update will clear, and see when another tab holds a separate unsynchronized rehearsal;
+- receive a browser warning before common reload paths after accepted session work or during file preparation, resolve every file decision before Draft rehearsal or Arm, explicitly review everything a waiting app update will clear, and see when another tab holds a separate unsynchronized rehearsal;
 - open the in-app Owner guide for the four-part rehearsal path, role boundaries, file contract, and the consequences of each intended Protection Mode and Release Policy.
 
 Browser import and Attachment handling are synthetic fixtures—not malware scanning, sandboxed conversion, encryption, or delivery. Approved content and exact source bytes remain in memory for the current session only. See the [Owner guide](docs/product/OWNER_GUIDE.md) before using the rehearsal.
@@ -83,7 +83,7 @@ pnpm test:backup
 pnpm test:webauthn
 ```
 
-The production build contains PWA infrastructure and a prompted service-worker update flow. Changed in-memory rehearsals activate common reload protection; a waiting build is blocked during Owner actions, requires an explicit **Update and clear session** decision, and remains open if the update fails. Same-origin tabs exchange only ephemeral presence, changed-work, and action-pending flags; they never synchronize content, and changed work in another tab holds updates and fresh-session clearing here until that peer closes. This does not save, merge, or migrate state, recover a bad service worker, or establish supported-browser installation/update behavior, so the v1 release gate remains unchecked.
+The production build contains PWA infrastructure and a prompted service-worker update flow. Changed in-memory rehearsals activate common reload protection; a waiting build is blocked during Owner actions or active file preparation/approval, requires an explicit **Update and clear session** decision, and remains open if the update fails. Same-origin tabs exchange only ephemeral presence, changed-work, action-pending, and file-review-pending flags; they never synchronize content, and changed work or an unsettled operation in another tab holds updates and fresh-session clearing here until that peer closes. Local Envelope identifiers route the Owner back to a pending review but never cross tabs. This does not save, merge, or migrate state, recover a bad service worker, or establish supported-browser installation/update behavior, so the v1 release gate remains unchecked.
 
 ## How the intended relay works
 

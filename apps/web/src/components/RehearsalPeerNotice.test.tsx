@@ -10,6 +10,7 @@ describe('RehearsalPeerNotice', () => {
         detectionAvailable
         peerActionPending={false}
         peerCount={0}
+        peerFileReviewPending={false}
         peerHasSessionWork={false}
       />,
     );
@@ -27,6 +28,7 @@ describe('RehearsalPeerNotice', () => {
         detectionAvailable
         peerActionPending={false}
         peerCount={1}
+        peerFileReviewPending={false}
         peerHasSessionWork
       />,
     );
@@ -39,8 +41,29 @@ describe('RehearsalPeerNotice', () => {
     );
     expect(notice).toHaveTextContent('Tabs do not synchronize.');
     expect(notice).toHaveTextContent(
-      'Only tab presence and content-free work/action flags are shared.',
+      'Only tab presence and content-free work, action, and file-review flags are shared.',
     );
+  });
+
+  it('names a content-free file-review operation in another tab', () => {
+    render(
+      <RehearsalPeerNotice
+        detectionAvailable
+        peerActionPending={false}
+        peerCount={1}
+        peerFileReviewPending
+        peerHasSessionWork
+      />,
+    );
+
+    expect(
+      screen.getByText('Another tab is preparing a file review.'),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('complementary', {
+        name: 'Multi-tab rehearsal status',
+      }),
+    ).toHaveTextContent('Tabs do not synchronize.');
   });
 
   it('fails visibly when the browser cannot detect peer tabs', () => {
@@ -49,6 +72,7 @@ describe('RehearsalPeerNotice', () => {
         detectionAvailable={false}
         peerActionPending={false}
         peerCount={0}
+        peerFileReviewPending={false}
         peerHasSessionWork={false}
       />,
     );

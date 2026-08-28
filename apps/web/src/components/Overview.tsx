@@ -16,6 +16,8 @@ import { OwnerActionDialog } from './OwnerActionDialog';
 interface OverviewProps {
   readonly actionIssue: string | null;
   readonly actionPending: boolean;
+  readonly fileReviewBusy: boolean;
+  readonly fileReviewEnvelopeIds: readonly string[];
   readonly plan: PlanState;
   readonly envelopes: readonly DemoEnvelope[];
   readonly onArm: () => Promise<void>;
@@ -162,6 +164,8 @@ function rehearsalInput(
 export function Overview({
   actionIssue,
   actionPending,
+  fileReviewBusy,
+  fileReviewEnvelopeIds,
   plan,
   envelopes,
   onArm,
@@ -208,6 +212,7 @@ export function Overview({
     plan.hasRehearsed &&
     acceptedRehearsalIdentity !== null &&
     currentRehearsal?.reviewIdentity === acceptedRehearsalIdentity;
+  const fileReviewBlocksDraft = fileReviewEnvelopeIds.length > 0;
 
   useEffect(() => {
     if (plan.lifecycle !== 'draft') {
@@ -260,6 +265,12 @@ export function Overview({
   }
 
   async function reviewDraftRehearsal() {
+    if (fileReviewBlocksDraft) {
+      setRehearsalIssue(
+        'Finish or discard every file review before reviewing this Draft.',
+      );
+      return;
+    }
     setRehearsalIssue(null);
     try {
       const review = await createDraftRehearsalReview(
@@ -278,7 +289,17 @@ export function Overview({
   }
 
   async function completeDraftRehearsal() {
-    if (pendingRehearsal === null || rehearsalCompletionRef.current) {
+    if (
+      pendingRehearsal === null ||
+      rehearsalCompletionRef.current ||
+      fileReviewBlocksDraft
+    ) {
+      if (fileReviewBlocksDraft) {
+        setPendingRehearsal(null);
+        setRehearsalIssue(
+          'A file review is unsettled. Resolve it before running the Draft rehearsal.',
+        );
+      }
       return;
     }
     rehearsalCompletionRef.current = true;
@@ -307,6 +328,12 @@ export function Overview({
   }
 
   async function armReviewedDraft() {
+    if (fileReviewBlocksDraft) {
+      setRehearsalIssue(
+        'A file review is unsettled. Resolve it before arming this Draft.',
+      );
+      return;
+    }
     try {
       const latest = await createDraftRehearsalReview(
         rehearsalInput(plan, envelopes),
@@ -339,7 +366,7 @@ export function Overview({
         rehearsalIsCurrent ? (
           <button
             className="button button-primary"
-            disabled={actionPending}
+            disabled={actionPending || fileReviewBlocksDraft}
             onClick={() => void armReviewedDraft()}
             ref={rehearsalTriggerRef}
             type="button"
@@ -349,7 +376,7 @@ export function Overview({
         ) : (
           <button
             className="button button-primary"
-            disabled={actionPending}
+            disabled={actionPending || fileReviewBlocksDraft}
             onClick={() => void reviewDraftRehearsal()}
             ref={rehearsalTriggerRef}
             type="button"
@@ -414,6 +441,31 @@ export function Overview({
         <p className="rehearsal-inline-issue" role="alert">
           {rehearsalIssue}
         </p>
+      ) : null}
+      {plan.lifecycle === 'draft' && fileReviewBlocksDraft ? (
+        <div
+          aria-label="Draft file review hold"
+          className="file-review-hold"
+          role="status"
+        >
+          <p>
+            {fileReviewBusy
+              ? 'A selected file is still being prepared for review.'
+              : `${fileReviewEnvelopeIds.length} file review${fileReviewEnvelopeIds.length === 1 ? ' is' : 's are'} waiting for a decision.`}{' '}
+            Draft rehearsal and Arm stay unavailable until every review is kept
+            or discarded.
+          </p>
+          <button
+            className="button button-quiet"
+            onClick={() => {
+              const envelopeId = fileReviewEnvelopeIds[0];
+              if (envelopeId !== undefined) onOpenEnvelope(envelopeId);
+            }}
+            type="button"
+          >
+            Open pending file review
+          </button>
+        </div>
       ) : null}
       {confirmation === null && actionIssue !== null ? (
         <p className="owner-action-inline-issue" role="alert">

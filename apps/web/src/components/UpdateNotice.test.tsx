@@ -35,6 +35,7 @@ describe('UpdateNotice', () => {
     render(
       <UpdateNotice
         actionPending={false}
+        fileReviewPending={false}
         hasSessionWork={false}
         otherTabBlocksUpdate={false}
       />,
@@ -52,6 +53,7 @@ describe('UpdateNotice', () => {
     render(
       <UpdateNotice
         actionPending={false}
+        fileReviewPending={false}
         hasSessionWork
         otherTabBlocksUpdate={false}
       />,
@@ -86,6 +88,7 @@ describe('UpdateNotice', () => {
     render(
       <UpdateNotice
         actionPending={false}
+        fileReviewPending={false}
         hasSessionWork
         otherTabBlocksUpdate={false}
       />,
@@ -107,6 +110,7 @@ describe('UpdateNotice', () => {
     render(
       <UpdateNotice
         actionPending
+        fileReviewPending={false}
         hasSessionWork
         otherTabBlocksUpdate={false}
       />,
@@ -120,6 +124,28 @@ describe('UpdateNotice', () => {
     ).toBeVisible();
   });
 
+  it('holds an update and ordinary reload while a file review is preparing', () => {
+    render(
+      <UpdateNotice
+        actionPending={false}
+        fileReviewPending
+        hasSessionWork={false}
+        otherTabBlocksUpdate={false}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'File review in progress' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/finish the current file review before updating/i),
+    ).toBeVisible();
+    const duringReview = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(duringReview);
+    expect(duringReview.defaultPrevented).toBe(true);
+    expect(serviceWorker.updateServiceWorker).not.toHaveBeenCalled();
+  });
+
   it('keeps the confirmation open and restores unload protection after failure', async () => {
     const user = userEvent.setup();
     serviceWorker.updateServiceWorker.mockRejectedValue(
@@ -128,6 +154,7 @@ describe('UpdateNotice', () => {
     render(
       <UpdateNotice
         actionPending={false}
+        fileReviewPending={false}
         hasSessionWork
         otherTabBlocksUpdate={false}
       />,
@@ -153,6 +180,7 @@ describe('UpdateNotice', () => {
     render(
       <UpdateNotice
         actionPending={false}
+        fileReviewPending={false}
         hasSessionWork={false}
         otherTabBlocksUpdate
       />,

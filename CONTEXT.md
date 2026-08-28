@@ -39,7 +39,7 @@ A Contingency Plan lifecycle state in which setup and rehearsal may occur but no
 _Avoid_: Active plan, live schedule
 
 **Draft Rehearsal Review**:
-A bounded review of the current Draft, synthetic contact assignments, prepared Envelopes, complete Check-in-to-Concern timing, and content-free test-notice copy before the rehearsal is recorded. The current prototype binds this review only inside browser memory, sends no notice, and requires another review after any included Plan, contact, Editable Document, or Attachment identity changes.
+A bounded review of the current Draft, synthetic contact assignments, prepared Envelopes, complete Check-in-to-Concern timing, and content-free test-notice copy before the rehearsal is recorded. The current prototype binds this review only inside browser memory, sends no notice, requires another review after any included Plan, contact, Editable Document, or Attachment identity changes, and withholds review and Arm while any local file decision is unsettled.
 _Avoid_: Readiness certification, provider test, delivery proof, Arm authorization
 
 **Armed**:

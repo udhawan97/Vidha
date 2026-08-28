@@ -137,6 +137,43 @@ test('invalidates an accepted review when an Attachment is added or removed', as
   );
 });
 
+test('holds Draft rehearsal until every staged file review is resolved', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  await page.getByLabel('Import Markdown or plain text').setInputFiles({
+    buffer: Buffer.from('# Pending rehearsal input'),
+    mimeType: 'text/markdown',
+    name: 'pending-rehearsal.md',
+  });
+  await expect(
+    page.getByRole('heading', {
+      name: 'Review before replacing this draft',
+    }),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Overview', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Review rehearsal' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText(/1 file review is waiting for a decision/i),
+  ).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(
+    await page.locator('body').evaluate((body) => body.scrollWidth),
+  ).toBeLessThanOrEqual(
+    await page.locator('body').evaluate((body) => body.clientWidth),
+  );
+
+  await page.getByRole('button', { name: 'Open pending file review' }).click();
+  await page.getByRole('button', { name: 'Discard' }).click();
+  await page.getByRole('button', { name: 'Overview', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Review rehearsal' }),
+  ).toBeEnabled();
+});
+
 test('keeps the rehearsal review completion reachable at 375px', async ({
   page,
 }) => {
@@ -873,14 +910,52 @@ test('detects separate rehearsal tabs and clears the warning when a peer leaves'
   await expect(firstTabNotice).toContainText('Another rehearsal tab is open.');
   await expect(secondTabNotice).toContainText('Another rehearsal tab is open.');
 
+  await peer.evaluate(() => {
+    const originalArrayBuffer = File.prototype.arrayBuffer;
+    let resolveRead: ((value: ArrayBuffer) => void) | undefined;
+    const pendingRead = new Promise<ArrayBuffer>((resolve) => {
+      resolveRead = resolve;
+    });
+    const controlledWindow = window as typeof window & {
+      resolveVidhaPeerFileRead?: () => void;
+    };
+    controlledWindow.resolveVidhaPeerFileRead = () => {
+      resolveRead?.(
+        new TextEncoder().encode('# Peer file review').buffer as ArrayBuffer,
+      );
+    };
+    File.prototype.arrayBuffer = function () {
+      return this.name === 'peer-file-review.md'
+        ? pendingRead
+        : originalArrayBuffer.call(this);
+    };
+  });
   await peer.getByRole('button', { name: 'Envelopes' }).click();
-  await peer.getByLabel('Document title').fill('Changed in the second tab');
+  await peer.getByLabel('Import Markdown or plain text').setInputFiles({
+    buffer: Buffer.from('# Peer file review'),
+    mimeType: 'text/markdown',
+    name: 'peer-file-review.md',
+  });
+  await expect(firstTabNotice).toContainText(
+    'Another tab is preparing a file review.',
+  );
+  await peer.evaluate(() => {
+    const controlledWindow = window as typeof window & {
+      resolveVidhaPeerFileRead?: () => void;
+    };
+    controlledWindow.resolveVidhaPeerFileRead?.();
+  });
+  await expect(
+    peer.getByRole('heading', {
+      name: 'Review before replacing this draft',
+    }),
+  ).toBeVisible();
   await expect(firstTabNotice).toContainText(
     'Another tab contains changed rehearsal work.',
   );
   await expect(firstTabNotice).toContainText('Tabs do not synchronize.');
   await expect(firstTabNotice).toContainText(
-    'Only tab presence and content-free work/action flags are shared.',
+    'Only tab presence and content-free work, action, and file-review flags are shared.',
   );
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(

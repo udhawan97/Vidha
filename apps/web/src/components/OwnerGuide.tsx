@@ -45,10 +45,11 @@ export function OwnerGuide() {
           Everything clears on refresh. After accepted session work, the browser
           warns before common reload paths and a waiting app update names what
           it will clear; that warning is not storage or recovery. Keep one
-          rehearsal tab open: tabs exchange only content-free presence and work
-          flags, never Plan or document state. Files are not uploaded, scanned,
-          encrypted, persisted, or sent. Use only the included synthetic
-          examples—never personal material.
+          rehearsal tab open: tabs exchange only content-free presence, work,
+          action, and file-review flags, never Plan or document state. An
+          unsettled file decision holds Draft rehearsal and Arm. Files are not
+          uploaded, scanned, encrypted, persisted, or sent. Use only the
+          included synthetic examples—never personal material.
         </p>
       </section>
 
@@ -97,7 +98,8 @@ export function OwnerGuide() {
               <h3>Review consequences and rehearse</h3>
               <p>
                 Confirm the Recipient, Protection Mode, Release Policy, and
-                timeline. Rehearsal never exposes the real Envelope.
+                timeline. Finish or discard every file review first. Rehearsal
+                never exposes the real Envelope.
               </p>
             </div>
           </li>

@@ -16,6 +16,7 @@ This roadmap describes intent, not shipped capability or a delivery date.
 - Serialized synthetic Owner actions, failure-safe native confirmations, and a deliberate fresh-session path that never resumes a terminal Disabled Plan
 - Session-aware reload protection plus an explicit, failure-safe service-worker update decision that names every in-memory rehearsal surface it clears
 - Content-free same-origin tab presence, an honest unsynchronized-rehearsal warning, and destructive update/fresh-session holds while another tab reports changed work or an unsettled Owner action
+- App-wide file-review coordination that withholds Draft rehearsal and Arm around unsettled file decisions, protects active preparation from reload/update, and shares only a content-free pending flag with same-origin peers
 - In-app Owner guidance plus session-only, explicitly reviewed Attachment candidates for bounded document, image, audio, video, data, contact, and ZIP formats; no upload, scan, encryption, persistence, or delivery claim
 - Canonical-session application boundary plus synthetic Owner Credential, session revocation, two-proof recovery, and Verified Owner Channel contracts
 - Disposable in-memory, SQLite, and Postgres-compatible PGlite Plan stores under one atomic audit/idempotency contract
@@ -48,6 +49,8 @@ The [Phase 3F six-slice record](docs/product/NEXT_PHASE_3F_SIX.md) serializes lo
 The [Phase 3G six-slice record](docs/product/NEXT_PHASE_3G_SIX.md) marks accepted browser-session work, warns before common reload paths, blocks app updates during Owner actions, and requires an explicit, failure-safe decision before a waiting service-worker build clears the rehearsal. It does not add autosave, durable storage, state migration, bad-service-worker recovery, or supported-browser update evidence.
 
 The [Phase 3H six-slice record](docs/product/NEXT_PHASE_3H_SIX.md) detects same-origin rehearsal tabs through an ephemeral content-free protocol, exposes that their in-memory state does not synchronize, and holds app updates or fresh-session clearing while a peer reports changed work or an unsettled Owner action. It does not copy, merge, persist, recover, encrypt, or durably delete content and is not a cross-device or server-authoritative lock.
+
+The [Phase 3I six-slice record](docs/product/NEXT_PHASE_3I_SIX.md) coordinates asynchronous import and Attachment review with Draft rehearsal, Arm, ordinary reload, a waiting app update, and peer-tab warning. It keeps local review routing inside the tab and sends peers only a content-free pending boolean; it is not upload, durable workflow, shared content, or a server task boundary.
 
 The earlier foundation record is in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md), and current boundaries are in [`docs/architecture/FOUNDATION_PHASE_3B.md`](docs/architecture/FOUNDATION_PHASE_3B.md). The sequence remains intentional: executable provider and operational evidence still precedes any durable personal data, and none of this work authorizes Guardian Attestation or Release behavior.
 

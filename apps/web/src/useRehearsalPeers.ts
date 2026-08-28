@@ -9,6 +9,7 @@ type PeerMessageType = 'hello' | 'leave' | 'state';
 
 interface PeerMessage {
   readonly actionPending: boolean;
+  readonly fileReviewPending?: boolean;
   readonly hasSessionWork: boolean;
   readonly protocol: typeof PROTOCOL;
   readonly senderId: string;
@@ -17,12 +18,14 @@ interface PeerMessage {
 
 interface PeerRecord {
   readonly actionPending: boolean;
+  readonly fileReviewPending: boolean;
   readonly hasSessionWork: boolean;
   readonly lastSeenAt: number;
 }
 
 interface RehearsalPeerInput {
   readonly actionPending: boolean;
+  readonly fileReviewPending: boolean;
   readonly hasSessionWork: boolean;
 }
 
@@ -30,6 +33,7 @@ export interface RehearsalPeerSummary {
   readonly detectionAvailable: boolean;
   readonly peerActionPending: boolean;
   readonly peerCount: number;
+  readonly peerFileReviewPending: boolean;
   readonly peerHasSessionWork: boolean;
 }
 
@@ -54,7 +58,9 @@ function isPeerMessage(value: unknown): value is PeerMessage {
     typeof candidate.senderId === 'string' &&
     candidate.senderId.length > 0 &&
     typeof candidate.hasSessionWork === 'boolean' &&
-    typeof candidate.actionPending === 'boolean'
+    typeof candidate.actionPending === 'boolean' &&
+    (candidate.fileReviewPending === undefined ||
+      typeof candidate.fileReviewPending === 'boolean')
   );
 }
 
@@ -62,31 +68,40 @@ function summarizePeers(
   peers: ReadonlyMap<string, PeerRecord>,
 ): Omit<RehearsalPeerSummary, 'detectionAvailable'> {
   let peerActionPending = false;
+  let peerFileReviewPending = false;
   let peerHasSessionWork = false;
   for (const peer of peers.values()) {
     peerActionPending ||= peer.actionPending;
+    peerFileReviewPending ||= peer.fileReviewPending;
     peerHasSessionWork ||= peer.hasSessionWork;
   }
   return {
     peerActionPending,
     peerCount: peers.size,
+    peerFileReviewPending,
     peerHasSessionWork,
   };
 }
 
 export function useRehearsalPeers({
   actionPending,
+  fileReviewPending,
   hasSessionWork,
 }: RehearsalPeerInput): RehearsalPeerSummary {
   const tabIdRef = useRef(createTabId());
   const channelRef = useRef<BroadcastChannel | null>(null);
   const leavingRef = useRef(false);
-  const currentStateRef = useRef({ actionPending, hasSessionWork });
+  const currentStateRef = useRef({
+    actionPending,
+    fileReviewPending,
+    hasSessionWork,
+  });
   const peersRef = useRef(new Map<string, PeerRecord>());
   const [summary, setSummary] = useState<RehearsalPeerSummary>({
     detectionAvailable: typeof window.BroadcastChannel === 'function',
     peerActionPending: false,
     peerCount: 0,
+    peerFileReviewPending: false,
     peerHasSessionWork: false,
   });
 
@@ -102,6 +117,9 @@ export function useRehearsalPeers({
     if (channel === null || (leavingRef.current && type !== 'leave')) return;
     const message: PeerMessage = {
       ...currentStateRef.current,
+      hasSessionWork:
+        currentStateRef.current.hasSessionWork ||
+        currentStateRef.current.fileReviewPending,
       protocol: PROTOCOL,
       senderId: tabIdRef.current,
       type,
@@ -139,6 +157,7 @@ export function useRehearsalPeers({
       }
       peersRef.current.set(message.senderId, {
         actionPending: message.actionPending,
+        fileReviewPending: message.fileReviewPending ?? false,
         hasSessionWork: message.hasSessionWork,
         lastSeenAt: Date.now(),
       });
@@ -190,9 +209,13 @@ export function useRehearsalPeers({
   }, []);
 
   useEffect(() => {
-    currentStateRef.current = { actionPending, hasSessionWork };
+    currentStateRef.current = {
+      actionPending,
+      fileReviewPending,
+      hasSessionWork,
+    };
     post('state');
-  }, [actionPending, hasSessionWork]);
+  }, [actionPending, fileReviewPending, hasSessionWork]);
 
   return summary;
 }
