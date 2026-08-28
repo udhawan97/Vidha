@@ -40,6 +40,7 @@ import {
 
 interface DocumentWorkspaceProps {
   readonly envelopes: DemoEnvelope[];
+  readonly now: () => number;
   readonly onFileReviewStateChange: (state: FileReviewState) => void;
   readonly onSessionWork: () => void;
   readonly onSelectEnvelope: (envelopeId: string) => void;
@@ -193,6 +194,7 @@ function withoutRecordKey<T>(
 
 export function DocumentWorkspace({
   envelopes,
+  now,
   onFileReviewStateChange,
   onSessionWork,
   onSelectEnvelope,
@@ -261,6 +263,16 @@ export function DocumentWorkspace({
   ]);
 
   useEffect(() => {
+    if (!sessionEnded) return;
+    sessionEndedRef.current = true;
+    fileOperationSequenceRef.current += 1;
+    activeFileOperationRef.current = null;
+    approvingImportRequestRef.current = null;
+    pendingImportsRef.current = {};
+    pendingAttachmentsRef.current = {};
+  }, [sessionEnded]);
+
+  useEffect(() => {
     const pendingImport = pendingImportsRef.current[selectedEnvelopeId];
     const pendingAttachments =
       pendingAttachmentsRef.current[selectedEnvelopeId];
@@ -287,6 +299,13 @@ export function DocumentWorkspace({
   );
 
   useEffect(() => {
+    if (sessionEnded) {
+      onFileReviewStateChange({
+        busy: false,
+        envelopeIds: [],
+      });
+      return;
+    }
     const envelopeIds = Array.from(
       new Set([
         ...Object.keys(pendingImportsByEnvelope),
@@ -306,6 +325,7 @@ export function DocumentWorkspace({
     onFileReviewStateChange,
     pendingAttachmentsByEnvelope,
     pendingImportsByEnvelope,
+    sessionEnded,
   ]);
 
   useEffect(
@@ -319,7 +339,7 @@ export function DocumentWorkspace({
 
   useEffect(() => {
     const dialog = restoreDialogRef.current;
-    if (pendingRestore === null || dialog === null) {
+    if (sessionEnded || pendingRestore === null || dialog === null) {
       return;
     }
     if (!dialog.open) {
@@ -337,7 +357,7 @@ export function DocumentWorkspace({
       }
       window.requestAnimationFrame(() => restoreTriggerRef.current?.focus());
     };
-  }, [pendingRestore]);
+  }, [pendingRestore, sessionEnded]);
 
   if (activeEnvelope === undefined) {
     return null;
@@ -349,16 +369,29 @@ export function DocumentWorkspace({
   };
   const activeVersions =
     versionsByEnvelope[selectedEnvelope.id] ?? createEditableDocumentHistory();
-  const pendingImport = pendingImportsByEnvelope[selectedEnvelope.id] ?? null;
-  const pendingAttachmentReview =
-    pendingAttachmentsByEnvelope[selectedEnvelope.id] ?? null;
+  const pendingImport = sessionEnded
+    ? null
+    : (pendingImportsByEnvelope[selectedEnvelope.id] ?? null);
+  const pendingAttachmentReview = sessionEnded
+    ? null
+    : (pendingAttachmentsByEnvelope[selectedEnvelope.id] ?? null);
   const pendingAttachments = pendingAttachmentReview?.candidates ?? [];
+
+  function rejectEndedSessionMutation(): boolean {
+    if (!sessionEndedRef.current) return false;
+    setImportError(
+      'This ended rehearsal is read-only. Start a fresh local rehearsal to make changes.',
+    );
+    setSessionStatus('Ended rehearsal is read-only');
+    return true;
+  }
 
   function updateEnvelopeById(
     envelopeId: string,
     patch: Partial<DemoEnvelope>,
     status = 'Editing in this session…',
   ): boolean {
+    if (rejectEndedSessionMutation()) return false;
     const currentEnvelope = envelopesRef.current.find(
       (envelope) => envelope.id === envelopeId,
     );
@@ -421,6 +454,7 @@ export function DocumentWorkspace({
   }
 
   function undoEdit() {
+    if (rejectEndedSessionMutation()) return;
     const previous = activeHistory.past.at(-1);
     if (previous === undefined) {
       return;
@@ -438,6 +472,7 @@ export function DocumentWorkspace({
   }
 
   function redoEdit() {
+    if (rejectEndedSessionMutation()) return;
     const next = activeHistory.future[0];
     if (next === undefined) {
       return;
@@ -455,12 +490,13 @@ export function DocumentWorkspace({
   }
 
   function saveDocumentVersion() {
+    if (rejectEndedSessionMutation()) return;
     try {
       setImportError(null);
       const result = saveEditableDocumentVersion(
         activeVersions,
         createEditableDocument(selectedEnvelope.documentDraft),
-        Date.now(),
+        now(),
       );
       setVersionsByEnvelope((current) => ({
         ...current,
@@ -487,6 +523,7 @@ export function DocumentWorkspace({
     reviewedAt: number,
     trigger: HTMLButtonElement,
   ) {
+    if (rejectEndedSessionMutation()) return;
     try {
       setImportError(null);
       const reviewedDocument = createEditableDocument(
@@ -523,6 +560,10 @@ export function DocumentWorkspace({
   }
 
   function confirmDocumentRestore() {
+    if (rejectEndedSessionMutation()) {
+      setPendingRestore(null);
+      return;
+    }
     if (pendingRestore === null) {
       return;
     }
@@ -604,6 +645,7 @@ export function DocumentWorkspace({
   }
 
   function insertMarkdown(prefix: string, suffix = prefix) {
+    if (rejectEndedSessionMutation()) return;
     const textarea = textareaRef.current;
     if (textarea === null) {
       return;
@@ -893,6 +935,7 @@ export function DocumentWorkspace({
   }
 
   function approvePendingAttachments() {
+    if (rejectEndedSessionMutation()) return;
     if (pendingAttachmentReview === null) {
       return;
     }
@@ -953,6 +996,7 @@ export function DocumentWorkspace({
   }
 
   async function approvePendingImport() {
+    if (rejectEndedSessionMutation()) return;
     if (pendingImport === null || approvingImportRequestRef.current !== null) {
       return;
     }
@@ -1075,6 +1119,7 @@ export function DocumentWorkspace({
   }
 
   function removeAttachment(sourceId: string) {
+    if (rejectEndedSessionMutation()) return;
     updateActiveEnvelope({
       attachments: selectedEnvelope.attachments.filter(
         (attachment) => attachment.sourceId !== sourceId,
@@ -1126,6 +1171,7 @@ export function DocumentWorkspace({
   }
 
   function restoreImportedSource() {
+    if (rejectEndedSessionMutation()) return;
     const source = selectedEnvelope.importSource;
     if (source === null) {
       return;
@@ -1166,7 +1212,7 @@ export function DocumentWorkspace({
   }
 
   return (
-    <div className="workspace-view">
+    <div className={`workspace-view${sessionEnded ? ' is-ended' : ''}`}>
       <header className="workspace-heading">
         <div>
           <p className="eyebrow">Envelope studio · synthetic rehearsal</p>
@@ -1254,6 +1300,25 @@ export function DocumentWorkspace({
         </div>
       </header>
 
+      {sessionEnded ? (
+        <section
+          aria-label="Ended rehearsal workspace"
+          className="ended-session-notice"
+          role="status"
+        >
+          <div>
+            <p className="eyebrow">Terminal synthetic state</p>
+            <strong>This ended rehearsal is read-only.</strong>
+            <p id="ended-workspace-copy">
+              Review or download its local documents and original files. Return
+              to Overview and start a fresh local rehearsal before making any
+              changes.
+            </p>
+          </div>
+          <span>Nothing here is durably saved</span>
+        </section>
+      ) : null}
+
       {importError === null ? null : (
         <p className="import-error" role="alert">
           {importError}
@@ -1321,7 +1386,10 @@ export function DocumentWorkspace({
           <div className="pending-import-actions">
             <button
               className="button button-quiet"
-              disabled={approvingImportRequestId === pendingImport.requestId}
+              disabled={
+                sessionEnded ||
+                approvingImportRequestId === pendingImport.requestId
+              }
               onClick={discardPendingImport}
               type="button"
             >
@@ -1329,7 +1397,10 @@ export function DocumentWorkspace({
             </button>
             <button
               className="button button-primary"
-              disabled={approvingImportRequestId === pendingImport.requestId}
+              disabled={
+                sessionEnded ||
+                approvingImportRequestId === pendingImport.requestId
+              }
               onClick={() => void approvePendingImport()}
               type="button"
             >
@@ -1377,6 +1448,7 @@ export function DocumentWorkspace({
           <div className="pending-import-actions">
             <button
               className="button button-quiet"
+              disabled={sessionEnded}
               onClick={discardPendingAttachments}
               type="button"
             >
@@ -1384,6 +1456,7 @@ export function DocumentWorkspace({
             </button>
             <button
               className="button button-primary"
+              disabled={sessionEnded}
               onClick={approvePendingAttachments}
               type="button"
             >
@@ -1404,10 +1477,11 @@ export function DocumentWorkspace({
           </div>
           {envelopes.map((envelope) => {
             const hasPendingReview =
-              pendingImportsByEnvelope[envelope.id] !== undefined ||
-              pendingAttachmentsByEnvelope[envelope.id] !== undefined;
+              !sessionEnded &&
+              (pendingImportsByEnvelope[envelope.id] !== undefined ||
+                pendingAttachmentsByEnvelope[envelope.id] !== undefined);
             const isPreparingReview =
-              activeFileOperation?.envelopeId === envelope.id;
+              !sessionEnded && activeFileOperation?.envelopeId === envelope.id;
             return (
               <button
                 aria-current={
@@ -1425,13 +1499,16 @@ export function DocumentWorkspace({
                   setPendingRestore(null);
                   setImportError(null);
                   setSessionStatus(
-                    pendingImportsByEnvelope[envelope.id] !== undefined
-                      ? 'Editable copy review ready'
-                      : pendingAttachmentsByEnvelope[envelope.id] !== undefined
-                        ? 'Attachment review ready'
-                        : activeFileOperation?.envelopeId === envelope.id
-                          ? 'Preparing file review…'
-                          : 'Synthetic session draft',
+                    sessionEnded
+                      ? 'Ended rehearsal · review and download only'
+                      : pendingImportsByEnvelope[envelope.id] !== undefined
+                        ? 'Editable copy review ready'
+                        : pendingAttachmentsByEnvelope[envelope.id] !==
+                            undefined
+                          ? 'Attachment review ready'
+                          : activeFileOperation?.envelopeId === envelope.id
+                            ? 'Preparing file review…'
+                            : 'Synthetic session draft',
                   );
                 }}
                 onFocus={(event) => {
@@ -1472,11 +1549,15 @@ export function DocumentWorkspace({
             <label>
               <span className="visually-hidden">Document title</span>
               <input
+                aria-describedby={
+                  sessionEnded ? 'ended-workspace-copy' : undefined
+                }
                 className="document-title-input"
                 onChange={(event) =>
                   updateActiveDocument({ title: event.target.value })
                 }
                 maxLength={200}
+                readOnly={sessionEnded}
                 value={selectedEnvelope.documentDraft.title}
               />
             </label>
@@ -1498,10 +1579,18 @@ export function DocumentWorkspace({
             </div>
           </div>
 
-          <div className="editor-toolbar" aria-label="Markdown formatting">
+          <div
+            aria-label={
+              sessionEnded
+                ? 'Read-only Markdown formatting controls'
+                : 'Markdown formatting'
+            }
+            className="editor-toolbar"
+            tabIndex={sessionEnded ? 0 : undefined}
+          >
             <button
               aria-label="Undo session edit"
-              disabled={activeHistory.past.length === 0}
+              disabled={sessionEnded || activeHistory.past.length === 0}
               onClick={undoEdit}
               type="button"
             >
@@ -1509,7 +1598,7 @@ export function DocumentWorkspace({
             </button>
             <button
               aria-label="Redo session edit"
-              disabled={activeHistory.future.length === 0}
+              disabled={sessionEnded || activeHistory.future.length === 0}
               onClick={redoEdit}
               type="button"
             >
@@ -1518,6 +1607,7 @@ export function DocumentWorkspace({
             <span className="toolbar-divider" />
             <button
               aria-label="Bold selected text"
+              disabled={sessionEnded}
               onClick={() => insertMarkdown('**')}
               type="button"
             >
@@ -1525,6 +1615,7 @@ export function DocumentWorkspace({
             </button>
             <button
               aria-label="Italicize selected text"
+              disabled={sessionEnded}
               onClick={() => insertMarkdown('_')}
               type="button"
             >
@@ -1532,6 +1623,7 @@ export function DocumentWorkspace({
             </button>
             <button
               aria-label="Make selected text a heading"
+              disabled={sessionEnded}
               onClick={() => insertMarkdown('## ', '')}
               type="button"
             >
@@ -1539,28 +1631,39 @@ export function DocumentWorkspace({
             </button>
             <button
               aria-label="Make selected text a list item"
+              disabled={sessionEnded}
               onClick={() => insertMarkdown('- ', '')}
               type="button"
             >
               List
             </button>
             <span className="toolbar-divider" />
-            <button onClick={saveDocumentVersion} type="button">
+            <button
+              disabled={sessionEnded}
+              onClick={saveDocumentVersion}
+              type="button"
+            >
               Save version
             </button>
             <span aria-live="polite" className="editor-status" role="status">
-              {sessionStatus}
+              {sessionEnded
+                ? 'Ended rehearsal · review and download only'
+                : sessionStatus}
             </span>
           </div>
 
           {editorMode === 'write' ? (
             <textarea
+              aria-describedby={
+                sessionEnded ? 'ended-workspace-copy' : undefined
+              }
               aria-label="Envelope Markdown content"
               className="document-textarea"
               onChange={(event) =>
                 updateActiveDocument({ markdown: event.target.value })
               }
               maxLength={1_000_000}
+              readOnly={sessionEnded}
               ref={textareaRef}
               spellCheck="true"
               value={selectedEnvelope.documentDraft.markdown}
@@ -1581,6 +1684,7 @@ export function DocumentWorkspace({
               Recipient
             </label>
             <select
+              disabled={sessionEnded}
               id="demo-recipient"
               onChange={(event) =>
                 updateActiveDocument({ recipientLabel: event.target.value })
@@ -1625,6 +1729,7 @@ export function DocumentWorkspace({
                 )}
                 <button
                   className="text-action"
+                  disabled={sessionEnded}
                   onClick={restoreImportedSource}
                   type="button"
                 >
@@ -1689,6 +1794,7 @@ export function DocumentWorkspace({
                       <button
                         aria-label={`Remove ${attachment.filename}`}
                         className="text-action text-action-danger"
+                        disabled={sessionEnded}
                         onClick={() => removeAttachment(attachment.sourceId)}
                         type="button"
                       >
@@ -1725,10 +1831,11 @@ export function DocumentWorkspace({
                       aria-label={`Review Version ${version.versionNumber}: ${version.document.title}`}
                       className="text-action"
                       data-version-id={version.versionId}
+                      disabled={sessionEnded}
                       onClick={(event) =>
                         reviewDocumentRestore(
                           version.versionId,
-                          Date.now(),
+                          now(),
                           event.currentTarget,
                         )
                       }
@@ -1759,7 +1866,7 @@ export function DocumentWorkspace({
         </aside>
       </div>
 
-      {pendingRestore === null ? null : (
+      {sessionEnded || pendingRestore === null ? null : (
         <dialog
           aria-describedby="restore-version-description"
           aria-labelledby="restore-version-title"
@@ -1846,6 +1953,7 @@ export function DocumentWorkspace({
             </button>
             <button
               className="button button-primary"
+              disabled={sessionEnded}
               onClick={confirmDocumentRestore}
               type="button"
             >

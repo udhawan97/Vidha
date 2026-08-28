@@ -89,6 +89,49 @@ test('starts a clean disposable Draft without resuming the Disabled Plan', async
   await disable.click();
   await page.getByRole('button', { name: 'Confirm disable' }).click();
   await expect(page.getByText('Lifecycle: disabled')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Envelopes' }).click();
+  const endedWorkspace = page.getByRole('status', {
+    name: 'Ended rehearsal workspace',
+  });
+  await expect(endedWorkspace).toContainText(
+    'This ended rehearsal is read-only.',
+  );
+  await expect(page.getByLabel('Document title')).toHaveValue(
+    'Changed session',
+  );
+  await expect(page.getByLabel('Document title')).toHaveAttribute('readonly');
+  await expect(page.getByLabel('Envelope Markdown content')).toHaveAttribute(
+    'readonly',
+  );
+  await expect(page.getByLabel('Recipient')).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Import editable text' }),
+  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add files' })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Save version' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: /Review Version 1/u }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Remove cleared-on-restart.pdf' }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Download cleared-on-restart.pdf' }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole('button', { name: 'Download copy' }),
+  ).toBeEnabled();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(
+    await page.locator('body').evaluate((body) => body.scrollWidth),
+  ).toBeLessThanOrEqual(
+    await page.locator('body').evaluate((body) => body.clientWidth),
+  );
+
+  await page.getByRole('button', { name: 'Overview', exact: true }).click();
   await page
     .getByRole('button', { name: 'Start fresh local rehearsal' })
     .click();

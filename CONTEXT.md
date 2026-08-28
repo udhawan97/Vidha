@@ -51,7 +51,7 @@ An Owner-authorized Contingency Plan lifecycle state in which timeline advanceme
 _Avoid_: Concern, temporary Release
 
 **Disabled**:
-The terminal Contingency Plan lifecycle state. A Disabled plan cannot resume, Check in, enter Concern, or Release. The current synthetic prototype may discard the entire local rehearsal session and create a separate disposable Draft; this never resumes or mutates the Disabled Plan.
+The terminal Contingency Plan lifecycle state. A Disabled plan cannot resume, Check in, enter Concern, or Release. The current synthetic prototype keeps the ended local rehearsal read-only for review and download, cancels unsettled file or restore work, and may later discard the session to create a separate disposable Draft; none of those browser actions resume or mutate the Disabled Plan.
 _Avoid_: Paused, deleted
 
 **Envelope**:

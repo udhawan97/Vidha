@@ -454,7 +454,8 @@ export function App() {
           <div hidden={view !== 'workspace'}>
             <DocumentWorkspace
               envelopes={envelopes}
-              key={`workspace-${sessionRevision}-${plan.lifecycle === 'disabled' ? 'ended' : 'active'}`}
+              key={`workspace-${sessionRevision}`}
+              now={runtime.clock.now}
               onFileReviewStateChange={handleFileReviewStateChange}
               onSessionWork={() => setHasSessionWork(true)}
               onSelectEnvelope={setSelectedEnvelopeId}
