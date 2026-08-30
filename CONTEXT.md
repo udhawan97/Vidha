@@ -88,6 +88,10 @@ _Avoid_: Secret file, guaranteed-recoverable
 
 ## Continuity and release
 
+**Update Handoff**:
+The bounded interval after this browser tab accepts a waiting application build and before the browser replaces the current page. The current synthetic prototype restores the Owner's update decision and ordinary changed-work reload protection if that handoff does not replace the tab in time or the prior page returns from browser history. It does not prove that a new build activated, recover a bad service worker, migrate state, or establish supported-browser behavior.
+_Avoid_: Completed update, rollback, recovery, state migration
+
 **Check-in**:
 An authenticated action by the Owner that confirms continued control of the Contingency Plan and begins a new schedule interval.
 _Avoid_: Email open, link click, heartbeat

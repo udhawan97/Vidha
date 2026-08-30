@@ -1,8 +1,14 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { UpdateNotice } from './UpdateNotice';
+import { UPDATE_HANDOFF_TIMEOUT_MS, UpdateNotice } from './UpdateNotice';
 
 const emptySessionLossReview = {
   affectedEnvelopes: [],
@@ -43,6 +49,10 @@ describe('UpdateNotice', () => {
     serviceWorker.updateServiceWorker.mockReset();
     serviceWorker.updateServiceWorker.mockResolvedValue(undefined);
     onReviewEnvelope.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('updates an untouched disposable rehearsal without another confirmation', async () => {
@@ -249,6 +259,118 @@ describe('UpdateNotice', () => {
     const afterFailure = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(afterFailure);
     expect(afterFailure.defaultPrevented).toBe(true);
+    expect(screen.getByRole('button', { name: 'Keep working' })).toHaveFocus();
+  });
+
+  it('restores the decision when an accepted update leaves this tab alive', async () => {
+    vi.useFakeTimers();
+    render(
+      <UpdateNotice
+        actionPending={false}
+        fileReviewPending={false}
+        hasSessionWork
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review update' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Update and clear session' }),
+    );
+
+    expect(serviceWorker.updateServiceWorker).toHaveBeenCalledWith(true);
+    const duringHandoff = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(duringHandoff);
+    expect(duringHandoff.defaultPrevented).toBe(false);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(UPDATE_HANDOFF_TIMEOUT_MS);
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The update did not replace this tab in time.',
+    );
+    expect(screen.getByRole('button', { name: 'Keep working' })).toHaveFocus();
+    const afterTimeout = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(afterTimeout);
+    expect(afterTimeout.defaultPrevented).toBe(true);
+  });
+
+  it('ignores a stale rejection after the handoff timeout restores the decision', async () => {
+    vi.useFakeTimers();
+    let rejectUpdate: ((reason?: unknown) => void) | undefined;
+    serviceWorker.updateServiceWorker.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectUpdate = reject;
+        }),
+    );
+    render(
+      <UpdateNotice
+        actionPending={false}
+        fileReviewPending={false}
+        hasSessionWork
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review update' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Update and clear session' }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(UPDATE_HANDOFF_TIMEOUT_MS);
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The update did not replace this tab in time.',
+    );
+
+    await act(async () => {
+      rejectUpdate?.(new Error('late synthetic rejection'));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The update did not replace this tab in time.',
+    );
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      'The update did not start.',
+    );
+  });
+
+  it('restores the decision when an accepted update returns from page history', async () => {
+    serviceWorker.updateServiceWorker.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+    const user = userEvent.setup();
+    render(
+      <UpdateNotice
+        actionPending={false}
+        fileReviewPending={false}
+        hasSessionWork
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Review update' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Update and clear session' }),
+    );
+    fireEvent(window, new Event('pageshow'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This tab returned before the update finished.',
+    );
+    expect(screen.getByRole('button', { name: 'Keep working' })).toHaveFocus();
+    const afterReturn = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(afterReturn);
+    expect(afterReturn.defaultPrevented).toBe(true);
   });
 
   it('holds an update while another tab contains changed work', () => {

@@ -65,6 +65,13 @@ export function OwnerActionDialog({
     };
   }, [returnFocusRef, shouldReturnFocus]);
 
+  useEffect(() => {
+    if (busy || issue === null) return;
+    dialogRef.current
+      ?.querySelector<HTMLElement>('[data-safe-default]')
+      ?.focus({ preventScroll: true });
+  }, [busy, issue]);
+
   function containFocus(event: KeyboardEvent<HTMLDialogElement>) {
     if (event.key !== 'Tab') return;
     const dialog = event.currentTarget;
