@@ -63,6 +63,8 @@ The [Phase 3L six-slice record](docs/product/NEXT_PHASE_3L_SIX.md) bounds the ac
 
 The [Phase 3M six-slice record](docs/product/NEXT_PHASE_3M_SIX.md) injects and displays a validated application build identity, records only the outgoing identity before update activation, blocks the handoff if that receipt cannot be written, and tells a returning tab whether its application build identity changed or the result remains unverified. It does not inspect or prove the service worker, caches, asset integrity, state migration, bad-build recovery, installed-app behavior, deployment, or release provenance.
 
+The [Phase 3N six-slice record](docs/product/NEXT_PHASE_3N_SIX.md) moves the existing PWA shell to an injected-manifest worker, requires a strict content-free identity response from the waiting worker before activation, records the distinct expected target, and compares a returning page with its controlling worker when available. It does not inspect cache or asset bytes, authenticate provenance, prove a real old-to-new update, migrate state, recover or roll back a bad worker, establish supported-browser behavior, deploy the app, or authorize a release.
+
 The earlier foundation record is in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md), and current boundaries are in [`docs/architecture/FOUNDATION_PHASE_3B.md`](docs/architecture/FOUNDATION_PHASE_3B.md). The sequence remains intentional: executable provider and operational evidence still precedes any durable personal data, and none of this work authorizes Guardian Attestation or Release behavior.
 
 ## Version 1 candidate — planned

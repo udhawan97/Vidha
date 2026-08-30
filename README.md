@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="https://udhawan97.github.io/Vidha/">Project page</a> ·
   <a href="#run-the-local-prototype">Run the local prototype</a> ·
   <a href="docs/product/OWNER_GUIDE.md">Owner guide</a> ·
   <a href="docs/public-surface/FACT_SHEET.md">See current evidence</a> ·
@@ -33,7 +34,7 @@ A missed Check-in may begin **Concern** and verification. It never proves death,
 
 ## What can I try today?
 
-The repository currently provides two kinds of evidence. Neither is a release:
+The repository currently provides two evidence paths, while hosted use remains explicitly unavailable. None is a release:
 
 | Path                          | Current status            | What it demonstrates                                                                                                                                                                                                                             |
 | ----------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -45,7 +46,7 @@ The browser prototype deliberately stops at Concern. Guardian Attestations, Veto
 
 ![Vidha local synthetic prototype showing the Draft rehearsal overview in the ivory, indigo, and marigold editorial system](docs/assets/vidha-overview.png)
 
-_Current local WebKit capture using only the repository’s synthetic demo data. It is a pre-alpha rehearsal—not a hosted service or release._
+_Current Phase 3N local WebKit capture using only the repository’s synthetic demo data. The visible build identity is local evidence only; this is not native Safari, a hosted service, or a release._
 
 ## Run the local prototype
 
