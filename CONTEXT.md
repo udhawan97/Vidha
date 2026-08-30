@@ -89,12 +89,16 @@ _Avoid_: Secret file, guaranteed-recoverable
 ## Continuity and release
 
 **Update Handoff**:
-The bounded interval after this browser tab accepts a waiting application build and before the browser replaces the current page. The current synthetic prototype restores the Owner's update decision and ordinary changed-work reload protection if that handoff does not replace the tab in time or the prior page returns from browser history. It records only the outgoing application build identity before activation so a returning page can form a Build Transition Receipt. It does not prove that a service worker activated, recover a bad service worker, migrate state, or establish supported-browser behavior.
+The bounded interval after this browser tab accepts a waiting application build and before the browser replaces the current page. The current synthetic prototype restores the Owner's update decision and ordinary changed-work reload protection if that handoff does not replace the tab in time or the prior page returns from browser history. Before activation, the waiting service worker must provide a valid build identity distinct from the current application build; the tab records only those two identities so a returning page can form a Build Transition Receipt. It does not prove cache or asset integrity, recover a bad service worker, migrate state, or establish supported-browser behavior.
 _Avoid_: Completed update, rollback, recovery, state migration
 
+**Service Worker Identity Check**:
+A content-free `MessageChannel` exchange in which one waiting or controlling service worker returns the validated application build identity compiled into that worker. An unresponsive, malformed, or same-identity waiting worker blocks update activation. A matching controlling-worker response lets a Build Transition Receipt report agreement among the expected worker, returning application, and current controller; it does not inspect cached responses or asset bytes, authenticate release provenance, prove a real cross-build upgrade, or provide rollback.
+_Avoid_: Cache audit, integrity proof, release attestation, bad-worker recovery
+
 **Build Transition Receipt**:
-A one-time, content-free comparison between the outgoing application build identity recorded for an accepted Update Handoff and the build identity injected into the returning page. A changed identity proves only that the tab loaded a differently identified application build; an unchanged identity is explicitly unverified. The receipt contains no rehearsal content and is consumed from tab-scoped session storage after reading.
-_Avoid_: Service-worker activation proof, cache integrity, update success, release provenance
+A one-time, content-free comparison among the outgoing application build, the expected waiting-worker build recorded for an accepted Update Handoff, the build identity injected into the returning page, and the controlling service worker's self-reported identity when available. Agreement proves only that those bounded identities match; legacy records without an expected target remain changed-build or unverified page comparisons. The receipt contains no rehearsal content and is consumed from tab-scoped session storage after reading.
+_Avoid_: Cache integrity, asset verification, cross-build upgrade proof, update success, release provenance
 
 **Check-in**:
 An authenticated action by the Owner that confirms continued control of the Contingency Plan and begins a new schedule interval.
