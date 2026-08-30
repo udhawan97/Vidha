@@ -43,6 +43,39 @@ test('keeps the release boundary visible while rehearsing the timeline', async (
   await expect(page.getByText('Reminder stage entered')).toBeVisible();
 });
 
+test('acknowledges a content-free changed-build update receipt', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    window.sessionStorage.setItem(
+      'vidha.update-handoff.v1',
+      JSON.stringify({
+        protocol: 'vidha.update-handoff.v1',
+        sourceBuildIdentity: 'previous-build',
+      }),
+    );
+  });
+  await page.reload();
+
+  const buildLabel = page.getByLabel(
+    /pre-alpha prototype with synthetic data\. build/i,
+  );
+  await expect(buildLabel).toContainText('Build');
+  const displayedBuild = /Build ([a-zA-Z0-9._-]+)/u.exec(
+    (await buildLabel.textContent()) ?? '',
+  )?.[1];
+  expect(displayedBuild).toBeTruthy();
+  const receipt = page.getByRole('status');
+  await expect(receipt).toContainText(`Build ${displayedBuild} is now open.`);
+  await expect(receipt).toContainText(
+    `changed from build previous-bui to ${displayedBuild}`,
+  );
+  await expect(receipt).toContainText(
+    'does not inspect the service worker, caches, or update safety',
+  );
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('reviews the bounded Draft run-sheet and invalidates it after an edit', async ({
   page,
 }) => {

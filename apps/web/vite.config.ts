@@ -2,7 +2,19 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const buildIdentity =
+  process.env.VIDHA_BUILD_ID ?? process.env.GITHUB_SHA ?? 'local-development';
+
+if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/u.test(buildIdentity)) {
+  throw new Error(
+    'VIDHA_BUILD_ID must contain 1-80 letters, numbers, dots, underscores, or hyphens.',
+  );
+}
+
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_VIDHA_BUILD_ID': JSON.stringify(buildIdentity),
+  },
   plugins: [
     react(),
     VitePWA({
