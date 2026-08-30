@@ -1,4 +1,10 @@
-import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react';
+import {
+  useEffect,
+  useRef,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 
 import './OwnerActionDialog.css';
 
@@ -7,12 +13,14 @@ interface OwnerActionDialogProps {
   readonly busy: boolean;
   readonly busyLabel: string;
   readonly cancelLabel: string;
+  readonly children?: ReactNode;
   readonly description: string;
   readonly eyebrow: string;
   readonly issue: string | null;
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
   readonly returnFocusRef: RefObject<HTMLButtonElement | null>;
+  readonly shouldReturnFocus?: () => boolean;
   readonly title: string;
   readonly tone?: 'primary' | 'danger';
 }
@@ -22,12 +30,14 @@ export function OwnerActionDialog({
   busy,
   busyLabel,
   cancelLabel,
+  children,
   description,
   eyebrow,
   issue,
   onCancel,
   onConfirm,
   returnFocusRef,
+  shouldReturnFocus,
   title,
   tone = 'primary',
 }: OwnerActionDialogProps) {
@@ -49,9 +59,11 @@ export function OwnerActionDialog({
     return () => {
       if (dialog.open && typeof dialog.close === 'function') dialog.close();
       else dialog.removeAttribute('open');
-      window.requestAnimationFrame(() => returnFocus?.focus());
+      window.requestAnimationFrame(() => {
+        if (shouldReturnFocus?.() ?? true) returnFocus?.focus();
+      });
     };
-  }, [returnFocusRef]);
+  }, [returnFocusRef, shouldReturnFocus]);
 
   function containFocus(event: KeyboardEvent<HTMLDialogElement>) {
     if (event.key !== 'Tab') return;
@@ -98,6 +110,7 @@ export function OwnerActionDialog({
       <p className="eyebrow">{eyebrow}</p>
       <h2 id={titleId}>{title}</h2>
       <p id={descriptionId}>{description}</p>
+      {children}
       {issue === null ? null : (
         <p className="owner-action-issue" role="alert">
           {issue}

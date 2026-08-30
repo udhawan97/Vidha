@@ -37,6 +37,7 @@ import {
   type DemoEnvelope,
   type DemoImportSource,
 } from '../demo';
+import type { WorkspaceSessionState } from '../sessionLossReview';
 
 interface DocumentWorkspaceProps {
   readonly envelopes: DemoEnvelope[];
@@ -44,6 +45,9 @@ interface DocumentWorkspaceProps {
   readonly onFileReviewStateChange: (state: FileReviewState) => void;
   readonly onSessionWork: () => void;
   readonly onSelectEnvelope: (envelopeId: string) => void;
+  readonly onWorkspaceSessionStateChange: (
+    state: WorkspaceSessionState,
+  ) => void;
   readonly selectedEnvelopeId: string;
   readonly sessionEnded: boolean;
   readonly setEnvelopes: Dispatch<SetStateAction<DemoEnvelope[]>>;
@@ -198,6 +202,7 @@ export function DocumentWorkspace({
   onFileReviewStateChange,
   onSessionWork,
   onSelectEnvelope,
+  onWorkspaceSessionStateChange,
   selectedEnvelopeId,
   sessionEnded,
   setEnvelopes,
@@ -335,6 +340,32 @@ export function DocumentWorkspace({
         envelopeIds: [],
       }),
     [onFileReviewStateChange],
+  );
+
+  useEffect(() => {
+    const envelopeIds = Array.from(
+      new Set([
+        ...Object.keys(historyByEnvelope),
+        ...Object.keys(versionsByEnvelope),
+      ]),
+    ).sort();
+    onWorkspaceSessionStateChange({
+      envelopes: envelopeIds.map((envelopeId) => {
+        const history = historyByEnvelope[envelopeId];
+        const versions = versionsByEnvelope[envelopeId];
+        return {
+          envelopeId,
+          redoSteps: history?.future.length ?? 0,
+          undoSteps: history?.past.length ?? 0,
+          versionCount: versions?.versions.length ?? 0,
+        };
+      }),
+    });
+  }, [historyByEnvelope, onWorkspaceSessionStateChange, versionsByEnvelope]);
+
+  useEffect(
+    () => () => onWorkspaceSessionStateChange({ envelopes: [] }),
+    [onWorkspaceSessionStateChange],
   );
 
   useEffect(() => {

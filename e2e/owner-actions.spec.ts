@@ -141,9 +141,31 @@ test('starts a clean disposable Draft without resuming the Disabled Plan', async
   await expect(restartDialog).toContainText(
     'The Disabled Plan remains terminal.',
   );
+  await expect(restartDialog).toContainText('1 edited document');
+  await expect(restartDialog).toContainText('1 Attachment');
+  await expect(restartDialog).toContainText('1 Document Version');
+  await expect(restartDialog).toContainText(/undo\/redo steps/u);
+  await expect(restartDialog).toContainText(/local Plan events/u);
   await expect(
     page.getByRole('button', { name: 'Keep ended rehearsal' }),
   ).toBeFocused();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(
+    await page.locator('body').evaluate((body) => body.scrollWidth),
+  ).toBeLessThanOrEqual(
+    await page.locator('body').evaluate((body) => body.clientWidth),
+  );
+
+  await page.getByRole('button', { name: 'Review Envelope' }).click();
+  await expect(restartDialog).toHaveCount(0);
+  await expect(page.getByLabel('Document title')).toHaveValue(
+    'Changed session',
+  );
+
+  await page.getByRole('button', { name: 'Overview', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Start fresh local rehearsal' })
+    .click();
   await page.getByRole('button', { name: 'Start fresh rehearsal' }).click();
 
   await expect(page.getByText('Lifecycle: draft')).toBeVisible();

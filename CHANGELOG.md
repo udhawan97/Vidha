@@ -4,6 +4,8 @@ All notable changes are documented here. Vidha has not published an application 
 
 ## Unreleased
 
+- Added Phase 3K exact session-loss review: confirmed app-update and fresh-session clearing now share live counts for current-tab edits, accepted files, Document Versions, undo/redo history, and local Plan events, with a safe return to each affected Envelope and no persistence, recovery, synchronization, or release claim.
+
 - Renamed the provisional working product from `Viraha` to `Vidha`; no release or shipped application exists.
 - Established the Vidha product vocabulary and scope.
 - Recorded initial architecture, licensing, encryption, and Release Policy decisions.

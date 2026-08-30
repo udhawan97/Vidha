@@ -4,6 +4,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UpdateNotice } from './UpdateNotice';
 
+const emptySessionLossReview = {
+  affectedEnvelopes: [],
+  counts: {
+    attachments: 0,
+    documentVersions: 0,
+    editHistorySteps: 0,
+    editedDocuments: 0,
+    importedSources: 0,
+    localPlanEvents: 0,
+  },
+} as const;
+
+const onReviewEnvelope = vi.fn();
+
 const serviceWorker = vi.hoisted(() => ({
   needRefresh: true,
   offlineReady: false,
@@ -28,6 +42,7 @@ describe('UpdateNotice', () => {
     serviceWorker.setOfflineReady.mockReset();
     serviceWorker.updateServiceWorker.mockReset();
     serviceWorker.updateServiceWorker.mockResolvedValue(undefined);
+    onReviewEnvelope.mockReset();
   });
 
   it('updates an untouched disposable rehearsal without another confirmation', async () => {
@@ -37,7 +52,9 @@ describe('UpdateNotice', () => {
         actionPending={false}
         fileReviewPending={false}
         hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
         otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
       />,
     );
 
@@ -55,7 +72,9 @@ describe('UpdateNotice', () => {
         actionPending={false}
         fileReviewPending={false}
         hasSessionWork
+        onReviewEnvelope={onReviewEnvelope}
         otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
       />,
     );
 
@@ -83,6 +102,54 @@ describe('UpdateNotice', () => {
     expect(afterConfirmation.defaultPrevented).toBe(false);
   });
 
+  it('shows exact current losses and returns to an affected Envelope', async () => {
+    const user = userEvent.setup();
+    render(
+      <UpdateNotice
+        actionPending={false}
+        fileReviewPending={false}
+        hasSessionWork
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={{
+          affectedEnvelopes: [
+            {
+              envelopeId: 'home-notes',
+              label: 'Changed locally',
+              reasons: ['document', 'attachments', 'versions'],
+            },
+          ],
+          counts: {
+            attachments: 1,
+            documentVersions: 2,
+            editHistorySteps: 3,
+            editedDocuments: 1,
+            importedSources: 0,
+            localPlanEvents: 4,
+          },
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Review update' }));
+
+    const review = screen.getByRole('region', {
+      name: 'Current session-loss review',
+    });
+    expect(review).toHaveTextContent('1 edited document');
+    expect(review).toHaveTextContent('1 Attachment');
+    expect(review).toHaveTextContent('2 Document Versions');
+    expect(review).toHaveTextContent('3 undo/redo steps');
+    expect(review).toHaveTextContent('4 local Plan events');
+    expect(review).toHaveTextContent('Changed locally');
+
+    await user.click(screen.getByRole('button', { name: 'Review Envelope' }));
+
+    expect(onReviewEnvelope).toHaveBeenCalledWith('home-notes');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(serviceWorker.updateServiceWorker).not.toHaveBeenCalled();
+  });
+
   it('returns focus after canceling the update confirmation', async () => {
     const user = userEvent.setup();
     render(
@@ -90,7 +157,9 @@ describe('UpdateNotice', () => {
         actionPending={false}
         fileReviewPending={false}
         hasSessionWork
+        onReviewEnvelope={onReviewEnvelope}
         otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
       />,
     );
 
@@ -112,7 +181,9 @@ describe('UpdateNotice', () => {
         actionPending
         fileReviewPending={false}
         hasSessionWork
+        onReviewEnvelope={onReviewEnvelope}
         otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
       />,
     );
 
@@ -130,7 +201,9 @@ describe('UpdateNotice', () => {
         actionPending={false}
         fileReviewPending
         hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
         otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
       />,
     );
 
@@ -156,7 +229,9 @@ describe('UpdateNotice', () => {
         actionPending={false}
         fileReviewPending={false}
         hasSessionWork
+        onReviewEnvelope={onReviewEnvelope}
         otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
       />,
     );
 
@@ -182,7 +257,9 @@ describe('UpdateNotice', () => {
         actionPending={false}
         fileReviewPending={false}
         hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
         otherTabBlocksUpdate
+        sessionLossReview={emptySessionLossReview}
       />,
     );
 

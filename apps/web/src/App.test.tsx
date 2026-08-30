@@ -895,9 +895,24 @@ describe('Vidha synthetic foundation app', () => {
     expect(restartDialog).toHaveTextContent(
       'The Disabled Plan remains terminal.',
     );
+    expect(restartDialog).toHaveTextContent('1 edited document');
+    expect(restartDialog).toHaveTextContent('1 Attachment');
+    expect(restartDialog).toHaveTextContent('1 Document Version');
+    expect(restartDialog).toHaveTextContent(/undo\/redo steps/u);
+    expect(restartDialog).toHaveTextContent(/local Plan events/u);
     expect(
       screen.getByRole('button', { name: 'Keep ended rehearsal' }),
     ).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Review Envelope' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Document title')).toHaveValue(
+      'Changed session',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Start fresh local rehearsal' }),
+    );
     await user.click(
       screen.getByRole('button', { name: 'Start fresh rehearsal' }),
     );

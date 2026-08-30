@@ -7,7 +7,7 @@ import {
 } from '@vidha/application';
 import type { PlanLifecycle, PlanState } from '@vidha/domain';
 import { MemoryPlanStore } from '@vidha/persistence/memory';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import {
   DocumentWorkspace,
@@ -18,6 +18,11 @@ import { Overview } from './components/Overview';
 import { RehearsalPeerNotice } from './components/RehearsalPeerNotice';
 import { UpdateNotice } from './components/UpdateNotice';
 import { createDemoPlan, demoEnvelopes, type DemoEnvelope } from './demo';
+import {
+  createSessionLossReview,
+  emptyWorkspaceSessionState,
+  type WorkspaceSessionState,
+} from './sessionLossReview';
 import { useRehearsalPeers } from './useRehearsalPeers';
 
 type View = 'guide' | 'overview' | 'workspace';
@@ -147,6 +152,8 @@ export function App() {
   const [hasSessionWork, setHasSessionWork] = useState(false);
   const [fileReviewState, setFileReviewState] =
     useState<FileReviewState>(emptyFileReviewState);
+  const [workspaceSessionState, setWorkspaceSessionState] =
+    useState<WorkspaceSessionState>(emptyWorkspaceSessionState);
   const [sessionRevision, setSessionRevision] = useState(1);
   const [pendingAction, setPendingAction] = useState<OwnerActionName | null>(
     null,
@@ -180,6 +187,44 @@ export function App() {
         ? current
         : next,
     );
+  }, []);
+
+  const handleWorkspaceSessionStateChange = useCallback(
+    (next: WorkspaceSessionState) => {
+      setWorkspaceSessionState((current) =>
+        current.envelopes.length === next.envelopes.length &&
+        current.envelopes.every((envelope, index) => {
+          const nextEnvelope = next.envelopes[index];
+          return (
+            nextEnvelope !== undefined &&
+            envelope.envelopeId === nextEnvelope.envelopeId &&
+            envelope.redoSteps === nextEnvelope.redoSteps &&
+            envelope.undoSteps === nextEnvelope.undoSteps &&
+            envelope.versionCount === nextEnvelope.versionCount
+          );
+        })
+          ? current
+          : next,
+      );
+    },
+    [],
+  );
+
+  const sessionLossReview = useMemo(
+    () =>
+      createSessionLossReview({
+        baselineEnvelopes: demoEnvelopes,
+        baselinePlan: runtime.initialPlan,
+        envelopes,
+        plan,
+        workspace: workspaceSessionState,
+      }),
+    [envelopes, plan, runtime.initialPlan, workspaceSessionState],
+  );
+
+  const openEnvelope = useCallback((envelopeId: string) => {
+    setSelectedEnvelopeId(envelopeId);
+    setView('workspace');
   }, []);
 
   function commandKey(label: string) {
@@ -314,6 +359,7 @@ export function App() {
       setSessionRevision((current) => current + 1);
       setHasSessionWork(false);
       setFileReviewState(emptyFileReviewState);
+      setWorkspaceSessionState(emptyWorkspaceSessionState);
       commandSequence.current = 0;
       setAnnouncement(
         'Fresh disposable rehearsal loaded. The Disabled Plan was not resumed.',
@@ -440,15 +486,13 @@ export function App() {
               onCheckIn={checkIn}
               onDisable={() => changeLifecycle('disabled')}
               onPause={() => changeLifecycle('paused')}
-              onOpenEnvelope={(envelopeId) => {
-                setSelectedEnvelopeId(envelopeId);
-                setView('workspace');
-              }}
+              onOpenEnvelope={openEnvelope}
               onRehearse={rehearsePlan}
               onRestart={restartLocalRehearsal}
               onResume={() => changeLifecycle('armed')}
               otherTabBlocksSessionReset={otherTabBlocksDestructiveAction}
               plan={plan}
+              sessionLossReview={sessionLossReview}
             />
           </div>
           <div hidden={view !== 'workspace'}>
@@ -459,6 +503,7 @@ export function App() {
               onFileReviewStateChange={handleFileReviewStateChange}
               onSessionWork={() => setHasSessionWork(true)}
               onSelectEnvelope={setSelectedEnvelopeId}
+              onWorkspaceSessionStateChange={handleWorkspaceSessionStateChange}
               selectedEnvelopeId={selectedEnvelopeId}
               sessionEnded={plan.lifecycle === 'disabled'}
               setEnvelopes={setEnvelopes}
@@ -477,7 +522,9 @@ export function App() {
         actionPending={pendingAction !== null}
         fileReviewPending={fileReviewState.busy}
         hasSessionWork={hasSessionWork}
+        onReviewEnvelope={openEnvelope}
         otherTabBlocksUpdate={otherTabBlocksDestructiveAction}
+        sessionLossReview={sessionLossReview}
       />
     </div>
   );
