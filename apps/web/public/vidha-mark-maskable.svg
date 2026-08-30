@@ -1,17 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 120 120" role="img" aria-labelledby="title description">
   <title id="title">Vidha provisional working-concept app icon, maskable</title>
-  <desc id="description">A folded-paper courier crane in ivory standing on a marigold continuity line over an indigo field, inset for maskable safe areas. Identity and rights clearance are incomplete.</desc>
+  <desc id="description">A warm round ivory courier bird standing on a marigold continuity line over an indigo field, inset for maskable safe areas. Identity and rights clearance are incomplete.</desc>
   <rect width="120" height="120" fill="#141F45" />
-  <path d="M-4 80 H124" stroke="#E9A427" stroke-width="3" stroke-linecap="round" />
-  <g transform="translate(20.9 31.6) scale(0.62)">
-    <g fill="#F7F0E2">
-      <polygon points="48,57 36,14 62,53" opacity="0.55" />
-      <polygon points="50,58 64,8 78,55" opacity="0.85" />
-      <polygon points="44,62 16,20 52,57" />
-      <polygon points="42,64 62,52 82,64 62,78" />
-      <polygon points="42,64 62,52 62,78" fill="#DFD5BE" />
-      <polygon points="72,56 98,23 80,63" />
+  <path d="M-4 84 H124" stroke="#E9A427" stroke-width="3.5" stroke-linecap="round" />
+  <g transform="translate(8.4 8.4) scale(0.86)">
+    <g transform="translate(-8.1 -1.6) scale(1.12)">
+      <path d="M52 71 L50.5 79.5 M62 71 L63 79.5" stroke="#E9A427" stroke-width="2.4" stroke-linecap="round" />
+      <path d="M47 79.5 H54 M59.5 79.5 H66.5" stroke="#E9A427" stroke-width="2.2" stroke-linecap="round" />
+      <g fill="#F7F0E2">
+        <path d="M26 35 C 34 40, 41 45, 44 50 C 43 56, 40 61, 35 62 C 31 55, 27 44, 26 35 Z" />
+        <ellipse cx="55" cy="53" rx="24.5" ry="20.5" transform="rotate(-14 55 53)" />
+        <circle cx="65" cy="43" r="11" />
+        <circle cx="73.5" cy="37.5" r="13.8" />
+      </g>
+      <ellipse cx="58" cy="63" rx="14" ry="8.5" transform="rotate(-12 58 63)" fill="#DFD5BE" />
+      <ellipse cx="49" cy="52" rx="11" ry="7.5" transform="rotate(-18 49 52)" fill="#CFC3AA" />
+      <polygon points="87,33.8 99,37 87,40.6" fill="#E9A427" />
+      <circle cx="78.5" cy="34.5" r="2.8" fill="#141F45" />
+      <circle cx="79.4" cy="33.7" r="0.8" fill="#FDF9F0" />
     </g>
-    <polygon points="94,20 110,26 96,31" fill="#E9A427" />
   </g>
 </svg>

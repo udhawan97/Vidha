@@ -2176,6 +2176,12 @@ h2 {
   height: 72px;
   border-radius: 0;
   object-fit: contain;
+  transition: transform 200ms ease;
+}
+
+.wordmark:hover img,
+.wordmark:focus-visible img {
+  transform: translateY(-3px) rotate(-2deg);
 }
 
 .wordmark-name {

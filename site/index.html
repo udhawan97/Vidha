@@ -28,7 +28,7 @@
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="Folded-paper courier crane on a marigold continuity line beside the Vidha wordmark"
+      content="A warm round courier bird on a marigold continuity line beside the Vidha wordmark"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="vidha-mark.svg" type="image/svg+xml" />
@@ -190,6 +190,7 @@
 
       .hero {
         position: relative;
+        overflow: hidden;
         display: grid;
         gap: clamp(32px, 6vw, 84px);
         padding: clamp(58px, 9vw, 118px) clamp(28px, 8vw, 108px) 72px;
@@ -283,10 +284,169 @@
         transform: translateX(-50%);
       }
 
-      .courier img {
+      .courier svg {
         display: block;
         width: 100%;
         height: 100%;
+      }
+
+      /* shared courier-bird palette (inline SVGs follow the page theme) */
+      .cb-body {
+        fill: var(--ink);
+      }
+
+      .cb-soft {
+        fill: var(--ink-soft);
+      }
+
+      .cb-thread {
+        fill: var(--thread);
+      }
+
+      .cb-thread-stroke {
+        stroke: var(--thread);
+      }
+
+      .cb-eye {
+        fill: var(--paper);
+      }
+
+      .cb-pupil {
+        fill: #0a1026;
+      }
+
+      .cb-glint {
+        fill: #fdf9f0;
+      }
+
+      .cb-paper {
+        fill: var(--paper-strong);
+        stroke: var(--ink);
+        stroke-width: 1.2;
+      }
+
+      .courier-perched {
+        animation: courier-breathe 3.4s ease-in-out infinite;
+      }
+
+      .courier-lids {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: courier-blink 6.4s infinite;
+      }
+
+      @keyframes courier-breathe {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-1.6px);
+        }
+      }
+
+      @keyframes courier-blink {
+        0%,
+        93.5%,
+        97%,
+        100% {
+          transform: scaleY(1);
+        }
+        95% {
+          transform: scaleY(0.08);
+        }
+      }
+
+      /* hero flight: the courier takes the message and flies away */
+      .flight {
+        position: absolute;
+        z-index: 1;
+        top: clamp(8px, 2vw, 30px);
+        left: 0;
+        width: 100%;
+        height: 0;
+        pointer-events: none;
+      }
+
+      .flight-bird {
+        position: absolute;
+        left: 0;
+        width: clamp(84px, 9vw, 118px);
+        transform: translateX(-140px);
+        animation: courier-fly 30s linear infinite;
+      }
+
+      .flight-bob {
+        animation: courier-glide 2.6s ease-in-out infinite;
+      }
+
+      .fb-wing-near,
+      .fb-wing-far {
+        transform-box: fill-box;
+        transform-origin: 100% 90%;
+      }
+
+      .fb-wing-near {
+        animation: courier-flap 0.62s ease-in-out infinite alternate;
+      }
+
+      .fb-wing-far {
+        animation: courier-flap-far 0.62s ease-in-out infinite alternate;
+      }
+
+      .fb-envelope {
+        transform-box: fill-box;
+        transform-origin: 50% 0%;
+        animation: courier-sway 1.9s ease-in-out infinite alternate;
+      }
+
+      @keyframes courier-fly {
+        0% {
+          transform: translateX(-140px);
+        }
+        42% {
+          transform: translateX(calc(100vw + 140px));
+        }
+        100% {
+          transform: translateX(calc(100vw + 140px));
+        }
+      }
+
+      @keyframes courier-glide {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-7px);
+        }
+      }
+
+      @keyframes courier-flap {
+        from {
+          transform: rotate(-8deg);
+        }
+        to {
+          transform: rotate(16deg);
+        }
+      }
+
+      @keyframes courier-flap-far {
+        from {
+          transform: rotate(12deg);
+        }
+        to {
+          transform: rotate(-6deg);
+        }
+      }
+
+      @keyframes courier-sway {
+        from {
+          transform: rotate(-5deg);
+        }
+        to {
+          transform: rotate(5deg);
+        }
       }
 
       .stages {
@@ -508,9 +668,24 @@
         }
       }
 
+      @media (max-width: 780px) {
+        .flight {
+          display: none;
+        }
+      }
+
       @media (prefers-reduced-motion: reduce) {
         html {
           scroll-behavior: auto;
+        }
+
+        .flight {
+          display: none;
+        }
+
+        .courier-perched,
+        .courier-lids {
+          animation: none;
         }
       }
     </style>
@@ -529,6 +704,79 @@
 
       <main id="top">
         <div class="hero">
+          <div class="flight" aria-hidden="true">
+            <svg
+              class="flight-bird"
+              viewBox="0 0 150 96"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <g class="flight-bob">
+                <path
+                  class="cb-soft fb-wing-far"
+                  d="M70 52 C 62 38, 52 28, 40 28 C 46 40, 56 50, 68 58 Z"
+                  opacity="0.5"
+                />
+                <g class="cb-body">
+                  <path
+                    d="M26 64 C 36 60, 44 58, 50 56 C 49 63, 47 69, 43 72 C 36 70, 30 67, 26 64 Z"
+                  />
+                  <ellipse
+                    cx="64"
+                    cy="60"
+                    rx="25"
+                    ry="16"
+                    transform="rotate(-8 64 60)"
+                  />
+                  <circle cx="82" cy="52" r="10.5" />
+                  <circle cx="92" cy="46" r="13.2" />
+                </g>
+                <ellipse
+                  class="cb-soft"
+                  cx="62"
+                  cy="67"
+                  rx="14.5"
+                  ry="7.5"
+                  transform="rotate(-8 62 67)"
+                  opacity="0.55"
+                />
+                <polygon class="cb-thread" points="104,42.5 116,46 104,49.5" />
+                <g class="courier-lids">
+                  <circle class="cb-eye" cx="96.5" cy="43" r="2.8" />
+                  <circle class="cb-pupil" cx="97.3" cy="43.4" r="1.6" />
+                  <circle class="cb-glint" cx="97.8" cy="42.6" r="0.55" />
+                </g>
+                <line
+                  class="cb-thread-stroke"
+                  x1="110"
+                  y1="47"
+                  x2="112"
+                  y2="62"
+                  stroke-width="1.4"
+                />
+                <g class="fb-envelope">
+                  <rect
+                    class="cb-paper"
+                    x="102"
+                    y="62"
+                    width="20"
+                    height="14"
+                    rx="1.5"
+                  />
+                  <path
+                    class="cb-thread-stroke"
+                    d="M102 62 L112 71 L122 62"
+                    fill="none"
+                    stroke-width="1.6"
+                    stroke-linejoin="round"
+                  />
+                </g>
+                <path
+                  class="cb-soft fb-wing-near"
+                  d="M64 54 C 54 34, 38 24, 22 26 C 30 40, 46 52, 60 60 Z"
+                />
+              </g>
+            </svg>
+          </div>
           <span class="folio" aria-hidden="true" lang="ja">一・手渡し</span>
           <div>
             <p class="eyebrow">Open source · recipient specific · deliberate</p>
@@ -555,13 +803,68 @@
           tabindex="0"
         >
           <div class="relay-inner">
-            <picture class="courier">
-              <source
-                media="(prefers-color-scheme: dark)"
-                srcset="vidha-courier-reversed.svg"
-              />
-              <img src="vidha-courier.svg" alt="" width="78" height="59" />
-            </picture>
+            <span class="courier" aria-hidden="true">
+              <svg viewBox="0 0 120 90" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  class="cb-thread-stroke"
+                  d="M-4 80 H124"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                />
+                <path
+                  class="cb-thread-stroke"
+                  d="M52 71 L50.5 79.5 M62 71 L63 79.5"
+                  stroke-width="2.4"
+                  stroke-linecap="round"
+                />
+                <path
+                  class="cb-thread-stroke"
+                  d="M47 79.5 H54 M59.5 79.5 H66.5"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                />
+                <g class="courier-perched">
+                  <g class="cb-body">
+                    <path
+                      d="M26 35 C 34 40, 41 45, 44 50 C 43 56, 40 61, 35 62 C 31 55, 27 44, 26 35 Z"
+                    />
+                    <ellipse
+                      cx="55"
+                      cy="53"
+                      rx="24.5"
+                      ry="20.5"
+                      transform="rotate(-14 55 53)"
+                    />
+                    <circle cx="65" cy="43" r="11" />
+                    <circle cx="73.5" cy="37.5" r="13.8" />
+                  </g>
+                  <ellipse
+                    class="cb-soft"
+                    cx="58"
+                    cy="63"
+                    rx="14"
+                    ry="8.5"
+                    transform="rotate(-12 58 63)"
+                    opacity="0.5"
+                  />
+                  <ellipse
+                    class="cb-soft"
+                    cx="49"
+                    cy="52"
+                    rx="11"
+                    ry="7.5"
+                    transform="rotate(-18 49 52)"
+                    opacity="0.85"
+                  />
+                  <polygon class="cb-thread" points="87,33.8 99,37 87,40.6" />
+                  <g class="courier-lids">
+                    <circle class="cb-eye" cx="78.5" cy="34.5" r="2.8" />
+                    <circle class="cb-pupil" cx="79.2" cy="34.9" r="1.6" />
+                    <circle class="cb-glint" cx="79.7" cy="34.1" r="0.55" />
+                  </g>
+                </g>
+              </svg>
+            </span>
             <ol class="stages">
               <li class="stage">
                 <i class="knot" aria-hidden="true"></i>

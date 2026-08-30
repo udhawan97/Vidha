@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/vidha-mark-reversed.svg" />
-    <img src="apps/web/public/vidha-mark.svg" width="144" height="108" alt="Vidha courier working-concept mark: a folded-paper crane standing on a marigold continuity line" />
+    <img src="apps/web/public/vidha-mark.svg" width="144" height="108" alt="Vidha courier working-concept mark: a warm round bird standing on a marigold continuity line" />
   </picture>
 </p>
 
@@ -24,7 +24,7 @@
 > [!IMPORTANT]
 > **Pre-alpha · local synthetic prototype · working name.** There is no hosted service, download, real account, notification delivery, Release path, tag, or GitHub release. The prototype uses disposable synthetic data; refresh clears its browser session. Do not enter personal or sensitive information.
 
-“Vidha” and the folded-paper courier mark are provisional working concepts. Name and logo clearance are incomplete, and this project makes no exclusivity, cultural-origin, or ownership claim.
+“Vidha” and the courier mark are provisional working concepts. Name and logo clearance are incomplete, and this project makes no exclusivity, cultural-origin, or ownership claim.
 
 ## What is Vidha?
 
