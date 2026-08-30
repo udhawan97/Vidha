@@ -1,0 +1,121 @@
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R4 V5
+ * contrast: pass (40–41) · nav: N10 · footer: Ft8 · slop: pass (42–49) · mobile: pass (34, 49–57)
+ * macrostructure: Narrative Workflow · tone: warm playful editorial · anchor hue: marigold
+ * genre: playful · theme: Vidha editorial preserved · enrichment: Tier B hand-built SVG
+ * nav: N10 floating-on-scroll morph · footer: Ft8 marquee scroll
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --color-ink: oklch(25% 0.065 267);
+  --color-ink-soft: oklch(38% 0.052 267);
+  --color-muted: oklch(43% 0.018 52);
+  --color-paper: oklch(95.6% 0.028 84);
+  --color-paper-strong: oklch(98.2% 0.015 84);
+  --color-paper-soft: oklch(91.8% 0.036 84);
+  --color-paper-deep: oklch(87.5% 0.045 82);
+  --color-rule: oklch(80.5% 0.036 82);
+  --color-rule-strong: oklch(67% 0.04 82);
+  --color-thread: oklch(74% 0.158 76);
+  --color-thread-deep: oklch(59% 0.145 64);
+  --color-thread-soft: oklch(91% 0.078 82);
+  --color-peacock: oklch(50% 0.105 184);
+  --color-peacock-deep: oklch(39% 0.09 184);
+  --color-peacock-soft: oklch(88% 0.052 184);
+  --color-concern: oklch(46% 0.17 27);
+  --color-concern-soft: oklch(89% 0.052 30);
+  --color-focus: oklch(44% 0.12 184);
+  --color-shadow: oklch(20% 0.035 267 / 0.14);
+  --color-shadow-soft: oklch(20% 0.035 267 / 0.08);
+  --color-glass: oklch(98.2% 0.015 84 / 0.9);
+  --color-panel: oklch(25% 0.065 267);
+  --color-panel-soft: oklch(31% 0.065 267);
+  --color-panel-ink: oklch(96% 0.024 84);
+  --color-panel-muted: oklch(82% 0.028 84);
+  --color-panel-rule: oklch(45% 0.052 267);
+  --color-accent-ink: oklch(24% 0.06 267);
+
+  --font-display:
+    'Iowan Old Style', 'Hiragino Mincho ProN', 'Yu Mincho', Baskerville,
+    'Times New Roman', serif;
+  --font-body:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-label: var(--font-body);
+
+  --text-xs: 0.68rem;
+  --text-sm: 0.82rem;
+  --text-base: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.56rem;
+  --text-xl: 1.95rem;
+  --text-2xl: 2.44rem;
+  --text-3xl: 3.05rem;
+  --text-4xl: 3.81rem;
+  --text-display: clamp(3rem, 7vw, 5.25rem);
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --space-4xl: 9rem;
+
+  --radius-sm: 0.35rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.35rem;
+  --radius-pill: 999px;
+  --rule-hairline: 1px;
+  --rule-strong: 2px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --dur-nav: 520ms;
+
+  --page-max: 78rem;
+  --page-gutter: clamp(1rem, 4vw, 3.5rem);
+  --section-gap: clamp(5rem, 10vw, 9rem);
+
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ink: oklch(94% 0.024 84);
+    --color-ink-soft: oklch(84% 0.03 84);
+    --color-muted: oklch(73% 0.026 82);
+    --color-paper: oklch(16% 0.04 267);
+    --color-paper-strong: oklch(20% 0.05 267);
+    --color-paper-soft: oklch(23.5% 0.055 267);
+    --color-paper-deep: oklch(28% 0.058 267);
+    --color-rule: oklch(36% 0.055 267);
+    --color-rule-strong: oklch(48% 0.05 267);
+    --color-thread: oklch(79% 0.145 78);
+    --color-thread-deep: oklch(69% 0.14 72);
+    --color-thread-soft: oklch(30% 0.075 76);
+    --color-peacock: oklch(72% 0.105 184);
+    --color-peacock-deep: oklch(63% 0.1 184);
+    --color-peacock-soft: oklch(30% 0.065 184);
+    --color-concern: oklch(72% 0.16 28);
+    --color-concern-soft: oklch(31% 0.09 28);
+    --color-focus: oklch(79% 0.145 78);
+    --color-shadow: oklch(7% 0.025 267 / 0.34);
+    --color-shadow-soft: oklch(7% 0.025 267 / 0.2);
+    --color-glass: oklch(20% 0.05 267 / 0.92);
+    --color-accent-ink: oklch(20% 0.05 267);
+  }
+}

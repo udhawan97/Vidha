@@ -1,0 +1,15 @@
+{
+  "scanned_at": "2026-08-30",
+  "target": "site/index.html",
+  "framework": "vanilla HTML",
+  "font_stack": "Iowan Old Style and Hiragino Mincho display, system sans body and labels",
+  "palette": "ivory paper, indigo ink, marigold thread, peacock confirmation, vermillion concern",
+  "motion": "CSS-only ambient courier motion; no animation library",
+  "spacing": "4px named token scale with fluid section gaps",
+  "preserve": [
+    "palette",
+    "font roles",
+    "editorial courier identity",
+    "dark mode"
+  ]
+}

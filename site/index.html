@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vidha pre-alpha — rehearse a careful contingency relay</title>
+    <title>Vidha pre-alpha — a careful contingency relay</title>
     <meta
       name="description"
       content="Vidha is a pre-alpha open-source contingency-relay project for deliberate, recipient-specific handoffs. This public page describes the design; there is no hosted service or release."
@@ -13,7 +13,7 @@
     <meta property="og:site_name" content="Vidha" />
     <meta
       property="og:title"
-      content="Vidha — rehearse a careful contingency relay"
+      content="Vidha — a careful way for messages to find their way home"
     />
     <meta
       property="og:description"
@@ -34,964 +34,879 @@
     <link rel="icon" href="vidha-mark.svg" type="image/svg+xml" />
     <link rel="icon" href="pwa-192.png" type="image/png" sizes="192x192" />
     <link rel="apple-touch-icon" href="pwa-192.png" />
-    <style>
-      :root {
-        color-scheme: light dark;
-        --ink: #141f45;
-        --ink-soft: #384365;
-        --muted: #5f5a58;
-        --paper: #f7f0e2;
-        --paper-strong: #fdf9f0;
-        --paper-soft: #efe6d2;
-        --line: #cfc3aa;
-        --thread: #e9a427;
-        --peacock: #0e7c74;
-        --concern: #a93224;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --ink: #f7f0e2;
-          --ink-soft: #dfd5be;
-          --muted: #bdb39e;
-          --paper: #0c1430;
-          --paper-strong: #141f45;
-          --paper-soft: #1c294f;
-          --line: #46516f;
-          --thread: #f1b94c;
-          --peacock: #64b8ad;
-          --concern: #ef715f;
-        }
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html {
-        scroll-behavior: smooth;
-      }
-
-      body {
-        min-width: 320px;
-        margin: 0;
-        background:
-          linear-gradient(rgb(20 31 69 / 3%) 1px, transparent 1px) 0 0 / 100%
-            28px,
-          var(--paper);
-        color: var(--ink);
-        font:
-          1rem/1.65 ui-sans-serif,
-          -apple-system,
-          BlinkMacSystemFont,
-          'Segoe UI',
-          sans-serif;
-        -webkit-font-smoothing: antialiased;
-      }
-
-      a {
-        color: inherit;
-        text-decoration-color: var(--thread);
-        text-decoration-thickness: 2px;
-        text-underline-offset: 4px;
-      }
-
-      a:focus-visible {
-        outline: 3px solid var(--thread);
-        outline-offset: 4px;
-      }
-
-      .frame {
-        width: min(1180px, calc(100% - 40px));
-        margin: 0 auto;
-        border-right: 1px solid var(--line);
-        border-left: 1px solid var(--line);
-        background: color-mix(in srgb, var(--paper) 94%, transparent);
-      }
-
-      .site-header {
-        display: grid;
-        align-items: stretch;
-        min-height: 114px;
-        border-bottom: 1px solid var(--line);
-        grid-template-columns: 176px minmax(0, 1fr) auto;
-      }
-
-      .brand {
-        display: grid;
-        align-content: center;
-        justify-items: start;
-        padding: 14px 22px;
-        border-right: 1px solid var(--line);
-        text-decoration: none;
-      }
-
-      .brand img {
-        display: block;
-        width: 76px;
-        height: 57px;
-        object-fit: contain;
-      }
-
-      .brand strong,
-      h1,
-      h2,
-      .stage strong {
-        font-family: 'Iowan Old Style', 'Hiragino Mincho ProN', Georgia, serif;
-      }
-
-      .brand strong {
-        margin-top: -4px;
-        font-size: 1.14rem;
-        letter-spacing: -0.025em;
-      }
-
-      .brand small,
-      .eyebrow,
-      .status,
-      .folio,
-      .stage span,
-      .kicker {
-        font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-      }
-
-      .brand small {
-        color: var(--muted);
-        font-size: 0.5rem;
-      }
-
-      .header-note {
-        align-self: center;
-        max-width: 510px;
-        padding: 20px clamp(22px, 4vw, 50px);
-        color: var(--ink-soft);
-        font-family: 'Iowan Old Style', Georgia, serif;
-        font-size: 0.94rem;
-        font-style: italic;
-      }
-
-      .status {
-        align-self: stretch;
-        display: grid;
-        place-items: center;
-        padding: 14px 24px;
-        border-left: 1px solid var(--line);
-        color: #fdf9f0;
-        background: #141f45;
-        font-size: 0.58rem;
-        text-align: center;
-      }
-
-      main {
-        position: relative;
-      }
-
-      .hero {
-        position: relative;
-        overflow: hidden;
-        display: grid;
-        gap: clamp(32px, 6vw, 84px);
-        padding: clamp(58px, 9vw, 118px) clamp(28px, 8vw, 108px) 72px;
-        border-bottom: 5px solid var(--thread);
-        grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.72fr);
-      }
-
-      .folio {
-        position: absolute;
-        top: 66px;
-        left: 24px;
-        color: var(--muted);
-        font-size: 0.6rem;
-        writing-mode: vertical-rl;
-      }
-
-      .eyebrow {
-        margin: 0 0 18px;
-        color: var(--peacock);
-        font-size: 0.64rem;
-      }
-
-      h1 {
-        max-width: 760px;
-        margin: 0;
-        font-size: clamp(3.25rem, 8vw, 7.6rem);
-        font-weight: 520;
-        letter-spacing: -0.062em;
-        line-height: 0.86;
-      }
-
-      h1 em {
-        color: var(--concern);
-        font-weight: inherit;
-      }
-
-      .lede {
-        align-self: end;
-        margin: 0 0 8px;
-        padding: 24px 0 0 22px;
-        border-top: 1px solid var(--line);
-        border-left: 2px solid var(--thread);
-        color: var(--ink-soft);
-        font-family: 'Iowan Old Style', Georgia, serif;
-        font-size: clamp(1.08rem, 2vw, 1.36rem);
-        line-height: 1.48;
-      }
-
-      .reality {
-        padding: 28px clamp(28px, 8vw, 108px);
-        border-bottom: 1px solid var(--line);
-        background: var(--paper-soft);
-      }
-
-      .reality strong {
-        color: var(--concern);
-      }
-
-      .relay {
-        position: relative;
-        padding: 68px clamp(28px, 8vw, 108px) 54px;
-        overflow-x: auto;
-      }
-
-      .relay-inner {
-        position: relative;
-        min-width: 660px;
-        padding-top: 66px;
-      }
-
-      .relay-inner::before {
-        position: absolute;
-        top: 80px;
-        left: 12.5%;
-        width: 75%;
-        height: 3px;
-        background: linear-gradient(
-          90deg,
-          var(--thread) 0 66.667%,
-          var(--line) 66.667%
-        );
-        content: '';
-      }
-
-      .courier {
-        position: absolute;
-        top: 0;
-        left: 62.5%;
-        width: 78px;
-        height: 59px;
-        transform: translateX(-50%);
-      }
-
-      .courier svg {
-        display: block;
-        width: 100%;
-        height: 100%;
-      }
-
-      /* shared courier-bird palette (inline SVGs follow the page theme) */
-      .cb-body {
-        fill: var(--ink);
-      }
-
-      .cb-soft {
-        fill: var(--ink-soft);
-      }
-
-      .cb-thread {
-        fill: var(--thread);
-      }
-
-      .cb-thread-stroke {
-        stroke: var(--thread);
-      }
-
-      .cb-eye {
-        fill: var(--paper);
-      }
-
-      .cb-pupil {
-        fill: #0a1026;
-      }
-
-      .cb-glint {
-        fill: #fdf9f0;
-      }
-
-      .cb-paper {
-        fill: var(--paper-strong);
-        stroke: var(--ink);
-        stroke-width: 1.2;
-      }
-
-      .courier-perched {
-        animation: courier-breathe 3.4s ease-in-out infinite;
-      }
-
-      .courier-lids {
-        transform-box: fill-box;
-        transform-origin: center;
-        animation: courier-blink 6.4s infinite;
-      }
-
-      @keyframes courier-breathe {
-        0%,
-        100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(-1.6px);
-        }
-      }
-
-      @keyframes courier-blink {
-        0%,
-        93.5%,
-        97%,
-        100% {
-          transform: scaleY(1);
-        }
-        95% {
-          transform: scaleY(0.08);
-        }
-      }
-
-      /* hero flight: the courier takes the message and flies away */
-      .flight {
-        position: absolute;
-        z-index: 1;
-        top: clamp(8px, 2vw, 30px);
-        left: 0;
-        width: 100%;
-        height: 0;
-        pointer-events: none;
-      }
-
-      .flight-bird {
-        position: absolute;
-        left: 0;
-        width: clamp(84px, 9vw, 118px);
-        transform: translateX(-140px);
-        animation: courier-fly 30s linear infinite;
-      }
-
-      .flight-bob {
-        animation: courier-glide 2.6s ease-in-out infinite;
-      }
-
-      .fb-wing-near,
-      .fb-wing-far {
-        transform-box: fill-box;
-        transform-origin: 100% 90%;
-      }
-
-      .fb-wing-near {
-        animation: courier-flap 0.62s ease-in-out infinite alternate;
-      }
-
-      .fb-wing-far {
-        animation: courier-flap-far 0.62s ease-in-out infinite alternate;
-      }
-
-      .fb-envelope {
-        transform-box: fill-box;
-        transform-origin: 50% 0%;
-        animation: courier-sway 1.9s ease-in-out infinite alternate;
-      }
-
-      @keyframes courier-fly {
-        0% {
-          transform: translateX(-140px);
-        }
-        42% {
-          transform: translateX(calc(100vw + 140px));
-        }
-        100% {
-          transform: translateX(calc(100vw + 140px));
-        }
-      }
-
-      @keyframes courier-glide {
-        0%,
-        100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(-7px);
-        }
-      }
-
-      @keyframes courier-flap {
-        from {
-          transform: rotate(-8deg);
-        }
-        to {
-          transform: rotate(16deg);
-        }
-      }
-
-      @keyframes courier-flap-far {
-        from {
-          transform: rotate(12deg);
-        }
-        to {
-          transform: rotate(-6deg);
-        }
-      }
-
-      @keyframes courier-sway {
-        from {
-          transform: rotate(-5deg);
-        }
-        to {
-          transform: rotate(5deg);
-        }
-      }
-
-      .stages {
-        position: relative;
-        display: grid;
-        margin: 0;
-        padding: 0;
-        grid-template-columns: repeat(4, 1fr);
-        list-style: none;
-      }
-
-      .stage {
-        display: grid;
-        gap: 8px;
-        justify-items: center;
-        text-align: center;
-      }
-
-      .knot {
-        width: 17px;
-        height: 17px;
-        border: 4px solid var(--paper);
-        outline: 1px solid var(--line);
-        background: var(--thread);
-        transform: rotate(45deg);
-      }
-
-      .stage:last-child .knot {
-        background: var(--concern);
-      }
-
-      .stage strong {
-        font-size: 1.08rem;
-      }
-
-      .stage span {
-        color: var(--muted);
-        font-size: 0.54rem;
-      }
-
-      .sections {
-        display: grid;
-        border-top: 1px solid var(--line);
-        grid-template-columns: 1fr 1fr;
-      }
-
-      section.editorial {
-        position: relative;
-        padding: clamp(42px, 6vw, 76px) clamp(28px, 6vw, 72px);
-      }
-
-      section.editorial + section.editorial {
-        border-left: 1px solid var(--line);
-      }
-
-      h2 {
-        max-width: 540px;
-        margin: 0 0 30px;
-        font-size: clamp(2rem, 4vw, 4rem);
-        font-weight: 520;
-        letter-spacing: -0.045em;
-        line-height: 0.98;
-      }
-
-      .kicker {
-        margin: 0 0 14px;
-        color: var(--peacock);
-        font-size: 0.58rem;
-      }
-
-      .facts {
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-
-      .facts li {
-        padding: 16px 0;
-        border-top: 1px solid var(--line);
-      }
-
-      .facts strong {
-        display: block;
-        margin-bottom: 4px;
-        color: var(--ink);
-      }
-
-      .facts span {
-        color: var(--muted);
-      }
-
-      .target {
-        background: #141f45;
-        color: #f7f0e2;
-      }
-
-      .target .kicker,
-      .target .facts strong {
-        color: #f1b94c;
-      }
-
-      .target .facts span {
-        color: #d5cbb5;
-      }
-
-      .target .facts li {
-        border-top-color: #46516f;
-      }
-
-      .links {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        padding: 28px clamp(28px, 6vw, 72px);
-        border-top: 1px solid var(--line);
-      }
-
-      .links a {
-        min-height: 44px;
-        padding: 10px 15px;
-        border: 1px solid var(--line);
-        background: var(--paper-strong);
-        text-decoration: none;
-      }
-
-      .links a:hover {
-        border-color: var(--thread);
-      }
-
-      footer {
-        display: grid;
-        gap: 18px 42px;
-        padding: 34px clamp(28px, 6vw, 72px) 48px;
-        border-top: 1px solid var(--line);
-        color: var(--muted);
-        font-size: 0.84rem;
-        grid-template-columns: 1fr 1fr;
-      }
-
-      footer p {
-        margin: 0;
-      }
-
-      @media (max-width: 780px) {
-        .frame {
-          width: 100%;
-          border: 0;
-        }
-
-        .site-header {
-          grid-template-columns: 150px minmax(0, 1fr);
-        }
-
-        .header-note {
-          display: none;
-        }
-
-        .hero,
-        .sections {
-          grid-template-columns: 1fr;
-        }
-
-        .hero {
-          padding-left: 54px;
-        }
-
-        .folio {
-          left: 18px;
-        }
-
-        section.editorial + section.editorial {
-          border-top: 1px solid var(--line);
-          border-left: 0;
-        }
-      }
-
-      @media (max-width: 470px) {
-        .site-header {
-          min-height: 96px;
-          grid-template-columns: 132px minmax(0, 1fr);
-        }
-
-        .brand {
-          padding: 10px 16px;
-        }
-
-        .brand img {
-          width: 62px;
-          height: 46px;
-        }
-
-        .status {
-          padding: 10px 14px;
-          font-size: 0.5rem;
-        }
-
-        .hero {
-          padding-top: 54px;
-          padding-right: 20px;
-          padding-bottom: 48px;
-          padding-left: 44px;
-        }
-
-        h1 {
-          font-size: clamp(2.9rem, 17vw, 4.6rem);
-        }
-
-        .reality,
-        .relay,
-        section.editorial,
-        .links,
-        footer {
-          padding-right: 20px;
-          padding-left: 20px;
-        }
-
-        footer {
-          grid-template-columns: 1fr;
-        }
-      }
-
-      @media (max-width: 780px) {
-        .flight {
-          display: none;
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        html {
-          scroll-behavior: auto;
-        }
-
-        .flight {
-          display: none;
-        }
-
-        .courier-perched,
-        .courier-lids {
-          animation: none;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="site.js" defer></script>
   </head>
   <body>
-    <div class="frame">
-      <header class="site-header">
-        <a class="brand" href="#top" aria-label="Vidha home">
-          <img src="vidha-mark.svg" alt="" width="76" height="57" />
-          <strong>Vidha</strong>
-          <small>Contingency relay</small>
-        </a>
-        <p class="header-note">Brief the handoff. Rehearse the relay.</p>
-        <div class="status">Pre-alpha<br />Design page</div>
-      </header>
+    <a class="skip-link" href="#main">Skip to the story</a>
 
-      <main id="top">
-        <div class="hero">
-          <div class="flight" aria-hidden="true">
-            <svg
-              class="flight-bird"
-              viewBox="0 0 150 96"
-              xmlns="http://www.w3.org/2000/svg"
+    <header class="site-nav" data-site-nav>
+      <div class="nav-shell">
+        <a class="brand-link" href="#top" aria-label="Vidha home">
+          <img src="vidha-mark.svg" alt="" width="48" height="48" />
+          <span class="brand-type">
+            <span class="wordmark">Vidha</span>
+            <span class="brand-state">Pre-alpha</span>
+          </span>
+        </a>
+
+        <nav class="nav-links" aria-label="Page sections">
+          <a class="nav-link" href="#relay">Relay</a>
+          <a class="nav-link" href="#prepare">Prepare</a>
+          <a class="nav-link" href="#boundaries">Boundaries</a>
+          <a class="nav-link" href="#evidence">Evidence</a>
+        </nav>
+
+        <div class="nav-actions">
+          <button
+            class="motion-toggle"
+            type="button"
+            aria-label="Pause ambient motion"
+            aria-pressed="false"
+            title="Pause ambient motion"
+            data-motion-toggle
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path class="icon-pause" d="M7 5h3v14H7zm7 0h3v14h-3z" />
+              <path class="icon-play" d="m8 5 11 7-11 7z" />
+            </svg>
+            <span class="visually-hidden" data-motion-label
+              >Pause ambient motion</span
             >
-              <g class="flight-bob">
+          </button>
+          <a
+            class="source-link"
+            href="https://github.com/udhawan97/Vidha"
+            rel="noreferrer"
+          >
+            View source
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero section-shell" id="top" data-nav-section>
+        <div class="hero-copy">
+          <p class="label">Open source · pre-alpha · local evidence</p>
+          <h1>
+            Some messages need a careful
+            <span class="threaded-word">way home.</span>
+          </h1>
+          <p class="lede">
+            Vidha is a contingency relay for one adult Owner to prepare
+            recipient-specific Envelopes and rehearse what happens after a
+            missed Check-in. A missed Check-in may enter Concern; it never
+            proves death.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-link" href="#relay">
+              Follow the relay
+              <span class="link-arrow" aria-hidden="true">→</span>
+            </a>
+            <a
+              class="text-link"
+              href="https://github.com/udhawan97/Vidha"
+              rel="noreferrer"
+            >
+              Read the source
+              <span class="link-arrow" aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="hero-art scene-reveal">
+          <svg
+            class="hero-scene ambient-motion"
+            viewBox="0 0 640 560"
+            role="img"
+            aria-labelledby="hero-art-title hero-art-desc"
+          >
+            <title id="hero-art-title">
+              A warm courier bird follows a careful route
+            </title>
+            <desc id="hero-art-desc">
+              A round bird carries a sealed envelope along a marigold path
+              between prepared papers and a closed human decision gate.
+            </desc>
+            <circle
+              class="scene-thread-fill hero-sun"
+              cx="524"
+              cy="86"
+              r="52"
+              opacity=".34"
+            />
+            <circle
+              class="scene-peacock"
+              cx="102"
+              cy="94"
+              r="12"
+              opacity=".18"
+            />
+            <circle
+              class="scene-concern"
+              cx="584"
+              cy="356"
+              r="8"
+              opacity=".28"
+            />
+            <g class="hero-letter-a">
+              <rect
+                class="scene-paper"
+                x="34"
+                y="178"
+                width="176"
+                height="228"
+                rx="10"
+                transform="rotate(-5 122 292)"
+              />
+              <path
+                class="scene-rule"
+                d="M73 232h94M70 260h105M68 288h74M65 338h88"
+              />
+              <circle
+                class="scene-peacock"
+                cx="171"
+                cy="355"
+                r="18"
+                opacity=".2"
+              />
+              <path class="scene-peacock-stroke" d="m161 355 7 7 14-17" />
+            </g>
+            <g class="hero-letter-b">
+              <rect
+                class="scene-paper-soft"
+                x="416"
+                y="240"
+                width="174"
+                height="204"
+                rx="10"
+                transform="rotate(4 503 342)"
+              />
+              <path class="scene-rule" d="M451 294h96M451 320h70M451 346h85" />
+              <path class="scene-concern-stroke" d="M528 393h20m-10-10v20" />
+            </g>
+            <path
+              class="scene-thread hero-route draw-line"
+              pathLength="1"
+              d="M74 459C120 432 128 363 181 344c65-24 67-126 148-136 93-12 103 62 160 62 54 0 63-41 111-55"
+            />
+            <path
+              class="scene-thread-thin"
+              d="M73 459h48M522 215h75"
+              opacity=".5"
+            />
+            <g class="hero-courier">
+              <g class="hero-wing">
                 <path
-                  class="cb-soft fb-wing-far"
-                  d="M70 52 C 62 38, 52 28, 40 28 C 46 40, 56 50, 68 58 Z"
-                  opacity="0.5"
+                  class="scene-thread-fill"
+                  d="M31 52C8 34 5 7 11 0c26 10 43 30 45 54Z"
                 />
-                <g class="cb-body">
-                  <path
-                    d="M26 64 C 36 60, 44 58, 50 56 C 49 63, 47 69, 43 72 C 36 70, 30 67, 26 64 Z"
-                  />
-                  <ellipse
-                    cx="64"
-                    cy="60"
-                    rx="25"
-                    ry="16"
-                    transform="rotate(-8 64 60)"
-                  />
-                  <circle cx="82" cy="52" r="10.5" />
-                  <circle cx="92" cy="46" r="13.2" />
-                </g>
-                <ellipse
-                  class="cb-soft"
-                  cx="62"
-                  cy="67"
-                  rx="14.5"
-                  ry="7.5"
-                  transform="rotate(-8 62 67)"
-                  opacity="0.55"
-                />
-                <polygon class="cb-thread" points="104,42.5 116,46 104,49.5" />
-                <g class="courier-lids">
-                  <circle class="cb-eye" cx="96.5" cy="43" r="2.8" />
-                  <circle class="cb-pupil" cx="97.3" cy="43.4" r="1.6" />
-                  <circle class="cb-glint" cx="97.8" cy="42.6" r="0.55" />
-                </g>
-                <line
-                  class="cb-thread-stroke"
-                  x1="110"
-                  y1="47"
-                  x2="112"
-                  y2="62"
-                  stroke-width="1.4"
-                />
-                <g class="fb-envelope">
-                  <rect
-                    class="cb-paper"
-                    x="102"
-                    y="62"
-                    width="20"
-                    height="14"
-                    rx="1.5"
-                  />
-                  <path
-                    class="cb-thread-stroke"
-                    d="M102 62 L112 71 L122 62"
-                    fill="none"
-                    stroke-width="1.6"
-                    stroke-linejoin="round"
-                  />
-                </g>
                 <path
-                  class="cb-soft fb-wing-near"
-                  d="M64 54 C 54 34, 38 24, 22 26 C 30 40, 46 52, 60 60 Z"
+                  class="scene-concern"
+                  d="M28 50C10 37 7 18 10 11c17 9 30 23 34 40Z"
+                  opacity=".72"
                 />
               </g>
-            </svg>
-          </div>
-          <span class="folio" aria-hidden="true" lang="ja">一・手渡し</span>
-          <div>
-            <p class="eyebrow">Open source · recipient specific · deliberate</p>
-            <h1>Rehearse a careful <em>relay.</em></h1>
-          </div>
-          <p class="lede">
-            Vidha is a contingency relay for one adult Owner: a way to prepare
-            recipient-specific Envelopes, make explicit Check-ins, and let a
-            bounded human process answer prolonged silence. A missed Check-in
-            may enter Concern. It never proves death.
+              <ellipse
+                class="scene-thread-fill"
+                cx="68"
+                cy="67"
+                rx="54"
+                ry="48"
+              />
+              <path
+                class="scene-concern"
+                d="M26 48C36 22 58 10 83 15c-9 8-14 17-15 29-16-5-29-3-42 4Z"
+                opacity=".78"
+              />
+              <circle class="scene-ink" cx="77" cy="55" r="8" />
+              <circle class="scene-eye" cx="79" cy="52" r="3" />
+              <path class="scene-ink" d="m111 63 22 10-23 10Z" />
+              <path
+                class="scene-ink"
+                d="M47 104c11 7 33 8 45 0l-3 13H51Z"
+                opacity=".72"
+              />
+              <rect
+                class="scene-peacock"
+                x="42"
+                y="95"
+                width="54"
+                height="12"
+                rx="6"
+              />
+              <path class="scene-peacock-stroke" d="M50 101c-9 17-8 28-5 39" />
+              <g class="hero-envelope">
+                <rect
+                  class="scene-paper"
+                  x="20"
+                  y="129"
+                  width="57"
+                  height="40"
+                  rx="4"
+                />
+                <path class="scene-rule" d="m22 133 27 22 26-22" />
+                <circle class="scene-concern" cx="50" cy="151" r="5" />
+              </g>
+              <rect
+                class="hero-lid scene-thread-fill"
+                x="69"
+                y="51"
+                width="18"
+                height="8"
+                rx="4"
+              />
+            </g>
+            <g transform="translate(536 151)">
+              <path
+                class="scene-ink"
+                d="M0 22h57v12H0zM8 34h10v75H8zm31 0h10v75H39z"
+              />
+              <path class="scene-concern" d="M-5 10h67v14H-5z" />
+              <circle class="scene-thread-fill" cx="28" cy="70" r="8" />
+            </g>
+            <path class="scene-rule" d="M548 281v70m39-70v70" opacity=".45" />
+          </svg>
+          <p class="hero-note">
+            A working concept, not a service. The courier knows when to stop.
           </p>
         </div>
+      </section>
 
-        <div class="reality">
-          <strong>What exists:</strong> a local synthetic prototype that stops
-          at Concern. There is no hosted service, download, notification
-          delivery, Recipient retrieval, Release path, tag, or v1 release. Never
-          enter personal or sensitive material.
+      <aside class="truth-strip" aria-label="Current project status">
+        <div class="truth-inner section-shell">
+          <div class="truth-mark">What exists today</div>
+          <p class="truth-copy">
+            A local, synthetic browser prototype currently stops at Concern.
+            <strong
+              >There is no hosted service, download, notification delivery,
+              Recipient retrieval, Release path, tagged version, or v1.</strong
+            >
+            Please do not enter personal or sensitive material.
+          </p>
         </div>
+      </aside>
 
-        <div
-          class="relay"
-          aria-label="Intended Check-in to Concern sequence"
-          tabindex="0"
-        >
-          <div class="relay-inner">
-            <span class="courier" aria-hidden="true">
-              <svg viewBox="0 0 120 90" xmlns="http://www.w3.org/2000/svg">
-                <path
-                  class="cb-thread-stroke"
-                  d="M-4 80 H124"
-                  stroke-width="3"
-                  stroke-linecap="round"
-                />
-                <path
-                  class="cb-thread-stroke"
-                  d="M52 71 L50.5 79.5 M62 71 L63 79.5"
-                  stroke-width="2.4"
-                  stroke-linecap="round"
-                />
-                <path
-                  class="cb-thread-stroke"
-                  d="M47 79.5 H54 M59.5 79.5 H66.5"
-                  stroke-width="2.2"
-                  stroke-linecap="round"
-                />
-                <g class="courier-perched">
-                  <g class="cb-body">
-                    <path
-                      d="M26 35 C 34 40, 41 45, 44 50 C 43 56, 40 61, 35 62 C 31 55, 27 44, 26 35 Z"
-                    />
-                    <ellipse
-                      cx="55"
-                      cy="53"
-                      rx="24.5"
-                      ry="20.5"
-                      transform="rotate(-14 55 53)"
-                    />
-                    <circle cx="65" cy="43" r="11" />
-                    <circle cx="73.5" cy="37.5" r="13.8" />
-                  </g>
-                  <ellipse
-                    class="cb-soft"
-                    cx="58"
-                    cy="63"
-                    rx="14"
-                    ry="8.5"
-                    transform="rotate(-12 58 63)"
-                    opacity="0.5"
+      <section class="relay-section section-shell" id="relay" data-nav-section>
+        <div class="section-head">
+          <h2>The route pauses before it moves.</h2>
+          <p class="section-copy">
+            The intended relay is deliberately slow. Time, provider outcomes,
+            and human decisions stay visible instead of being compressed into
+            one automatic leap.
+          </p>
+        </div>
+        <div class="relay-track">
+          <span class="relay-spine" aria-hidden="true"></span>
+          <ol class="relay-steps">
+            <li class="relay-step" data-proof="local">
+              <span class="stage-token">01</span>
+              <div class="stage-body">
+                <h3>Prepare</h3>
+                <p>
+                  Create synthetic Envelopes, focused editable documents, and
+                  preserved Attachments.
+                </p>
+                <span class="stage-status">Local evidence</span>
+              </div>
+              <div class="stage-art scene-reveal" aria-hidden="true">
+                <svg class="ambient-motion" viewBox="0 0 180 130">
+                  <rect
+                    class="scene-paper letter-page-back"
+                    x="24"
+                    y="16"
+                    width="108"
+                    height="88"
+                    rx="8"
+                    transform="rotate(-4 78 60)"
                   />
-                  <ellipse
-                    class="cb-soft"
-                    cx="49"
-                    cy="52"
-                    rx="11"
-                    ry="7.5"
-                    transform="rotate(-18 49 52)"
-                    opacity="0.85"
+                  <rect
+                    class="scene-paper"
+                    x="38"
+                    y="26"
+                    width="108"
+                    height="88"
+                    rx="8"
                   />
-                  <polygon class="cb-thread" points="87,33.8 99,37 87,40.6" />
-                  <g class="courier-lids">
-                    <circle class="cb-eye" cx="78.5" cy="34.5" r="2.8" />
-                    <circle class="cb-pupil" cx="79.2" cy="34.9" r="1.6" />
-                    <circle class="cb-glint" cx="79.7" cy="34.1" r="0.55" />
-                  </g>
+                  <path
+                    class="scene-rule draw-line"
+                    pathLength="1"
+                    d="M58 49h64M58 66h49M58 83h58"
+                  />
+                  <path class="scene-thread-thin" d="m126 92 25 18" />
+                  <circle class="scene-thread-fill" cx="153" cy="112" r="7" />
+                </svg>
+              </div>
+            </li>
+            <li class="relay-step" data-proof="local">
+              <span class="stage-token">02</span>
+              <div class="stage-body">
+                <h3>Check in</h3>
+                <p>
+                  Only an explicit Owner action counts. Email opens, previews,
+                  and unauthenticated GET requests do not.
+                </p>
+                <span class="stage-status">Local evidence</span>
+              </div>
+              <div class="stage-art scene-reveal" aria-hidden="true">
+                <svg class="ambient-motion" viewBox="0 0 180 130">
+                  <circle class="scene-paper" cx="86" cy="64" r="42" />
+                  <circle
+                    class="scene-peacock-stroke pulse-ring"
+                    cx="86"
+                    cy="64"
+                    r="50"
+                  />
+                  <path
+                    class="scene-peacock-stroke draw-line"
+                    pathLength="1"
+                    d="m63 64 15 15 31-34"
+                  />
+                  <path class="scene-thread-thin" d="M132 35h25M145 22v26" />
+                </svg>
+              </div>
+            </li>
+            <li class="relay-step" data-proof="local">
+              <span class="stage-token">03</span>
+              <div class="stage-body">
+                <h3>Concern</h3>
+                <p>
+                  After reminder, due time, and grace period, a missed Check-in
+                  may enter Concern. It never proves death.
+                </p>
+                <span class="stage-status">Local evidence</span>
+              </div>
+              <div class="stage-art scene-reveal" aria-hidden="true">
+                <svg class="ambient-motion" viewBox="0 0 180 130">
+                  <circle class="scene-paper" cx="86" cy="64" r="42" />
+                  <circle class="scene-concern-stroke" cx="86" cy="64" r="34" />
+                  <path class="scene-rule clock-hand" d="M86 64V39" />
+                  <path class="scene-rule" d="M86 64l21 12" />
+                  <circle class="scene-concern" cx="86" cy="64" r="5" />
+                  <path
+                    class="scene-thread-thin"
+                    d="M30 105h112"
+                    opacity=".5"
+                  />
+                </svg>
+              </div>
+            </li>
+            <li class="relay-step" data-proof="target">
+              <span class="stage-token">04</span>
+              <div class="stage-body">
+                <h3>Verify</h3>
+                <p>
+                  A Guardian would submit only a bounded Guardian
+                  Attestation—never a declaration of death.
+                </p>
+                <span class="stage-status">Target · not implemented</span>
+              </div>
+              <div class="stage-art scene-reveal" aria-hidden="true">
+                <svg class="ambient-motion" viewBox="0 0 180 130">
+                  <circle class="scene-paper" cx="50" cy="64" r="26" />
+                  <circle class="scene-paper" cx="130" cy="64" r="26" />
+                  <circle class="scene-ink" cx="50" cy="57" r="8" />
+                  <circle class="scene-ink" cx="130" cy="57" r="8" />
+                  <path
+                    class="scene-rule"
+                    d="M33 84c9-12 25-12 34 0M113 84c9-12 25-12 34 0"
+                  />
+                  <path
+                    class="scene-thread-thin guardian-signal"
+                    d="M76 64h28m-8-8 8 8-8 8"
+                  />
+                </svg>
+              </div>
+            </li>
+            <li class="relay-step" data-proof="target">
+              <span class="stage-token">05</span>
+              <div class="stage-body">
+                <h3>Veto &amp; release</h3>
+                <p>
+                  A full Veto Window would follow accepted final notice.
+                  All-channel failure means Delivery Hold, not Release.
+                </p>
+                <span class="stage-status">Target · not implemented</span>
+              </div>
+              <div class="stage-art scene-reveal" aria-hidden="true">
+                <svg class="ambient-motion" viewBox="0 0 180 130">
+                  <path
+                    class="scene-thread-thin gate-signal"
+                    d="M18 64h61m-10-10 10 10-10 10"
+                  />
+                  <rect
+                    class="scene-concern"
+                    x="82"
+                    y="25"
+                    width="13"
+                    height="78"
+                    rx="4"
+                  />
+                  <rect
+                    class="scene-paper"
+                    x="102"
+                    y="40"
+                    width="56"
+                    height="48"
+                    rx="6"
+                  />
+                  <path class="scene-rule" d="m106 45 24 20 24-20" />
+                </svg>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="prepare-section" id="prepare" data-nav-section>
+        <div class="section-shell">
+          <div class="section-head">
+            <h2>Leave each person only what is theirs.</h2>
+            <p class="section-copy">
+              An Envelope is recipient-specific by design. Imported files are
+              untrusted, editable conversion stays bounded, and unsupported
+              originals remain Attachments.
+            </p>
+          </div>
+          <div class="prepare-grid">
+            <article class="prepared-piece prepared-piece--letter">
+              <svg
+                class="prepared-art ambient-motion"
+                viewBox="0 0 440 286"
+                aria-hidden="true"
+              >
+                <rect
+                  class="scene-paper letter-page-back"
+                  x="84"
+                  y="24"
+                  width="246"
+                  height="216"
+                  rx="12"
+                  transform="rotate(-4 207 132)"
+                />
+                <rect
+                  class="scene-paper"
+                  x="110"
+                  y="36"
+                  width="246"
+                  height="216"
+                  rx="12"
+                />
+                <circle class="scene-thread-fill" cx="149" cy="78" r="13" />
+                <path
+                  class="scene-rule"
+                  d="M176 72h130M176 86h90M145 119h164M145 144h138M145 169h156M145 194h103"
+                />
+                <g class="letter-pen">
+                  <path
+                    class="scene-peacock"
+                    d="m289 174 68-65 13 13-68 65-20 8Z"
+                  />
+                  <path class="scene-ink" d="m357 109 9-9 13 13-9 9Z" />
                 </g>
+                <path
+                  class="scene-thread-thin draw-line"
+                  pathLength="1"
+                  d="M145 214c42 9 93 8 134-2"
+                />
               </svg>
-            </span>
-            <ol class="stages">
-              <li class="stage">
-                <i class="knot" aria-hidden="true"></i>
-                <strong>Checked in</strong><span>Owner action</span>
-              </li>
-              <li class="stage">
-                <i class="knot" aria-hidden="true"></i>
-                <strong>Reminder</strong><span>One stage</span>
-              </li>
-              <li class="stage">
-                <i class="knot" aria-hidden="true"></i>
-                <strong>Due</strong><span>Grace remains</span>
-              </li>
-              <li class="stage">
-                <i class="knot" aria-hidden="true"></i>
-                <strong>Concern</strong><span>Not proof of death</span>
-              </li>
-            </ol>
+              <h3>Editable Document</h3>
+              <p>
+                Focused, Markdown-compatible text for the parts that should be
+                reviewed and revised with care.
+              </p>
+            </article>
+            <article class="prepared-piece prepared-piece--attachment">
+              <svg
+                class="prepared-art ambient-motion"
+                viewBox="0 0 320 168"
+                aria-hidden="true"
+              >
+                <rect
+                  class="scene-paper"
+                  x="47"
+                  y="30"
+                  width="211"
+                  height="112"
+                  rx="10"
+                />
+                <path class="scene-rule" d="M77 62h118M77 84h147M77 106h96" />
+                <path
+                  class="scene-peacock-stroke attachment-clip"
+                  d="M206 26v74c0 23 33 23 33 0V43c0-14-20-14-20 0v51"
+                />
+                <circle
+                  class="scene-thread-fill"
+                  cx="274"
+                  cy="122"
+                  r="18"
+                  opacity=".6"
+                />
+              </svg>
+              <h3>Attachment</h3>
+              <p>
+                An unsupported original stays intact. Vidha does not pretend a
+                lossy conversion is editable.
+              </p>
+            </article>
+            <article class="prepared-piece prepared-piece--recipient">
+              <svg
+                class="prepared-art ambient-motion"
+                viewBox="0 0 320 168"
+                aria-hidden="true"
+              >
+                <rect
+                  class="scene-paper"
+                  x="42"
+                  y="41"
+                  width="218"
+                  height="94"
+                  rx="10"
+                />
+                <path class="scene-rule" d="m48 49 103 73 103-73" />
+                <g class="recipient-stamp">
+                  <circle class="scene-concern" cx="245" cy="48" r="28" />
+                  <circle class="scene-paper" cx="245" cy="48" r="17" />
+                  <path class="scene-concern-stroke" d="m236 48 6 6 12-14" />
+                </g>
+                <path class="scene-thread-thin" d="M67 24h85" />
+              </svg>
+              <h3>Recipient-specific Envelope</h3>
+              <p>
+                Each Recipient is meant to authenticate before seeing only the
+                content addressed to them.
+              </p>
+            </article>
+          </div>
+          <aside class="privacy-note" aria-label="Prototype data boundary">
+            <strong>Keep the rehearsal fictional.</strong>
+            <p>
+              The prototype uses synthetic fixtures. Do not add personal plans,
+              contacts, documents, or delivery details.
+            </p>
+          </aside>
+        </div>
+      </section>
+
+      <section class="human-section" id="boundaries" data-nav-section>
+        <div class="human-inner section-shell">
+          <div>
+            <div class="section-head">
+              <p class="label">Target design · not implemented</p>
+              <h2>
+                Automation reaches a gate. People decide what happens next.
+              </h2>
+              <p class="section-copy">
+                No AI or probabilistic system may decide Check-in, Concern,
+                Guardian quorum, Veto Window, or Release state.
+              </p>
+            </div>
+            <dl class="human-copy-list">
+              <div>
+                <dt>Guardian Attestation</dt>
+                <dd>
+                  A bounded statement from a Guardian. It never asks them to
+                  declare death.
+                </dd>
+              </div>
+              <div>
+                <dt>Veto Window</dt>
+                <dd>
+                  A full, visible period in which the Owner can stop a pending
+                  Release.
+                </dd>
+              </div>
+              <div>
+                <dt>Delivery Hold</dt>
+                <dd>
+                  If every Owner final-notice channel fails, the Envelope waits
+                  and later starts a new full Veto Window.
+                </dd>
+              </div>
+            </dl>
+          </div>
+          <div>
+            <svg
+              class="gate-art ambient-motion"
+              viewBox="0 0 560 510"
+              role="img"
+              aria-labelledby="gate-title gate-desc"
+            >
+              <title id="gate-title">
+                Signals pause at a human decision gate
+              </title>
+              <desc id="gate-desc">
+                Three signals travel toward a closed gate where a small bird
+                waits. The gate remains shut.
+              </desc>
+              <rect
+                class="gate-paper"
+                x="48"
+                y="72"
+                width="464"
+                height="352"
+                rx="26"
+              />
+              <path class="gate-rule" d="M80 374h398M278 105v268" />
+              <path
+                class="gate-thread draw-line"
+                pathLength="1"
+                d="M81 281h167"
+              />
+              <circle
+                class="gate-thread gate-ping-a"
+                cx="115"
+                cy="281"
+                r="15"
+              />
+              <circle
+                class="gate-thread gate-ping-b"
+                cx="166"
+                cy="281"
+                r="15"
+              />
+              <circle
+                class="gate-thread gate-ping-c"
+                cx="217"
+                cy="281"
+                r="15"
+              />
+              <g class="gate-stop">
+                <circle class="gate-concern" cx="250" cy="281" r="23" />
+                <rect
+                  class="gate-paper"
+                  x="244"
+                  y="267"
+                  width="12"
+                  height="28"
+                  rx="5"
+                />
+              </g>
+              <path
+                class="gate-ink"
+                d="M268 151h20v223h-20zM360 151h20v223h-20zM248 126h152v32H248z"
+              />
+              <circle class="gate-thread" cx="324" cy="260" r="12" />
+              <g class="gate-bird" transform="translate(340 84)">
+                <ellipse class="gate-concern" cx="45" cy="44" rx="38" ry="34" />
+                <path
+                  class="gate-thread"
+                  d="M21 42C5 26 8 7 13 2c17 7 29 21 32 38"
+                />
+                <circle class="gate-ink" cx="52" cy="37" r="6" />
+                <path class="gate-thread" d="m77 43 17 8-18 8" />
+                <path class="gate-ink" d="M31 74v17m25-17v17" />
+              </g>
+              <text class="gate-muted gate-label" x="82" y="115">
+                AUTOMATION
+              </text>
+              <text class="gate-muted gate-label" x="314" y="407">
+                HUMAN GATE
+              </text>
+            </svg>
+            <p class="human-boundary-note">
+              <strong>The gate is intentionally shown closed.</strong> Vidha's
+              current prototype stops at Concern; the later decision path is a
+              documented target, not working product behavior.
+            </p>
           </div>
         </div>
+      </section>
 
-        <div class="sections">
-          <section class="editorial" aria-labelledby="current-title">
-            <p class="kicker">Runnable local evidence</p>
-            <h2 id="current-title">
-              The prototype rehearses; it does not relay.
-            </h2>
-            <ul class="facts">
-              <li>
-                <strong>Disposable by design</strong>
-                <span
-                  >Synthetic demo data clears with the browser session.</span
-                >
-              </li>
-              <li>
-                <strong>Explicit Owner Check-in</strong>
-                <span
-                  >Email opens, previews, and unauthenticated GET requests never
-                  count.</span
-                >
-              </li>
-              <li>
-                <strong>One stage at a time</strong>
-                <span
-                  >The controllable clock advances through On Time, Reminder,
-                  Due, and Concern.</span
-                >
-              </li>
-              <li>
-                <strong>No Release path</strong>
-                <span
-                  >Guardian Attestation, Veto Window, Delivery Hold, and
-                  Recipient retrieval are absent.</span
-                >
-              </li>
-            </ul>
-          </section>
-
-          <section class="editorial target" aria-labelledby="target-title">
-            <p class="kicker">Target model · not implemented</p>
-            <h2 id="target-title">
-              A careful handoff needs more than a timer.
-            </h2>
-            <ul class="facts">
-              <li>
-                <strong>Recipient-specific Envelopes</strong>
-                <span
-                  >Each intended handoff has one Recipient, Protection Mode, and
-                  Release Policy.</span
-                >
-              </li>
-              <li>
-                <strong>Bounded human verification</strong>
-                <span
-                  >Guardian Attestations are intended to report limited facts,
-                  never declare death.</span
-                >
-              </li>
-              <li>
-                <strong>Owner veto remains visible</strong>
-                <span
-                  >Concern, final notice, and the full Veto Window cannot
-                  collapse into one time jump.</span
-                >
-              </li>
-              <li>
-                <strong>Private content stays out of notices</strong>
-                <span
-                  >A notification would lead an authenticated Recipient to
-                  content; it would not contain it.</span
-                >
-              </li>
-            </ul>
-          </section>
+      <section
+        class="evidence-section section-shell"
+        id="evidence"
+        data-nav-section
+      >
+        <div class="section-head">
+          <h2>The page says only what the repository can prove.</h2>
+          <p class="section-copy">
+            Evidence and boundaries travel together. Each row separates a
+            locally exercised surface from what it cannot establish.
+          </p>
         </div>
-
-        <nav class="links" aria-label="Project documentation">
-          <a href="https://github.com/udhawan97/Vidha">Repository</a>
-          <a href="https://github.com/udhawan97/Vidha/blob/main/README.md"
-            >Prototype status</a
+        <dl class="evidence-list">
+          <div class="evidence-row">
+            <dt>Lifecycle</dt>
+            <dd>
+              Synthetic Check-in → Concern exercises with a controllable clock.
+            </dd>
+            <dd class="evidence-boundary">Does not prove Release</dd>
+          </div>
+          <div class="evidence-row">
+            <dt>Prepared material</dt>
+            <dd>
+              Bounded session fixtures for editable documents and Attachments.
+            </dd>
+            <dd class="evidence-boundary">
+              Does not prove upload, encryption, or persistence
+            </dd>
+          </div>
+          <div class="evidence-row">
+            <dt>Browser continuity</dt>
+            <dd>
+              Desktop and mobile WebKit rehearsals for the synthetic flow.
+            </dd>
+            <dd class="evidence-boundary">
+              Does not prove native Safari support
+            </dd>
+          </div>
+          <div class="evidence-row">
+            <dt>Operations</dt>
+            <dd>Disposable PostgreSQL, backup, and import-gate exercises.</dd>
+            <dd class="evidence-boundary">
+              Does not prove deployment or production readiness
+            </dd>
+          </div>
+        </dl>
+        <div class="evidence-links">
+          <a
+            href="https://github.com/udhawan97/Vidha/blob/main/docs/public-surface/FACT_SHEET.md"
+            >Fact sheet <span class="link-arrow" aria-hidden="true">↗</span></a
           >
           <a
-            href="https://github.com/udhawan97/Vidha/blob/main/docs/product/PRODUCT_BRIEF.md"
-            >Product brief</a
+            href="https://github.com/udhawan97/Vidha/blob/main/docs/public-surface/COVERAGE_LEDGER.md"
+            >Coverage ledger
+            <span class="link-arrow" aria-hidden="true">↗</span></a
           >
           <a
             href="https://github.com/udhawan97/Vidha/blob/main/docs/security/THREAT_MODEL.md"
-            >Threat model</a
+            >Threat model
+            <span class="link-arrow" aria-hidden="true">↗</span></a
           >
           <a
             href="https://github.com/udhawan97/Vidha/blob/main/docs/release/V1_RELEASE_GATES.md"
-            >V1 release gates</a
+            >Release gates
+            <span class="link-arrow" aria-hidden="true">↗</span></a
           >
-        </nav>
-      </main>
+        </div>
+      </section>
 
-      <footer>
-        <p>
-          “Vidha” and the courier mark are provisional working concepts. Name,
-          identity, rights, and trademark clearance are incomplete; no
-          exclusivity, cultural-origin, or ownership claim is made.
+      <section class="open-section" id="source" data-nav-section>
+        <div class="open-inner section-shell">
+          <div class="open-copy">
+            <h2>Read the source before trusting the idea.</h2>
+            <p>
+              Vidha is an AGPL-3.0, pre-alpha project. The architecture keeps
+              domain decisions framework-independent and integrations behind
+              replaceable adapters so the application can remain self-hostable
+              in intent.
+            </p>
+            <div class="project-links">
+              <a
+                class="primary-link"
+                href="https://github.com/udhawan97/Vidha"
+                rel="noreferrer"
+                >Explore the repository
+                <span class="link-arrow" aria-hidden="true">↗</span></a
+              >
+              <a
+                class="text-link"
+                href="https://github.com/udhawan97/Vidha/blob/main/docs/product/PRODUCT_BRIEF.md"
+                >Read the product brief
+                <span class="link-arrow" aria-hidden="true">↗</span></a
+              >
+            </div>
+          </div>
+          <svg
+            class="open-art ambient-motion scene-reveal"
+            viewBox="0 0 480 390"
+            role="img"
+            aria-labelledby="open-title open-desc"
+          >
+            <title id="open-title">
+              An open folder with code and a curious bird
+            </title>
+            <desc id="open-desc">
+              A warm bird looks into an open project folder containing visible
+              code lines.
+            </desc>
+            <path class="scene-paper" d="M70 92h134l32 37h177v201H70Z" />
+            <path class="scene-paper-soft" d="M46 140h389l-43 190H88Z" />
+            <path class="scene-rule" d="M96 182h250M96 223h203M96 264h235" />
+            <path
+              class="scene-peacock-stroke code-line"
+              d="m118 176-16 12 16 12"
+            />
+            <path
+              class="scene-peacock-stroke code-line"
+              d="m322 217 16 12-16 12"
+            />
+            <path class="scene-thread-thin code-line" d="m224 244-19 41" />
+            <g transform="translate(304 36)">
+              <path
+                class="scene-thread-fill open-wing"
+                d="M31 65C5 46 2 17 10 7c28 12 45 34 46 58Z"
+              />
+              <ellipse class="scene-concern" cx="72" cy="76" rx="54" ry="48" />
+              <path
+                class="scene-thread-fill"
+                d="M31 61C42 33 67 20 94 27c-10 8-16 19-17 31-17-5-31-4-46 3Z"
+              />
+              <circle class="scene-ink" cx="83" cy="65" r="8" />
+              <circle class="scene-eye" cx="85" cy="62" r="3" />
+              <path class="scene-ink" d="m116 73 23 10-24 11Z" />
+              <path class="scene-ink" d="M54 119v30m35-30v30" />
+            </g>
+            <circle
+              class="scene-thread-fill"
+              cx="63"
+              cy="105"
+              r="17"
+              opacity=".5"
+            />
+          </svg>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-marquee" aria-hidden="true">
+        <div class="footer-track ambient-motion">
+          <span
+            >Brief carefully <i>·</i> Rehearse openly <i>·</i> Keep the decision
+            human <i>·</i></span
+          >
+          <span
+            >Brief carefully <i>·</i> Rehearse openly <i>·</i> Keep the decision
+            human <i>·</i></span
+          >
+        </div>
+      </div>
+      <div class="footer-main section-shell">
+        <p class="footer-statement">
+          A contingency relay should move slowly enough for people to stay in
+          control.
         </p>
-        <p>
-          AGPL-3.0 · This informational page describes a pre-alpha design. It is
-          not a service, download, or release.
-        </p>
-      </footer>
-    </div>
+        <div class="footer-meta">
+          <p>
+            Vidha is pre-alpha source under AGPL-3.0. It is not a hosted
+            service, download, released application, death detector, legal will,
+            emergency service, password manager, or asset-transfer system. The
+            name and mark are provisional; no trademark rights are asserted.
+          </p>
+          <nav class="footer-links" aria-label="Project links">
+            <a href="https://github.com/udhawan97/Vidha"
+              >Repository
+              <span class="link-arrow" aria-hidden="true">↗</span></a
+            >
+            <a
+              href="https://github.com/udhawan97/Vidha/blob/main/docs/product/PRODUCT_BRIEF.md"
+              >Product <span class="link-arrow" aria-hidden="true">↗</span></a
+            >
+            <a
+              href="https://github.com/udhawan97/Vidha/blob/main/docs/security/THREAT_MODEL.md"
+              >Security <span class="link-arrow" aria-hidden="true">↗</span></a
+            >
+            <a
+              href="https://github.com/udhawan97/Vidha/blob/main/docs/release/V1_RELEASE_GATES.md"
+              >Release gates
+              <span class="link-arrow" aria-hidden="true">↗</span></a
+            >
+          </nav>
+        </div>
+      </div>
+    </footer>
   </body>
 </html>

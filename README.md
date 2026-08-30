@@ -26,6 +26,8 @@
 
 “Vidha” and the courier mark are provisional working concepts. Name and logo clearance are incomplete, and this project makes no exclusivity, cultural-origin, or ownership claim.
 
+The informational project page now tells the intended relay as a warm, sectioned visual story with hand-built courier SVG scenes, a visible local-evidence/target boundary, optional motion, and reduced-motion support. This remains presentation of the pre-alpha design—not a hosted Vidha service or product release.
+
 ## What is Vidha?
 
 Vidha is for someone who wants selected people to receive private messages or documents if they become persistently unreachable. The Owner prepares an individual Envelope for each Recipient, stays in control through deliberate authenticated Check-ins, and chooses a Release Policy for each Envelope.
