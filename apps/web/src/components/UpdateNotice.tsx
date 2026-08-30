@@ -1,20 +1,26 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
+import type { SessionLossReview as SessionLossReviewModel } from '../sessionLossReview';
 import { OwnerActionDialog } from './OwnerActionDialog';
+import { SessionLossReview } from './SessionLossReview';
 
 interface UpdateNoticeProps {
   readonly actionPending: boolean;
   readonly fileReviewPending: boolean;
   readonly hasSessionWork: boolean;
+  readonly onReviewEnvelope: (envelopeId: string) => void;
   readonly otherTabBlocksUpdate: boolean;
+  readonly sessionLossReview: SessionLossReviewModel;
 }
 
 export function UpdateNotice({
   actionPending,
   fileReviewPending,
   hasSessionWork,
+  onReviewEnvelope,
   otherTabBlocksUpdate,
+  sessionLossReview,
 }: UpdateNoticeProps) {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -25,6 +31,11 @@ export function UpdateNotice({
   const [updatePending, setUpdatePending] = useState(false);
   const [updateIssue, setUpdateIssue] = useState<string | null>(null);
   const updateTriggerRef = useRef<HTMLButtonElement>(null);
+  const suppressConfirmationReturnFocusRef = useRef(false);
+  const shouldReturnConfirmationFocus = useCallback(
+    () => !suppressConfirmationReturnFocusRef.current,
+    [],
+  );
   const confirmedReloadRef = useRef(false);
 
   useEffect(() => {
@@ -73,6 +84,7 @@ export function UpdateNotice({
     )
       return;
     if (hasSessionWork) {
+      suppressConfirmationReturnFocusRef.current = false;
       setUpdateIssue(null);
       setConfirmationOpen(true);
       return;
@@ -174,9 +186,20 @@ export function UpdateNotice({
           }}
           onConfirm={() => void applyUpdate()}
           returnFocusRef={updateTriggerRef}
+          shouldReturnFocus={shouldReturnConfirmationFocus}
           title="Update and clear this rehearsal?"
           tone="danger"
-        />
+        >
+          <SessionLossReview
+            onReviewEnvelope={(envelopeId) => {
+              suppressConfirmationReturnFocusRef.current = true;
+              setConfirmationOpen(false);
+              setUpdateIssue(null);
+              onReviewEnvelope(envelopeId);
+            }}
+            review={sessionLossReview}
+          />
+        </OwnerActionDialog>
       ) : null}
     </>
   );

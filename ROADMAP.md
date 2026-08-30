@@ -55,6 +55,8 @@ The [Phase 3I six-slice record](docs/product/NEXT_PHASE_3I_SIX.md) coordinates a
 
 The [Phase 3J six-slice record](docs/product/NEXT_PHASE_3J_SIX.md) makes a Disabled rehearsal workspace read-only without discarding its accepted documents, import source, Attachments, or Document Versions. It cancels unsettled file/restore work, keeps inspection and downloads available, and requires confirmed fresh-session replacement before editing resumes. It is not persistence, immutable history, durable deletion, account recovery, or an authorization boundary beyond the existing synthetic Disabled state.
 
+The [Phase 3K six-slice record](docs/product/NEXT_PHASE_3K_SIX.md) gives confirmed app-update and fresh-session clearing paths one live inventory of this tab's edited documents, import sources, Attachments, Document Versions, undo/redo steps, local Plan events, and affected Envelopes. Owners can return to each affected Envelope before deciding again. It is not persistence, recovery, backup, download-completion evidence, cross-tab synchronization, authentication, server authorization, deployment, or release authority.
+
 The earlier foundation record is in [`docs/product/NEXT_FOUNDATION_SIX.md`](docs/product/NEXT_FOUNDATION_SIX.md), and current boundaries are in [`docs/architecture/FOUNDATION_PHASE_3B.md`](docs/architecture/FOUNDATION_PHASE_3B.md). The sequence remains intentional: executable provider and operational evidence still precedes any durable personal data, and none of this work authorizes Guardian Attestation or Release behavior.
 
 ## Version 1 candidate — planned

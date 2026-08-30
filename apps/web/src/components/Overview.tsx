@@ -6,12 +6,14 @@ import {
   type DraftRehearsalReview,
 } from '@vidha/application';
 import type { DomainEvent, PlanState } from '@vidha/domain';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { demoContacts, type DemoEnvelope } from '../demo';
+import type { SessionLossReview as SessionLossReviewModel } from '../sessionLossReview';
 import { ContinuityLine } from './ContinuityLine';
 import { DraftRehearsalDialog } from './DraftRehearsalDialog';
 import { OwnerActionDialog } from './OwnerActionDialog';
+import { SessionLossReview } from './SessionLossReview';
 
 interface OverviewProps {
   readonly actionIssue: string | null;
@@ -30,6 +32,7 @@ interface OverviewProps {
   readonly onRestart: () => Promise<void>;
   readonly onResume: () => Promise<void>;
   readonly otherTabBlocksSessionReset: boolean;
+  readonly sessionLossReview: SessionLossReviewModel;
 }
 
 type OwnerConfirmation = 'check-in' | 'disable' | 'restart';
@@ -178,6 +181,7 @@ export function Overview({
   onRestart,
   onResume,
   otherTabBlocksSessionReset,
+  sessionLossReview,
 }: OverviewProps) {
   const [confirmation, setConfirmation] = useState<OwnerConfirmation | null>(
     null,
@@ -198,6 +202,11 @@ export function Overview({
   const checkInTriggerRef = useRef<HTMLButtonElement>(null);
   const disableTriggerRef = useRef<HTMLButtonElement>(null);
   const restartTriggerRef = useRef<HTMLButtonElement>(null);
+  const suppressConfirmationReturnFocusRef = useRef(false);
+  const shouldReturnConfirmationFocus = useCallback(
+    () => !suppressConfirmationReturnFocusRef.current,
+    [],
+  );
   const rehearsalCompletionRef = useRef(false);
   const currentRehearsalInput = useMemo(
     () => rehearsalInput(plan, envelopes),
@@ -242,6 +251,7 @@ export function Overview({
   }, [currentRehearsalInput, plan.lifecycle]);
 
   function openConfirmation(next: OwnerConfirmation) {
+    suppressConfirmationReturnFocusRef.current = false;
     setConfirmationIssue(null);
     setConfirmation(next);
   }
@@ -698,9 +708,21 @@ export function Overview({
           }}
           onConfirm={() => void confirmOwnerAction()}
           returnFocusRef={confirmationReturnFocusRef}
+          shouldReturnFocus={shouldReturnConfirmationFocus}
           title={activeConfirmation.title}
           tone={activeConfirmation.tone}
-        />
+        >
+          {confirmation === 'restart' ? (
+            <SessionLossReview
+              onReviewEnvelope={(envelopeId) => {
+                suppressConfirmationReturnFocusRef.current = true;
+                setConfirmation(null);
+                onOpenEnvelope(envelopeId);
+              }}
+              review={sessionLossReview}
+            />
+          ) : null}
+        </OwnerActionDialog>
       )}
     </div>
   );
