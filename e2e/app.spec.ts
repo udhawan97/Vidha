@@ -793,12 +793,13 @@ test('uses the courier mark and stops its continuity-line motion when requested'
   ).toHaveAttribute('href', '/pwa-192.png');
   await expect(
     page.locator('link[rel="icon"][media*="reduced-motion: no-preference"]'),
-  ).toHaveAttribute('href', '/vidha-mark.svg');
+  ).toHaveAttribute('href', '/vidha-icon.svg');
 
   for (const asset of [
     '/vidha-mark.svg',
     '/vidha-mark-reversed.svg',
     '/vidha-mark-maskable.svg',
+    '/vidha-icon.svg',
   ]) {
     await page.goto(asset);
     await expect(page.locator('title')).toContainText('working-concept');
@@ -818,7 +819,7 @@ test('uses the courier mark and stops its continuity-line motion when requested'
     if (asset === '/vidha-mark-maskable.svg') {
       await expect(page.locator('svg > g')).toHaveAttribute(
         'transform',
-        'translate(30 35) scale(.5)',
+        'translate(8.4 8.4) scale(0.86)',
       );
     }
   }
