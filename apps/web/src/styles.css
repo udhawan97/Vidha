@@ -2075,6 +2075,17 @@ h2 {
   font-weight: 750;
 }
 
+.update-receipt {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.update-notice .update-receipt-boundary {
+  color: var(--ink-soft);
+  font-weight: 650;
+}
+
 .peer-notice {
   display: grid;
   align-items: start;

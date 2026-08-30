@@ -9,6 +9,7 @@ import type { PlanLifecycle, PlanState } from '@vidha/domain';
 import { MemoryPlanStore } from '@vidha/persistence/memory';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { currentBuildIdentity, currentBuildLabel } from './buildIdentity';
 import {
   DocumentWorkspace,
   type FileReviewState,
@@ -454,8 +455,11 @@ export function App() {
       <div className="app-surface">
         <header className="topbar">
           <div className="build-label-wrap">
-            <span className="build-label">
-              Pre-alpha prototype · synthetic data
+            <span
+              aria-label={`Pre-alpha prototype with synthetic data. Build ${currentBuildIdentity}`}
+              className="build-label"
+            >
+              Pre-alpha prototype · synthetic data · Build {currentBuildLabel}
             </span>
             <span className="topbar-motto">
               Brief the handoff. Rehearse the relay.
@@ -520,6 +524,7 @@ export function App() {
       </p>
       <UpdateNotice
         actionPending={pendingAction !== null}
+        buildIdentity={currentBuildIdentity}
         fileReviewPending={fileReviewState.busy}
         hasSessionWork={hasSessionWork}
         onReviewEnvelope={openEnvelope}

@@ -2,27 +2,39 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
 import type { SessionLossReview as SessionLossReviewModel } from '../sessionLossReview';
+import {
+  browserUpdateHandoffStorage,
+  buildIdentityLabel,
+  clearUpdateHandoffRecord,
+  readUpdateHandoffReceipt,
+  recordUpdateHandoff,
+  type UpdateHandoffStorage,
+} from '../updateHandoffReceipt';
 import { OwnerActionDialog } from './OwnerActionDialog';
 import { SessionLossReview } from './SessionLossReview';
 
 interface UpdateNoticeProps {
   readonly actionPending: boolean;
+  readonly buildIdentity?: string;
   readonly fileReviewPending: boolean;
   readonly hasSessionWork: boolean;
   readonly onReviewEnvelope: (envelopeId: string) => void;
   readonly otherTabBlocksUpdate: boolean;
   readonly sessionLossReview: SessionLossReviewModel;
+  readonly storage?: UpdateHandoffStorage | null;
 }
 
 export const UPDATE_HANDOFF_TIMEOUT_MS = 10_000;
 
 export function UpdateNotice({
   actionPending,
+  buildIdentity = 'local-development',
   fileReviewPending,
   hasSessionWork,
   onReviewEnvelope,
   otherTabBlocksUpdate,
   sessionLossReview,
+  storage,
 }: UpdateNoticeProps) {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -32,6 +44,12 @@ export function UpdateNotice({
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [updatePending, setUpdatePending] = useState(false);
   const [updateIssue, setUpdateIssue] = useState<string | null>(null);
+  const [receiptStorage] = useState<UpdateHandoffStorage | null>(() =>
+    storage === undefined ? browserUpdateHandoffStorage() : storage,
+  );
+  const [updateReceipt, setUpdateReceipt] = useState(() =>
+    readUpdateHandoffReceipt(receiptStorage, buildIdentity),
+  );
   const updateTriggerRef = useRef<HTMLButtonElement>(null);
   const suppressConfirmationReturnFocusRef = useRef(false);
   const shouldReturnConfirmationFocus = useCallback(
@@ -54,13 +72,18 @@ export function UpdateNotice({
       if (updateAttemptRef.current !== attempt) return;
       updateAttemptRef.current += 1;
       clearUpdateHandoffTimer();
+      clearUpdateHandoffRecord(receiptStorage);
       confirmedReloadRef.current = false;
       updatePendingRef.current = false;
       setUpdatePending(false);
       setUpdateIssue(issue);
     },
-    [clearUpdateHandoffTimer],
+    [clearUpdateHandoffTimer, receiptStorage],
   );
+
+  useEffect(() => {
+    if (updateReceipt !== null) clearUpdateHandoffRecord(receiptStorage);
+  }, [receiptStorage, updateReceipt]);
 
   useEffect(() => {
     if (!hasSessionWork && !fileReviewPending) {
@@ -106,6 +129,13 @@ export function UpdateNotice({
       );
       return;
     }
+    if (!recordUpdateHandoff(receiptStorage, buildIdentity)) {
+      setConfirmationOpen(false);
+      setUpdateIssue(
+        'This browser could not record a content-free update receipt, so the update was not started. Keep working in this rehearsal.',
+      );
+      return;
+    }
     const attempt = updateAttemptRef.current + 1;
     updateAttemptRef.current = attempt;
     confirmedReloadRef.current = true;
@@ -146,7 +176,7 @@ export function UpdateNotice({
     void applyUpdate();
   }
 
-  if (!needRefresh && !offlineReady) {
+  if (!needRefresh && !offlineReady && updateReceipt === null) {
     return null;
   }
 
@@ -170,6 +200,16 @@ export function UpdateNotice({
           : hasSessionWork
             ? 'Review update'
             : 'Update now';
+  const receiptChangedBuild = updateReceipt?.outcome === 'changed-build';
+  const receiptTitle = receiptChangedBuild
+    ? `Build ${buildIdentityLabel(updateReceipt.currentBuildIdentity)} is now open.`
+    : 'The requested update is unverified.';
+  const receiptDescription =
+    updateReceipt === null
+      ? null
+      : receiptChangedBuild
+        ? `This tab changed from build ${buildIdentityLabel(updateReceipt.sourceBuildIdentity)} to ${buildIdentityLabel(updateReceipt.currentBuildIdentity)}. Its previous in-memory rehearsal is no longer available.`
+        : `This tab returned on build ${buildIdentityLabel(updateReceipt.currentBuildIdentity)}; a different application build was not observed. No rehearsal was recovered.`;
 
   return (
     <>
@@ -179,14 +219,33 @@ export function UpdateNotice({
         className="update-notice"
       >
         <div>
-          <strong>
-            {needRefresh ? 'A new build is ready.' : 'Ready offline.'}
-          </strong>
-          <p>
-            {needRefresh
-              ? updateDescription
-              : 'The application shell can reopen without a connection.'}
-          </p>
+          {needRefresh || offlineReady ? (
+            <>
+              <strong>
+                {needRefresh ? 'A new build is ready.' : 'Ready offline.'}
+              </strong>
+              <p>
+                {needRefresh
+                  ? updateDescription
+                  : 'The application shell can reopen without a connection.'}
+              </p>
+            </>
+          ) : null}
+          {updateReceipt === null ? null : (
+            <div
+              className={
+                needRefresh || offlineReady ? 'update-receipt' : undefined
+              }
+              role="status"
+            >
+              <strong>{receiptTitle}</strong>
+              <p>{receiptDescription}</p>
+              <p className="update-receipt-boundary">
+                This receipt compares application build identities only. It does
+                not inspect the service worker, caches, or update safety.
+              </p>
+            </div>
+          )}
           {updateIssue === null || confirmationOpen ? null : (
             <p className="update-issue" role="alert">
               {updateIssue}
@@ -217,6 +276,7 @@ export function UpdateNotice({
             onClick={() => {
               setNeedRefresh(false);
               setOfflineReady(false);
+              setUpdateReceipt(null);
               setUpdateIssue(null);
             }}
             type="button"

@@ -8,6 +8,7 @@ import {
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { UPDATE_HANDOFF_STORAGE_KEY } from '../updateHandoffReceipt';
 import { UPDATE_HANDOFF_TIMEOUT_MS, UpdateNotice } from './UpdateNotice';
 
 const emptySessionLossReview = {
@@ -49,10 +50,12 @@ describe('UpdateNotice', () => {
     serviceWorker.updateServiceWorker.mockReset();
     serviceWorker.updateServiceWorker.mockResolvedValue(undefined);
     onReviewEnvelope.mockReset();
+    window.sessionStorage.clear();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    window.sessionStorage.clear();
   });
 
   it('updates an untouched disposable rehearsal without another confirmation', async () => {
@@ -72,6 +75,14 @@ describe('UpdateNotice', () => {
 
     expect(serviceWorker.updateServiceWorker).toHaveBeenCalledOnce();
     expect(serviceWorker.updateServiceWorker).toHaveBeenCalledWith(true);
+    expect(
+      JSON.parse(
+        window.sessionStorage.getItem(UPDATE_HANDOFF_STORAGE_KEY) ?? '',
+      ),
+    ).toEqual({
+      protocol: 'vidha.update-handoff.v1',
+      sourceBuildIdentity: 'local-development',
+    });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -101,6 +112,9 @@ describe('UpdateNotice', () => {
     expect(dialog).toHaveTextContent('Plan timeline');
     expect(dialog).toHaveTextContent('Document Versions');
     expect(screen.getByRole('button', { name: 'Keep working' })).toHaveFocus();
+    expect(
+      window.sessionStorage.getItem(UPDATE_HANDOFF_STORAGE_KEY),
+    ).toBeNull();
 
     await user.click(
       screen.getByRole('button', { name: 'Update and clear session' }),
@@ -260,6 +274,9 @@ describe('UpdateNotice', () => {
     window.dispatchEvent(afterFailure);
     expect(afterFailure.defaultPrevented).toBe(true);
     expect(screen.getByRole('button', { name: 'Keep working' })).toHaveFocus();
+    expect(
+      window.sessionStorage.getItem(UPDATE_HANDOFF_STORAGE_KEY),
+    ).toBeNull();
   });
 
   it('restores the decision when an accepted update leaves this tab alive', async () => {
@@ -296,6 +313,9 @@ describe('UpdateNotice', () => {
     const afterTimeout = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(afterTimeout);
     expect(afterTimeout.defaultPrevented).toBe(true);
+    expect(
+      window.sessionStorage.getItem(UPDATE_HANDOFF_STORAGE_KEY),
+    ).toBeNull();
   });
 
   it('ignores a stale rejection after the handoff timeout restores the decision', async () => {
@@ -371,6 +391,100 @@ describe('UpdateNotice', () => {
     const afterReturn = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(afterReturn);
     expect(afterReturn.defaultPrevented).toBe(true);
+    expect(
+      window.sessionStorage.getItem(UPDATE_HANDOFF_STORAGE_KEY),
+    ).toBeNull();
+  });
+
+  it('acknowledges a changed application build after the tab returns', async () => {
+    serviceWorker.needRefresh = false;
+    window.sessionStorage.setItem(
+      UPDATE_HANDOFF_STORAGE_KEY,
+      JSON.stringify({
+        protocol: 'vidha.update-handoff.v1',
+        sourceBuildIdentity: 'previous-build-123',
+      }),
+    );
+
+    render(
+      <UpdateNotice
+        actionPending={false}
+        buildIdentity="current-build-456"
+        fileReviewPending={false}
+        hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Build current-buil is now open.',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'changed from build previous-bui to current-buil',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'does not inspect the service worker, caches, or update safety',
+    );
+    await waitFor(() =>
+      expect(
+        window.sessionStorage.getItem(UPDATE_HANDOFF_STORAGE_KEY),
+      ).toBeNull(),
+    );
+  });
+
+  it('reports an unverified return when the build identity did not change', () => {
+    serviceWorker.needRefresh = false;
+    window.sessionStorage.setItem(
+      UPDATE_HANDOFF_STORAGE_KEY,
+      JSON.stringify({
+        protocol: 'vidha.update-handoff.v1',
+        sourceBuildIdentity: 'same-build',
+      }),
+    );
+
+    render(
+      <UpdateNotice
+        actionPending={false}
+        buildIdentity="same-build"
+        fileReviewPending={false}
+        hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'The requested update is unverified.',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'a different application build was not observed',
+    );
+  });
+
+  it('does not start an update when the receipt cannot be recorded', async () => {
+    const user = userEvent.setup();
+    render(
+      <UpdateNotice
+        actionPending={false}
+        buildIdentity="current-build"
+        fileReviewPending={false}
+        hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+        storage={null}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Update now' }));
+
+    expect(serviceWorker.updateServiceWorker).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'could not record a content-free update receipt',
+    );
   });
 
   it('holds an update while another tab contains changed work', () => {

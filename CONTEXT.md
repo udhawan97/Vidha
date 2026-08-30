@@ -89,8 +89,12 @@ _Avoid_: Secret file, guaranteed-recoverable
 ## Continuity and release
 
 **Update Handoff**:
-The bounded interval after this browser tab accepts a waiting application build and before the browser replaces the current page. The current synthetic prototype restores the Owner's update decision and ordinary changed-work reload protection if that handoff does not replace the tab in time or the prior page returns from browser history. It does not prove that a new build activated, recover a bad service worker, migrate state, or establish supported-browser behavior.
+The bounded interval after this browser tab accepts a waiting application build and before the browser replaces the current page. The current synthetic prototype restores the Owner's update decision and ordinary changed-work reload protection if that handoff does not replace the tab in time or the prior page returns from browser history. It records only the outgoing application build identity before activation so a returning page can form a Build Transition Receipt. It does not prove that a service worker activated, recover a bad service worker, migrate state, or establish supported-browser behavior.
 _Avoid_: Completed update, rollback, recovery, state migration
+
+**Build Transition Receipt**:
+A one-time, content-free comparison between the outgoing application build identity recorded for an accepted Update Handoff and the build identity injected into the returning page. A changed identity proves only that the tab loaded a differently identified application build; an unchanged identity is explicitly unverified. The receipt contains no rehearsal content and is consumed from tab-scoped session storage after reading.
+_Avoid_: Service-worker activation proof, cache integrity, update success, release provenance
 
 **Check-in**:
 An authenticated action by the Owner that confirms continued control of the Contingency Plan and begins a new schedule interval.
