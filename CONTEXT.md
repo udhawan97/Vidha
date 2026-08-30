@@ -100,6 +100,10 @@ _Avoid_: Cache audit, integrity proof, release attestation, bad-worker recovery
 A one-time, content-free comparison among the outgoing application build, the expected waiting-worker build recorded for an accepted Update Handoff, the build identity injected into the returning page, and the controlling service worker's self-reported identity when available. Agreement proves only that those bounded identities match; legacy records without an expected target remain changed-build or unverified page comparisons. The receipt contains no rehearsal content and is consumed from tab-scoped session storage after reading.
 _Avoid_: Cache integrity, asset verification, cross-build upgrade proof, update success, release provenance
 
+**Cross-build Upgrade Rehearsal**:
+A disposable loopback acceptance gate that starts with one exact production build and its controlling service worker, serves a separately compiled target build on the same origin, observes the target as a distinct waiting worker, accepts the Update Handoff through the real application UI, and requires the returning target application and controller to report the expected identities. The current gate runs only in desktop and mobile WebKit with synthetic data and temporary artifacts; it does not inspect every cached response or asset byte, recover or roll back a bad worker, migrate state, or qualify a supported browser.
+_Avoid_: Cache audit, native Safari proof, installed-app proof, production updater, release evidence
+
 **Check-in**:
 An authenticated action by the Owner that confirms continued control of the Contingency Plan and begins a new schedule interval.
 _Avoid_: Email open, link click, heartbeat

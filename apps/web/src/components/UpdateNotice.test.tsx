@@ -142,6 +142,58 @@ describe('UpdateNotice', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('reloads an accepted handoff when the new worker takes control', async () => {
+    const user = userEvent.setup();
+    const reloadPage = vi.fn();
+    const serviceWorkerEvents = new EventTarget();
+    const originalServiceWorker = Object.getOwnPropertyDescriptor(
+      navigator,
+      'serviceWorker',
+    );
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: serviceWorkerEvents,
+    });
+
+    try {
+      render(
+        <UpdateNotice
+          actionPending={false}
+          fileReviewPending={false}
+          hasSessionWork={false}
+          onReviewEnvelope={onReviewEnvelope}
+          otherTabBlocksUpdate={false}
+          reloadPage={reloadPage}
+          sessionLossReview={emptySessionLossReview}
+        />,
+      );
+
+      serviceWorkerEvents.dispatchEvent(new Event('controllerchange'));
+      expect(reloadPage).not.toHaveBeenCalled();
+
+      await user.click(
+        await screen.findByRole('button', { name: 'Update now' }),
+      );
+      serviceWorkerEvents.dispatchEvent(new Event('controllerchange'));
+      serviceWorkerEvents.dispatchEvent(new Event('controllerchange'));
+
+      expect(reloadPage).toHaveBeenCalledOnce();
+      expect(
+        window.sessionStorage.getItem(UPDATE_HANDOFF_STORAGE_KEY),
+      ).not.toBeNull();
+    } finally {
+      if (originalServiceWorker === undefined) {
+        Reflect.deleteProperty(navigator, 'serviceWorker');
+      } else {
+        Object.defineProperty(
+          navigator,
+          'serviceWorker',
+          originalServiceWorker,
+        );
+      }
+    }
+  });
+
   it('requires explicit data-loss confirmation when the session contains work', async () => {
     const user = userEvent.setup();
     render(

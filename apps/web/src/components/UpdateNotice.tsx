@@ -25,6 +25,7 @@ interface UpdateNoticeProps {
   readonly hasSessionWork: boolean;
   readonly onReviewEnvelope: (envelopeId: string) => void;
   readonly otherTabBlocksUpdate: boolean;
+  readonly reloadPage?: () => void;
   readonly sessionLossReview: SessionLossReviewModel;
   readonly storage?: UpdateHandoffStorage | null;
 }
@@ -55,6 +56,10 @@ function resolvedWorkerIdentity(
 
 export const UPDATE_HANDOFF_TIMEOUT_MS = 10_000;
 
+function reloadCurrentPage(): void {
+  window.location.reload();
+}
+
 export function UpdateNotice({
   actionPending,
   buildIdentity = 'local-development',
@@ -62,9 +67,23 @@ export function UpdateNotice({
   hasSessionWork,
   onReviewEnvelope,
   otherTabBlocksUpdate,
+  reloadPage = reloadCurrentPage,
   sessionLossReview,
   storage,
 }: UpdateNoticeProps) {
+  const confirmedReloadRef = useRef(false);
+  const controllerReloadRequestedRef = useRef(false);
+  const updatePendingRef = useRef(false);
+  const reloadAfterControllerChange = useCallback(() => {
+    if (
+      !confirmedReloadRef.current ||
+      !updatePendingRef.current ||
+      controllerReloadRequestedRef.current
+    )
+      return;
+    controllerReloadRequestedRef.current = true;
+    reloadPage();
+  }, [reloadPage]);
   const [registeredWorker, setRegisteredWorker] = useState<
     WorkerRegistration | null | undefined
   >(undefined);
@@ -77,7 +96,10 @@ export function UpdateNotice({
     needRefresh: [needRefresh, setNeedRefresh],
     offlineReady: [offlineReady, setOfflineReady],
     updateServiceWorker,
-  } = useRegisterSW({ onRegisteredSW: handleRegisteredWorker });
+  } = useRegisterSW({
+    onNeedReload: reloadAfterControllerChange,
+    onRegisteredSW: handleRegisteredWorker,
+  });
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [updatePending, setUpdatePending] = useState(false);
   const [updateIssue, setUpdateIssue] = useState<string | null>(null);
@@ -97,10 +119,27 @@ export function UpdateNotice({
     () => !suppressConfirmationReturnFocusRef.current,
     [],
   );
-  const confirmedReloadRef = useRef(false);
   const updateAttemptRef = useRef(0);
   const updateHandoffTimerRef = useRef<number | null>(null);
-  const updatePendingRef = useRef(false);
+
+  useEffect(() => {
+    let serviceWorkerContainer: ServiceWorkerContainer | undefined;
+    try {
+      serviceWorkerContainer = navigator.serviceWorker;
+    } catch {
+      return;
+    }
+    if (serviceWorkerContainer === undefined) return;
+    serviceWorkerContainer.addEventListener(
+      'controllerchange',
+      reloadAfterControllerChange,
+    );
+    return () =>
+      serviceWorkerContainer.removeEventListener(
+        'controllerchange',
+        reloadAfterControllerChange,
+      );
+  }, [reloadAfterControllerChange]);
 
   const waitingWorker =
     registeredWorker === undefined
@@ -187,6 +226,7 @@ export function UpdateNotice({
       clearUpdateHandoffTimer();
       clearUpdateHandoffRecord(receiptStorage);
       confirmedReloadRef.current = false;
+      controllerReloadRequestedRef.current = false;
       updatePendingRef.current = false;
       setUpdatePending(false);
       setUpdateIssue(issue);
@@ -272,6 +312,7 @@ export function UpdateNotice({
     const attempt = updateAttemptRef.current + 1;
     updateAttemptRef.current = attempt;
     confirmedReloadRef.current = true;
+    controllerReloadRequestedRef.current = false;
     updatePendingRef.current = true;
     setUpdateIssue(null);
     setUpdatePending(true);

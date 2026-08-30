@@ -20,6 +20,7 @@
     "test:scanner": "pnpm --filter @vidha/documents test:scanner",
     "test:domain": "pnpm --filter @vidha/domain test",
     "test:e2e": "playwright test",
+    "test:pwa-upgrade": "playwright test --config playwright.pwa-upgrade.config.ts",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

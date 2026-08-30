@@ -191,3 +191,5 @@ jobs:
         run: pnpm test:webauthn
       - name: Run desktop and mobile browser acceptance
         run: pnpm test:e2e
+      - name: Rehearse an old-build to waiting-new-build PWA update
+        run: pnpm test:pwa-upgrade
