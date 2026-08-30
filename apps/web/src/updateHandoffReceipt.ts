@@ -1,7 +1,9 @@
+import { isBuildIdentity } from './buildIdentity';
+
 export const UPDATE_HANDOFF_STORAGE_KEY = 'vidha.update-handoff.v1';
 
-const UPDATE_HANDOFF_PROTOCOL = 'vidha.update-handoff.v1';
-const BUILD_IDENTITY_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/u;
+const LEGACY_UPDATE_HANDOFF_PROTOCOL = 'vidha.update-handoff.v1';
+const UPDATE_HANDOFF_PROTOCOL = 'vidha.update-handoff.v2';
 
 export interface UpdateHandoffStorage {
   getItem(key: string): string | null;
@@ -9,23 +11,37 @@ export interface UpdateHandoffStorage {
   setItem(key: string, value: string): void;
 }
 
+interface LegacyUpdateHandoffRecord {
+  readonly protocol: typeof LEGACY_UPDATE_HANDOFF_PROTOCOL;
+  readonly sourceBuildIdentity: string;
+}
+
 interface UpdateHandoffRecord {
   readonly protocol: typeof UPDATE_HANDOFF_PROTOCOL;
   readonly sourceBuildIdentity: string;
+  readonly targetBuildIdentity: string;
 }
 
 export interface UpdateHandoffReceipt {
   readonly currentBuildIdentity: string;
-  readonly outcome: 'changed-build' | 'unverified';
+  readonly outcome:
+    'changed-build' | 'expected-build' | 'unexpected-build' | 'unverified';
   readonly sourceBuildIdentity: string;
+  readonly targetBuildIdentity: string | null;
 }
 
-export function isBuildIdentity(value: unknown): value is string {
-  return typeof value === 'string' && BUILD_IDENTITY_PATTERN.test(value);
-}
-
-export function buildIdentityLabel(identity: string): string {
-  return identity.length > 12 ? identity.slice(0, 12) : identity;
+function isLegacyUpdateHandoffRecord(
+  value: unknown,
+): value is LegacyUpdateHandoffRecord {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    Object.keys(record).sort().join(',') === 'protocol,sourceBuildIdentity' &&
+    record.protocol === LEGACY_UPDATE_HANDOFF_PROTOCOL &&
+    isBuildIdentity(record.sourceBuildIdentity)
+  );
 }
 
 function isUpdateHandoffRecord(value: unknown): value is UpdateHandoffRecord {
@@ -34,20 +50,30 @@ function isUpdateHandoffRecord(value: unknown): value is UpdateHandoffRecord {
   }
   const record = value as Record<string, unknown>;
   return (
-    Object.keys(record).sort().join(',') === 'protocol,sourceBuildIdentity' &&
+    Object.keys(record).sort().join(',') ===
+      'protocol,sourceBuildIdentity,targetBuildIdentity' &&
     record.protocol === UPDATE_HANDOFF_PROTOCOL &&
-    isBuildIdentity(record.sourceBuildIdentity)
+    isBuildIdentity(record.sourceBuildIdentity) &&
+    isBuildIdentity(record.targetBuildIdentity)
   );
 }
 
 export function recordUpdateHandoff(
   storage: UpdateHandoffStorage | null,
   sourceBuildIdentity: string,
+  targetBuildIdentity: string,
 ): boolean {
-  if (storage === null || !isBuildIdentity(sourceBuildIdentity)) return false;
+  if (
+    storage === null ||
+    !isBuildIdentity(sourceBuildIdentity) ||
+    !isBuildIdentity(targetBuildIdentity) ||
+    sourceBuildIdentity === targetBuildIdentity
+  )
+    return false;
   const record: UpdateHandoffRecord = {
     protocol: UPDATE_HANDOFF_PROTOCOL,
     sourceBuildIdentity,
+    targetBuildIdentity,
   };
   try {
     storage.setItem(UPDATE_HANDOFF_STORAGE_KEY, JSON.stringify(record));
@@ -66,14 +92,30 @@ export function readUpdateHandoffReceipt(
     const serialized = storage.getItem(UPDATE_HANDOFF_STORAGE_KEY);
     if (serialized === null) return null;
     const record: unknown = JSON.parse(serialized);
-    if (!isUpdateHandoffRecord(record)) return null;
+    if (isLegacyUpdateHandoffRecord(record)) {
+      return {
+        currentBuildIdentity,
+        outcome:
+          record.sourceBuildIdentity === currentBuildIdentity
+            ? 'unverified'
+            : 'changed-build',
+        sourceBuildIdentity: record.sourceBuildIdentity,
+        targetBuildIdentity: null,
+      };
+    }
+    if (
+      !isUpdateHandoffRecord(record) ||
+      record.sourceBuildIdentity === record.targetBuildIdentity
+    )
+      return null;
     return {
       currentBuildIdentity,
       outcome:
-        record.sourceBuildIdentity === currentBuildIdentity
-          ? 'unverified'
-          : 'changed-build',
+        record.targetBuildIdentity === currentBuildIdentity
+          ? 'expected-build'
+          : 'unexpected-build',
       sourceBuildIdentity: record.sourceBuildIdentity,
+      targetBuildIdentity: record.targetBuildIdentity,
     };
   } catch {
     return null;

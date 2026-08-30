@@ -25,21 +25,63 @@ const emptySessionLossReview = {
 
 const onReviewEnvelope = vi.fn();
 
+async function settleWorkerIdentity(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 const serviceWorker = vi.hoisted(() => ({
   needRefresh: true,
   offlineReady: false,
+  registration: undefined as ServiceWorkerRegistration | undefined,
   setNeedRefresh: vi.fn(),
   setOfflineReady: vi.fn(),
   updateServiceWorker: vi.fn<() => Promise<void>>(),
 }));
 
-vi.mock('virtual:pwa-register/react', () => ({
-  useRegisterSW: () => ({
-    needRefresh: [serviceWorker.needRefresh, serviceWorker.setNeedRefresh],
-    offlineReady: [serviceWorker.offlineReady, serviceWorker.setOfflineReady],
-    updateServiceWorker: serviceWorker.updateServiceWorker,
-  }),
+const workerIdentity = vi.hoisted(() => ({
+  browserController: vi.fn<() => ServiceWorker | null>(),
+  controller: {} as ServiceWorker,
+  query: vi.fn<(target: unknown) => Promise<string>>(),
+  waiting: {} as ServiceWorker,
 }));
+
+vi.mock('../serviceWorkerIdentity', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../serviceWorkerIdentity')>();
+  return {
+    ...actual,
+    browserServiceWorkerController: workerIdentity.browserController,
+    requestServiceWorkerIdentity: workerIdentity.query,
+  };
+});
+
+vi.mock('virtual:pwa-register/react', async () => {
+  const { useEffect } = await import('react');
+  return {
+    useRegisterSW: (options?: {
+      onRegisteredSW?: (
+        scriptUrl: string,
+        registration: ServiceWorkerRegistration | undefined,
+      ) => void;
+    }) => {
+      const onRegisteredSW = options?.onRegisteredSW;
+      useEffect(() => {
+        onRegisteredSW?.('/sw.js', serviceWorker.registration);
+      }, [onRegisteredSW]);
+      return {
+        needRefresh: [serviceWorker.needRefresh, serviceWorker.setNeedRefresh],
+        offlineReady: [
+          serviceWorker.offlineReady,
+          serviceWorker.setOfflineReady,
+        ],
+        updateServiceWorker: serviceWorker.updateServiceWorker,
+      };
+    },
+  };
+});
 
 describe('UpdateNotice', () => {
   beforeEach(() => {
@@ -49,6 +91,19 @@ describe('UpdateNotice', () => {
     serviceWorker.setOfflineReady.mockReset();
     serviceWorker.updateServiceWorker.mockReset();
     serviceWorker.updateServiceWorker.mockResolvedValue(undefined);
+    serviceWorker.registration = {
+      waiting: workerIdentity.waiting,
+    } as ServiceWorkerRegistration;
+    workerIdentity.browserController.mockReset();
+    workerIdentity.browserController.mockReturnValue(workerIdentity.controller);
+    workerIdentity.query.mockReset();
+    workerIdentity.query.mockImplementation((target) =>
+      Promise.resolve(
+        target === workerIdentity.waiting
+          ? 'target-build-456'
+          : 'current-build-456',
+      ),
+    );
     onReviewEnvelope.mockReset();
     window.sessionStorage.clear();
   });
@@ -71,7 +126,7 @@ describe('UpdateNotice', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Update now' }));
+    await user.click(await screen.findByRole('button', { name: 'Update now' }));
 
     expect(serviceWorker.updateServiceWorker).toHaveBeenCalledOnce();
     expect(serviceWorker.updateServiceWorker).toHaveBeenCalledWith(true);
@@ -80,8 +135,9 @@ describe('UpdateNotice', () => {
         window.sessionStorage.getItem(UPDATE_HANDOFF_STORAGE_KEY) ?? '',
       ),
     ).toEqual({
-      protocol: 'vidha.update-handoff.v1',
+      protocol: 'vidha.update-handoff.v2',
       sourceBuildIdentity: 'local-development',
+      targetBuildIdentity: 'target-build-456',
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -103,7 +159,9 @@ describe('UpdateNotice', () => {
     window.dispatchEvent(beforeConfirmation);
     expect(beforeConfirmation.defaultPrevented).toBe(true);
 
-    const reviewUpdate = screen.getByRole('button', { name: 'Review update' });
+    const reviewUpdate = await screen.findByRole('button', {
+      name: 'Review update',
+    });
     await user.click(reviewUpdate);
 
     const dialog = screen.getByRole('dialog', {
@@ -155,7 +213,9 @@ describe('UpdateNotice', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Review update' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Review update' }),
+    );
 
     const review = screen.getByRole('region', {
       name: 'Current session-loss review',
@@ -187,7 +247,9 @@ describe('UpdateNotice', () => {
       />,
     );
 
-    const reviewUpdate = screen.getByRole('button', { name: 'Review update' });
+    const reviewUpdate = await screen.findByRole('button', {
+      name: 'Review update',
+    });
     await user.click(reviewUpdate);
     const dialog = screen.getByRole('dialog', {
       name: 'Update and clear this rehearsal?',
@@ -259,7 +321,9 @@ describe('UpdateNotice', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Review update' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Review update' }),
+    );
     await user.click(
       screen.getByRole('button', { name: 'Update and clear session' }),
     );
@@ -292,6 +356,7 @@ describe('UpdateNotice', () => {
       />,
     );
 
+    await settleWorkerIdentity();
     fireEvent.click(screen.getByRole('button', { name: 'Review update' }));
     fireEvent.click(
       screen.getByRole('button', { name: 'Update and clear session' }),
@@ -338,6 +403,7 @@ describe('UpdateNotice', () => {
       />,
     );
 
+    await settleWorkerIdentity();
     fireEvent.click(screen.getByRole('button', { name: 'Review update' }));
     fireEvent.click(
       screen.getByRole('button', { name: 'Update and clear session' }),
@@ -378,7 +444,9 @@ describe('UpdateNotice', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Review update' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Review update' }),
+    );
     await user.click(
       screen.getByRole('button', { name: 'Update and clear session' }),
     );
@@ -425,7 +493,7 @@ describe('UpdateNotice', () => {
       'changed from build previous-bui to current-buil',
     );
     expect(screen.getByRole('status')).toHaveTextContent(
-      'does not inspect the service worker, caches, or update safety',
+      'does not inspect cache entries or asset bytes',
     );
     await waitFor(() =>
       expect(
@@ -464,6 +532,104 @@ describe('UpdateNotice', () => {
     );
   });
 
+  it('verifies the expected application build against its controlling worker', async () => {
+    serviceWorker.needRefresh = false;
+    window.sessionStorage.setItem(
+      UPDATE_HANDOFF_STORAGE_KEY,
+      JSON.stringify({
+        protocol: 'vidha.update-handoff.v2',
+        sourceBuildIdentity: 'previous-build-123',
+        targetBuildIdentity: 'current-build-456',
+      }),
+    );
+
+    render(
+      <UpdateNotice
+        actionPending={false}
+        buildIdentity="current-build-456"
+        fileReviewPending={false}
+        hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Build current-buil and its controller agree.',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'controlling service worker also reports that build',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'does not inspect cache entries or asset bytes',
+    );
+  });
+
+  it('keeps the receipt unverified when the controller reports another build', async () => {
+    serviceWorker.needRefresh = false;
+    workerIdentity.query.mockResolvedValue('different-controller-build');
+    window.sessionStorage.setItem(
+      UPDATE_HANDOFF_STORAGE_KEY,
+      JSON.stringify({
+        protocol: 'vidha.update-handoff.v2',
+        sourceBuildIdentity: 'previous-build-123',
+        targetBuildIdentity: 'current-build-456',
+      }),
+    );
+
+    render(
+      <UpdateNotice
+        actionPending={false}
+        buildIdentity="current-build-456"
+        fileReviewPending={false}
+        hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'The controller reports a different build.',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'controller reports build different-co',
+    );
+  });
+
+  it('keeps the receipt unverified without a controlling worker', () => {
+    serviceWorker.needRefresh = false;
+    workerIdentity.browserController.mockReturnValue(null);
+    window.sessionStorage.setItem(
+      UPDATE_HANDOFF_STORAGE_KEY,
+      JSON.stringify({
+        protocol: 'vidha.update-handoff.v2',
+        sourceBuildIdentity: 'previous-build-123',
+        targetBuildIdentity: 'current-build-456',
+      }),
+    );
+
+    render(
+      <UpdateNotice
+        actionPending={false}
+        buildIdentity="current-build-456"
+        fileReviewPending={false}
+        hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'The requested update is unverified.',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'no controlling service worker identity was available',
+    );
+  });
+
   it('does not start an update when the receipt cannot be recorded', async () => {
     const user = userEvent.setup();
     render(
@@ -479,12 +645,58 @@ describe('UpdateNotice', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Update now' }));
+    await user.click(await screen.findByRole('button', { name: 'Update now' }));
 
     expect(serviceWorker.updateServiceWorker).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent(
       'could not record a content-free update receipt',
     );
+  });
+
+  it('blocks an update when the waiting worker does not identify itself', async () => {
+    workerIdentity.query.mockRejectedValue(
+      new Error('synthetic worker identity timeout'),
+    );
+    render(
+      <UpdateNotice
+        actionPending={false}
+        fileReviewPending={false}
+        hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    expect(
+      await screen.findByRole('button', { name: 'Waiting build unverified' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/did not provide a valid build identity/i),
+    ).toBeVisible();
+    expect(serviceWorker.updateServiceWorker).not.toHaveBeenCalled();
+  });
+
+  it('blocks an update when the waiting worker reports the current build', async () => {
+    workerIdentity.query.mockResolvedValue('local-development');
+    render(
+      <UpdateNotice
+        actionPending={false}
+        fileReviewPending={false}
+        hasSessionWork={false}
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    expect(
+      await screen.findByRole('button', { name: 'Build identity unchanged' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/distinct target build was not verified/i),
+    ).toBeVisible();
+    expect(serviceWorker.updateServiceWorker).not.toHaveBeenCalled();
   });
 
   it('holds an update while another tab contains changed work', () => {

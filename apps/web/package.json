@@ -19,6 +19,8 @@
     "@vidha/persistence": "workspace:*",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "workbox-precaching": "7.4.1",
+    "workbox-routing": "7.4.1",
     "workbox-window": "7.4.1"
   },
   "devDependencies": {

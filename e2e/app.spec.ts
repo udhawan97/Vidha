@@ -71,7 +71,65 @@ test('acknowledges a content-free changed-build update receipt', async ({
     `changed from build previous-bui to ${displayedBuild}`,
   );
   await expect(receipt).toContainText(
-    'does not inspect the service worker, caches, or update safety',
+    'does not inspect cache entries or asset bytes',
+  );
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('matches an expected build to its controlling service worker identity', async ({
+  page,
+}) => {
+  await page.evaluate(async () => {
+    if (!('serviceWorker' in navigator)) {
+      throw new Error('Service workers are unavailable in this browser.');
+    }
+    await navigator.serviceWorker.ready;
+    if (navigator.serviceWorker.controller !== null) return;
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(
+        () => reject(new Error('The service worker did not claim this page.')),
+        5_000,
+      );
+      navigator.serviceWorker.addEventListener(
+        'controllerchange',
+        () => {
+          window.clearTimeout(timeout);
+          resolve();
+        },
+        { once: true },
+      );
+    });
+  });
+
+  const buildLabel = page.getByLabel(
+    /pre-alpha prototype with synthetic data\. build/i,
+  );
+  const currentBuildIdentity = /build ([a-zA-Z0-9._-]+)/iu.exec(
+    (await buildLabel.getAttribute('aria-label')) ?? '',
+  )?.[1];
+  expect(currentBuildIdentity).toBeTruthy();
+
+  await page.evaluate((targetBuildIdentity) => {
+    window.sessionStorage.setItem(
+      'vidha.update-handoff.v1',
+      JSON.stringify({
+        protocol: 'vidha.update-handoff.v2',
+        sourceBuildIdentity: 'previous-build',
+        targetBuildIdentity,
+      }),
+    );
+  }, currentBuildIdentity);
+  await page.reload();
+
+  const receipt = page.getByRole('status');
+  await expect(receipt).toContainText(
+    `Build ${currentBuildIdentity?.slice(0, 12)} and its controller agree.`,
+  );
+  await expect(receipt).toContainText(
+    'controlling service worker also reports that build',
+  );
+  await expect(receipt).toContainText(
+    'does not inspect cache entries or asset bytes',
   );
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
