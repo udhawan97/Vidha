@@ -14,6 +14,8 @@ interface UpdateNoticeProps {
   readonly sessionLossReview: SessionLossReviewModel;
 }
 
+export const UPDATE_HANDOFF_TIMEOUT_MS = 10_000;
+
 export function UpdateNotice({
   actionPending,
   fileReviewPending,
@@ -37,6 +39,28 @@ export function UpdateNotice({
     [],
   );
   const confirmedReloadRef = useRef(false);
+  const updateAttemptRef = useRef(0);
+  const updateHandoffTimerRef = useRef<number | null>(null);
+  const updatePendingRef = useRef(false);
+
+  const clearUpdateHandoffTimer = useCallback(() => {
+    if (updateHandoffTimerRef.current === null) return;
+    window.clearTimeout(updateHandoffTimerRef.current);
+    updateHandoffTimerRef.current = null;
+  }, []);
+
+  const restoreUpdateDecision = useCallback(
+    (attempt: number, issue: string) => {
+      if (updateAttemptRef.current !== attempt) return;
+      updateAttemptRef.current += 1;
+      clearUpdateHandoffTimer();
+      confirmedReloadRef.current = false;
+      updatePendingRef.current = false;
+      setUpdatePending(false);
+      setUpdateIssue(issue);
+    },
+    [clearUpdateHandoffTimer],
+  );
 
   useEffect(() => {
     if (!hasSessionWork && !fileReviewPending) {
@@ -52,8 +76,29 @@ export function UpdateNotice({
     return () => window.removeEventListener('beforeunload', protectSessionWork);
   }, [fileReviewPending, hasSessionWork]);
 
+  useEffect(() => {
+    function restoreReturnedTab() {
+      if (!confirmedReloadRef.current || !updatePendingRef.current) return;
+      restoreUpdateDecision(
+        updateAttemptRef.current,
+        'This tab returned before the update finished. Your local rehearsal is still open, and changed work is protected again. Keep working or try again.',
+      );
+    }
+
+    window.addEventListener('pageshow', restoreReturnedTab);
+    return () => window.removeEventListener('pageshow', restoreReturnedTab);
+  }, [restoreUpdateDecision]);
+
+  useEffect(
+    () => () => {
+      updateAttemptRef.current += 1;
+      clearUpdateHandoffTimer();
+    },
+    [clearUpdateHandoffTimer],
+  );
+
   async function applyUpdate() {
-    if (actionPending || fileReviewPending || updatePending) return;
+    if (actionPending || fileReviewPending || updatePendingRef.current) return;
     if (otherTabBlocksUpdate) {
       setConfirmationOpen(false);
       setUpdateIssue(
@@ -61,15 +106,24 @@ export function UpdateNotice({
       );
       return;
     }
+    const attempt = updateAttemptRef.current + 1;
+    updateAttemptRef.current = attempt;
     confirmedReloadRef.current = true;
+    updatePendingRef.current = true;
     setUpdateIssue(null);
     setUpdatePending(true);
+    clearUpdateHandoffTimer();
+    updateHandoffTimerRef.current = window.setTimeout(() => {
+      restoreUpdateDecision(
+        attempt,
+        'The update did not replace this tab in time. Your local rehearsal is still open, and changed work is protected again. Keep working or try again.',
+      );
+    }, UPDATE_HANDOFF_TIMEOUT_MS);
     try {
       await updateServiceWorker(true);
     } catch {
-      confirmedReloadRef.current = false;
-      setUpdatePending(false);
-      setUpdateIssue(
+      restoreUpdateDecision(
+        attempt,
         'The update did not start. Your local rehearsal is still open. Keep working or try again.',
       );
     }
@@ -79,7 +133,7 @@ export function UpdateNotice({
     if (
       actionPending ||
       fileReviewPending ||
-      updatePending ||
+      updatePendingRef.current ||
       otherTabBlocksUpdate
     )
       return;
