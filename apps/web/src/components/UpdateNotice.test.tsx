@@ -48,6 +48,28 @@ const workerIdentity = vi.hoisted(() => ({
   waiting: {} as ServiceWorker,
 }));
 
+interface RegistrationHarness extends EventTarget {
+  installing: ServiceWorker | null;
+  waiting: ServiceWorker | null;
+}
+
+function registrationHarness(
+  waiting: ServiceWorker | null = workerIdentity.waiting,
+): RegistrationHarness {
+  return Object.assign(new EventTarget(), {
+    installing: null,
+    waiting,
+  });
+}
+
+function workerHarness(state: ServiceWorkerState): ServiceWorker & {
+  state: ServiceWorkerState;
+} {
+  return Object.assign(new EventTarget(), { state }) as ServiceWorker & {
+    state: ServiceWorkerState;
+  };
+}
+
 vi.mock('../serviceWorkerIdentity', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('../serviceWorkerIdentity')>();
@@ -91,9 +113,9 @@ describe('UpdateNotice', () => {
     serviceWorker.setOfflineReady.mockReset();
     serviceWorker.updateServiceWorker.mockReset();
     serviceWorker.updateServiceWorker.mockResolvedValue(undefined);
-    serviceWorker.registration = {
-      waiting: workerIdentity.waiting,
-    } as ServiceWorkerRegistration;
+    serviceWorker.registration = registrationHarness(
+      workerIdentity.waiting,
+    ) as ServiceWorkerRegistration;
     workerIdentity.browserController.mockReset();
     workerIdentity.browserController.mockReturnValue(workerIdentity.controller);
     workerIdentity.query.mockReset();
@@ -140,6 +162,43 @@ describe('UpdateNotice', () => {
       targetBuildIdentity: 'target-build-456',
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('offers a later healthy worker after an earlier installation is rejected', () => {
+    serviceWorker.needRefresh = false;
+    const registration = registrationHarness(null);
+    serviceWorker.registration = registration as ServiceWorkerRegistration;
+    render(
+      <UpdateNotice
+        actionPending={false}
+        fileReviewPending={false}
+        hasSessionWork
+        onReviewEnvelope={onReviewEnvelope}
+        otherTabBlocksUpdate={false}
+        sessionLossReview={emptySessionLossReview}
+      />,
+    );
+
+    const rejectedWorker = workerHarness('installing');
+    act(() => {
+      registration.installing = rejectedWorker;
+      registration.dispatchEvent(new Event('updatefound'));
+      rejectedWorker.state = 'redundant';
+      rejectedWorker.dispatchEvent(new Event('statechange'));
+    });
+    expect(serviceWorker.setNeedRefresh).not.toHaveBeenCalled();
+
+    const healthyWorker = workerHarness('installing');
+    act(() => {
+      registration.installing = healthyWorker;
+      registration.dispatchEvent(new Event('updatefound'));
+      registration.waiting = healthyWorker;
+      healthyWorker.state = 'installed';
+      healthyWorker.dispatchEvent(new Event('statechange'));
+    });
+
+    expect(serviceWorker.setNeedRefresh).toHaveBeenCalledOnce();
+    expect(serviceWorker.setNeedRefresh).toHaveBeenCalledWith(true);
   });
 
   it('reloads an accepted handoff when the new worker takes control', async () => {

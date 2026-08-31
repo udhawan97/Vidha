@@ -30,10 +30,6 @@ interface UpdateNoticeProps {
   readonly storage?: UpdateHandoffStorage | null;
 }
 
-type WorkerRegistration = {
-  readonly waiting: ServiceWorkerIdentityTarget | null;
-};
-
 type WorkerIdentityState =
   | { readonly status: 'checking' | 'idle' | 'unavailable' }
   | { readonly buildIdentity: string; readonly status: 'identified' };
@@ -85,7 +81,7 @@ export function UpdateNotice({
     reloadPage();
   }, [reloadPage]);
   const [registeredWorker, setRegisteredWorker] = useState<
-    WorkerRegistration | null | undefined
+    ServiceWorkerRegistration | null | undefined
   >(undefined);
   const handleRegisteredWorker = useCallback(
     (_scriptUrl: string, registration: ServiceWorkerRegistration | undefined) =>
@@ -100,6 +96,42 @@ export function UpdateNotice({
     onNeedReload: reloadAfterControllerChange,
     onRegisteredSW: handleRegisteredWorker,
   });
+
+  useEffect(() => {
+    if (registeredWorker === null || registeredWorker === undefined) return;
+    let installingWorker: ServiceWorker | null = null;
+
+    const offerInstalledWorker = () => {
+      if (
+        installingWorker?.state === 'installed' &&
+        registeredWorker.waiting === installingWorker &&
+        browserServiceWorkerController() !== null
+      ) {
+        setNeedRefresh(true);
+      }
+    };
+    const observeInstallingWorker = () => {
+      installingWorker?.removeEventListener(
+        'statechange',
+        offerInstalledWorker,
+      );
+      installingWorker = registeredWorker.installing;
+      installingWorker?.addEventListener('statechange', offerInstalledWorker);
+      offerInstalledWorker();
+    };
+
+    registeredWorker.addEventListener('updatefound', observeInstallingWorker);
+    return () => {
+      registeredWorker.removeEventListener(
+        'updatefound',
+        observeInstallingWorker,
+      );
+      installingWorker?.removeEventListener(
+        'statechange',
+        offerInstalledWorker,
+      );
+    };
+  }, [registeredWorker, setNeedRefresh]);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [updatePending, setUpdatePending] = useState(false);
   const [updateIssue, setUpdateIssue] = useState<string | null>(null);

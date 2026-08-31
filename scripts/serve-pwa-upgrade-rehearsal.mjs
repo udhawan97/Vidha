@@ -16,12 +16,14 @@ import { extname, join, relative, resolve, sep } from 'node:path';
 const HOST = '127.0.0.1';
 const PORT = Number.parseInt(process.env.VIDHA_PWA_UPGRADE_PORT ?? '4179', 10);
 const REHEARSAL_HEADER = 'x-vidha-pwa-upgrade-rehearsal';
-const REHEARSAL_TOKEN = 'phase-3o';
-const SOURCE_BUILD_IDENTITY = 'phase-3o-source';
-const TARGET_BUILD_IDENTITY = 'phase-3o-target';
+const REHEARSAL_TOKEN = 'phase-3p';
+const SOURCE_BUILD_IDENTITY = 'phase-3p-source';
+const REJECTED_BUILD_IDENTITY = 'phase-3p-rejected';
+const TARGET_BUILD_IDENTITY = 'phase-3p-target';
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'vidha-pwa-upgrade-'));
 const buildRoots = {
+  rejected: join(temporaryRoot, 'rejected'),
   source: join(temporaryRoot, 'source'),
   target: join(temporaryRoot, 'target'),
 };
@@ -120,10 +122,13 @@ function fileForRequest(root, pathname, acceptsHtml) {
     candidateRelative === '..' || candidateRelative.startsWith(`..${sep}`);
   if (escapesRoot) return null;
   if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
-  return acceptsHtml ? join(root, 'index.html') : null;
+  const fallback = join(root, 'index.html');
+  return acceptsHtml && existsSync(fallback) ? fallback : null;
 }
 
 await build(SOURCE_BUILD_IDENTITY, buildRoots.source);
+await build(REJECTED_BUILD_IDENTITY, buildRoots.rejected);
+rmSync(join(buildRoots.rejected, 'index.html'));
 await build(TARGET_BUILD_IDENTITY, buildRoots.target);
 
 let activeBuild = 'source';
@@ -137,13 +142,14 @@ const server = createServer((request, response) => {
     }
     writeJson(response, 200, {
       activeBuild,
+      rejectedBuildIdentity: REJECTED_BUILD_IDENTITY,
       sourceBuildIdentity: SOURCE_BUILD_IDENTITY,
       targetBuildIdentity: TARGET_BUILD_IDENTITY,
     });
     return;
   }
 
-  const switchMatch = /^\/__vidha_pwa_upgrade\/(source|target)$/u.exec(
+  const switchMatch = /^\/__vidha_pwa_upgrade\/(rejected|source|target)$/u.exec(
     requestUrl.pathname,
   );
   if (switchMatch !== null) {
@@ -206,7 +212,7 @@ server.on('error', (error) => {
   process.exit(1);
 });
 server.listen(PORT, HOST, () => {
-  console.log(`Phase 3O PWA upgrade rehearsal ready at http://${HOST}:${PORT}`);
+  console.log(`Phase 3P PWA upgrade rehearsal ready at http://${HOST}:${PORT}`);
 });
 
 process.once('SIGINT', () => cleanup(0));

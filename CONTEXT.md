@@ -104,6 +104,10 @@ _Avoid_: Cache integrity, asset verification, cross-build upgrade proof, update 
 A disposable loopback acceptance gate that starts with one exact production build and its controlling service worker, serves a separately compiled target build on the same origin, observes the target as a distinct waiting worker, accepts the Update Handoff through the real application UI, and requires the returning target application and controller to report the expected identities. The current gate runs only in desktop and mobile WebKit with synthetic data and temporary artifacts; it does not inspect every cached response or asset byte, recover or roll back a bad worker, migrate state, or qualify a supported browser.
 _Avoid_: Cache audit, native Safari proof, installed-app proof, production updater, release evidence
 
+**Rejected Update Candidate**:
+A separately compiled application build whose service worker is discovered but cannot finish installation and therefore never becomes the waiting or controlling worker. The current disposable rehearsal creates one exact case by removing the candidate's required `index.html` only after build validation, requires WebKit to discard that installer as redundant while retaining the source controller and edited synthetic Draft, and then verifies that a later intact target can still be offered. It does not detect every unusable build or recover, replace, unregister, or roll back a bad worker that already controls a page.
+_Avoid_: Rollback, repaired update, recovered worker, corrupt-build coverage
+
 **Check-in**:
 An authenticated action by the Owner that confirms continued control of the Contingency Plan and begins a new schedule interval.
 _Avoid_: Email open, link click, heartbeat
