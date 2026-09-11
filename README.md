@@ -48,7 +48,7 @@ The browser prototype deliberately stops at Concern. Guardian Attestations, Veto
 
 ![Vidha local synthetic prototype showing the Draft rehearsal overview in the ivory, indigo, and marigold editorial system](docs/assets/vidha-overview.png)
 
-_Current Phase 3N local WebKit capture using only the repository’s synthetic demo data. The visible build identity is local evidence only; this is not native Safari, a hosted service, or a release._
+_Current Phase 3P local WebKit capture using only the repository’s synthetic demo data. The visible build identity is local evidence only; this is not native Safari, a hosted service, or a release._
 
 ## Run the local prototype
 
