@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="#F3F1EB" /><path d="M80 530H1120" stroke="#CBC6B8" /><text x="80" y="95" font-size="18" fill="#79551D" font-family="sans-serif">VIDHA / CONTINGENCY RELAY</text><text x="76" y="245" font-size="112" fill="#172A50" font-family="Georgia, serif">Vidha</text><text x="80" y="337" font-size="44" fill="#172A50" font-family="Georgia, serif">Brief the handoff.</text><text x="80" y="391" font-size="44" fill="#172A50" font-family="Georgia, serif">Rehearse the relay.</text><text x="80" y="571" font-size="17" fill="#525B78" font-family="sans-serif">PRE-ALPHA  ·  LOCAL SYNTHETIC PROTOTYPE</text><svg width="330" height="330" viewBox="0 0 512 512" role="img" aria-labelledby="title description" x="770" y="140">
   <title id="title">Vidha courier working-concept app icon</title>
   <desc id="description">An ivory courier bird carrying an amber Envelope inside a rounded midnight-blue tile. Identity and rights clearance are incomplete.</desc>
   <defs>
@@ -7,7 +7,9 @@
     <linearGradient id="wing" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#FFFDF5" /><stop offset="1" stop-color="#DACEAF" /></linearGradient>
     <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFDA83" /><stop offset="1" stop-color="#DF932B" /></linearGradient>
   </defs>
-  <rect width="512" height="512" fill="url(#night)" /><g transform="translate(51.2 51.2) scale(0.8)"><circle cx="349" cy="157" r="94" fill="none" stroke="#A6BAD5" stroke-opacity=".13" />
+  <rect width="512" height="512" rx="116" fill="url(#night)" />
+  <rect x="13" y="13" width="486" height="486" rx="104" fill="none" stroke="#FFFFFF" stroke-opacity=".15" stroke-width="2" />
+  <circle cx="349" cy="157" r="94" fill="none" stroke="#A6BAD5" stroke-opacity=".13" />
   <circle cx="349" cy="157" r="69" fill="none" stroke="#A6BAD5" stroke-opacity=".13" />
   <circle cx="366" cy="132" r="25" fill="url(#gold)" />
   <path d="M68 366C157 406 333 409 444 325" fill="none" stroke="#F4BB59" stroke-opacity=".48" stroke-width="2" />
@@ -33,4 +35,4 @@
     <path d="M326 211L362 239L399 211" fill="#FFE3A0" stroke="#B67B30" stroke-width="2" stroke-linejoin="round" />
     <circle cx="362" cy="238" r="6" fill="#AF692D" />
   </g>
-</g></svg>
+</svg></svg>

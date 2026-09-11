@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/vidha-mark-reversed.svg" />
-    <img src="apps/web/public/vidha-mark.svg" width="144" height="108" alt="Vidha courier working-concept mark: a warm round bird standing on a marigold continuity line" />
-  </picture>
+  <img src="apps/web/public/vidha-icon.svg" width="128" height="128" alt="Vidha app icon: an ivory courier bird carrying an amber Envelope on a rounded midnight-blue tile" />
 </p>
 
 <h1 align="center">Vidha</h1>
@@ -46,9 +43,9 @@ The repository currently provides two evidence paths, while hosted use remains e
 
 The browser prototype deliberately stops at Concern. Guardian Attestations, Veto Window, Delivery Hold, Automatic Fallback, real notifications, Recipient retrieval, and Release are not implemented. Bounded Guardian Attestations are the default intended Release Policy; Automatic Fallback must be explicitly enabled for an individual Envelope.
 
-![Vidha local synthetic prototype showing the Draft rehearsal overview in the ivory, indigo, and marigold editorial system](docs/assets/vidha-overview.png)
+![Vidha local synthetic prototype with the courier app icon, illustrated Draft overview, and paper Envelope cards](docs/assets/vidha-overview.png)
 
-_Current Phase 3P local WebKit capture using only the repository’s synthetic demo data. The visible build identity is local evidence only; this is not native Safari, a hosted service, or a release._
+_Current Phase 3P production-build WebKit capture, 10 September 2026, using only the repository’s synthetic demo data. The visible build identity is local evidence only; this is not native Safari, a hosted service, or a release._
 
 ## Run the local prototype
 

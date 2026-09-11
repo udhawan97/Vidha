@@ -751,12 +751,18 @@ test('keeps every primary view inside the documented responsive widths', async (
 });
 
 test('has no automated accessibility violations', async ({ page }) => {
-  for (const view of ['Overview', 'Envelopes', 'Guide']) {
-    await page.getByRole('button', { name: view, exact: true }).click();
-    const results = await new AxeBuilder({ page }).analyze();
-
-    expect(results.violations, `${view} accessibility`).toEqual([]);
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    for (const view of ['Overview', 'Envelopes', 'Guide']) {
+      await page.getByRole('button', { name: view, exact: true }).click();
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(
+        results.violations,
+        `${colorScheme} ${view} accessibility`,
+      ).toEqual([]);
+    }
   }
+  await page.emulateMedia({ colorScheme: 'light' });
 
   await page.getByRole('button', { name: 'Envelopes', exact: true }).click();
   const originalTitle = await page.getByLabel('Document title').inputValue();
@@ -780,20 +786,40 @@ test('has no automated accessibility violations', async ({ page }) => {
   ).toEqual([]);
 });
 
-test('uses the courier mark and stops its continuity-line motion when requested', async ({
+test('uses square courier icons and keeps decorative motion bounded', async ({
   page,
 }) => {
-  const embeddedMark = page.locator('img[src="/vidha-mark.svg"]');
+  const embeddedMark = page.locator('.wordmark img');
   await expect(embeddedMark).toBeVisible();
   await expect
     .poll(() => embeddedMark.evaluate((image) => image.currentSrc))
-    .toContain('/vidha-mark.svg');
+    .toContain('/vidha-icon.svg');
   await expect(
     page.locator('link[rel="icon"][media*="reduced-motion: reduce"]'),
   ).toHaveAttribute('href', '/pwa-192.png');
   await expect(
     page.locator('link[rel="icon"][media*="reduced-motion: no-preference"]'),
   ).toHaveAttribute('href', '/vidha-icon.svg');
+
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute(
+    'href',
+    '/apple-touch-icon.png',
+  );
+  await expect
+    .poll(() =>
+      embeddedMark.evaluate((image) => {
+        const bounds = image.getBoundingClientRect();
+        return bounds.width === bounds.height;
+      }),
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      page
+        .locator('.courier-scene-icon')
+        .evaluate((image) => getComputedStyle(image).animationIterationCount),
+    )
+    .toBe('1');
 
   for (const asset of [
     '/vidha-mark.svg',
@@ -819,7 +845,7 @@ test('uses the courier mark and stops its continuity-line motion when requested'
     if (asset === '/vidha-mark-maskable.svg') {
       await expect(page.locator('svg > g')).toHaveAttribute(
         'transform',
-        'translate(8.4 8.4) scale(0.86)',
+        'translate(51.2 51.2) scale(0.8)',
       );
     }
   }
@@ -832,7 +858,7 @@ test('uses the courier mark and stops its continuity-line motion when requested'
     .poll(() =>
       courier.evaluate((element) => getComputedStyle(element).animationName),
     )
-    .toContain('courier-bob');
+    .toBe('none');
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect
