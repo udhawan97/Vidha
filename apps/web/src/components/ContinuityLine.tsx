@@ -83,13 +83,7 @@ export function ContinuityLine({ cycle }: ContinuityLineProps) {
             style={{ left: `${courierPosition}%` }}
             aria-hidden="true"
           >
-            <picture>
-              <source
-                media="(prefers-color-scheme: dark)"
-                srcSet="/vidha-mark-reversed.svg"
-              />
-              <img alt="" height="450" src="/vidha-mark.svg" width="600" />
-            </picture>
+            <img alt="" height="512" src="/vidha-icon.svg" width="512" />
           </span>
           <div className="continuity-track" aria-hidden="true">
             <span

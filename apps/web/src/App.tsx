@@ -401,13 +401,7 @@ export function App() {
           onClick={() => setView('overview')}
           type="button"
         >
-          <picture>
-            <source
-              media="(prefers-color-scheme: dark)"
-              srcSet="/vidha-mark-reversed.svg"
-            />
-            <img alt="" height="450" src="/vidha-mark.svg" width="600" />
-          </picture>
+          <img alt="" height="512" src="/vidha-icon.svg" width="512" />
           <span className="wordmark-name">Vidha</span>
           <span className="wordmark-subtitle">Contingency relay</span>
         </button>
@@ -419,7 +413,19 @@ export function App() {
             type="button"
           >
             <span className="nav-glyph" aria-hidden="true">
-              01
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="7" height="7" rx="2" />
+                <rect x="14" y="3" width="7" height="7" rx="2" />
+                <rect x="3" y="14" width="7" height="7" rx="2" />
+                <rect x="14" y="14" width="7" height="7" rx="2" />
+              </svg>
             </span>
             <span>Overview</span>
           </button>
@@ -430,7 +436,17 @@ export function App() {
             type="button"
           >
             <span className="nav-glyph" aria-hidden="true">
-              02
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="5" width="18" height="14" rx="3" />
+                <path d="m4 7 8 6 8-6" />
+              </svg>
             </span>
             <span>Envelopes</span>
           </button>
@@ -441,7 +457,16 @@ export function App() {
             type="button"
           >
             <span className="nav-glyph" aria-hidden="true">
-              03
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 6C9 4 5 4 3 5v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-2-1-6-1-9 1Zm0 0v14" />
+              </svg>
             </span>
             <span>Guide</span>
           </button>

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { demoContacts, type DemoEnvelope } from '../demo';
 import type { SessionLossReview as SessionLossReviewModel } from '../sessionLossReview';
 import { ContinuityLine } from './ContinuityLine';
+import { CourierScene } from './CourierScene';
 import { DraftRehearsalDialog } from './DraftRehearsalDialog';
 import { OwnerActionDialog } from './OwnerActionDialog';
 import { SessionLossReview } from './SessionLossReview';
@@ -499,6 +500,7 @@ export function Overview({
         一・現状
       </span>
       <section className={`status-field stage-${plan.cycle.stage}`}>
+        <CourierScene />
         <span className="status-watermark" aria-hidden="true">
           Contingency relay
         </span>
@@ -590,6 +592,11 @@ export function Overview({
             {envelopes.map((envelope, index) => (
               <article className="envelope-row" key={envelope.id}>
                 <span className="envelope-index" aria-hidden="true">
+                  <svg viewBox="0 0 64 48" fill="none">
+                    <rect x="2" y="2" width="60" height="44" rx="5" />
+                    <path d="m3 5 29 22L61 5M3 44l22-20m36 20L39 24" />
+                    <circle cx="32" cy="27" r="5" />
+                  </svg>
                   {String(index + 1).padStart(2, '0')}
                 </span>
                 <div>
