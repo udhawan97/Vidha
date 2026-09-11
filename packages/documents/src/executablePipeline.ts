@@ -411,7 +411,7 @@ export function createClamdInstreamScanner(input: {
   return {
     signatureSetIdentity: input.signatureSetIdentity,
     async scan(bytes) {
-      const versionResponse = await requestClamd(input, (socket) => {
+      const versionResponse = await requestClamdWithRetry(input, (socket) => {
         socket.end('zVERSION\0');
       });
       const version = parseClamdVersion(versionResponse);
@@ -419,7 +419,7 @@ export function createClamdInstreamScanner(input: {
       if (bytes.byteLength > input.maxBytes) {
         return { ...version, verdict: 'unavailable' };
       }
-      const scanResponse = await requestClamd(input, (socket) => {
+      const scanResponse = await requestClamdWithRetry(input, (socket) => {
         socket.write('zINSTREAM\0');
         for (let offset = 0; offset < bytes.byteLength; offset += 64 * 1024) {
           const chunk = bytes.subarray(offset, offset + 64 * 1024);
@@ -442,6 +442,30 @@ export function createClamdInstreamScanner(input: {
       };
     },
   };
+}
+
+async function requestClamdWithRetry(
+  input: {
+    readonly host?: string;
+    readonly maxResponseBytes?: number;
+    readonly port?: number;
+    readonly socketPath?: string;
+    readonly timeoutMs: number;
+  },
+  send: (socket: ReturnType<typeof connect>) => void,
+): Promise<string | undefined> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await requestClamd(input, send);
+    if (response !== undefined) {
+      return response;
+    }
+    if (attempt < 2) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 25 + attempt * 25);
+      });
+    }
+  }
+  return undefined;
 }
 
 async function requestClamd(
@@ -488,9 +512,10 @@ function parseClamdVersion(response?: string):
       readonly signatureSetVersion: string;
     }
   | undefined {
+  const normalized = (response ?? '').replace(/\0/g, '').trim();
   const match =
-    /^ClamAV ([0-9]+(?:\.[0-9]+){1,3})\/([0-9]+)\/[^\0\r\n]{1,128}\0?$/u.exec(
-      response ?? '',
+    /^ClamAV\s+([0-9]+(?:\.[0-9]+){1,3})\/([0-9]+)\/?/u.exec(
+      normalized,
     );
   if (match === null) return undefined;
   return {

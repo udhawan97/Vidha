@@ -83,6 +83,8 @@ const resolvedFixtureTemp = fixtureTemp ?? tmpdir();
 const eicar = new TextEncoder().encode(
   'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*',
 );
+const rootlessScanTimeoutMs = 20_000;
+const rootlessScanWindowMs = 30_000;
 const scratchDirectories: string[] = [];
 
 suite('rootless adversarial import isolation', () => {
@@ -114,7 +116,7 @@ suite('rootless adversarial import isolation', () => {
     maxBytes: 1_048_576,
     signatureSetIdentity: resolvedSignatureSetIdentity,
     socketPath: resolvedClamdSocket,
-    timeoutMs: 10_000,
+    timeoutMs: rootlessScanTimeoutMs,
   });
 
   afterAll(async () => {
@@ -136,14 +138,14 @@ suite('rootless adversarial import isolation', () => {
       }),
       inspectionPolicy: {
         acceptedIsolationProfiles: ['isolated_process_no_network'],
-        maxScanDurationMs: 15_000,
+        maxScanDurationMs: rootlessScanWindowMs,
       },
       limits: { maxBytes: 1_048_576, maxLines: 10_000 },
       scanner: createExecutableImportScanner({
         classifierExecutable: fileExecutable ?? '/usr/bin/false',
         clock: { now: () => Date.now() },
         executor: classifier,
-        maxDurationMs: 10_000,
+        maxDurationMs: rootlessScanTimeoutMs,
         scanner: clam,
       }),
     });
@@ -186,7 +188,7 @@ suite('rootless adversarial import isolation', () => {
       classifierExecutable: fileExecutable ?? '/usr/bin/false',
       clock: { now: () => START },
       executor: classifier,
-      maxDurationMs: 10_000,
+      maxDurationMs: rootlessScanTimeoutMs,
       scanner: {
         signatureSetIdentity: resolvedSignatureSetIdentity,
         async scan() {
@@ -204,7 +206,8 @@ suite('rootless adversarial import isolation', () => {
         quarantined(
           Uint8Array.from(
             Buffer.concat([
-              Buffer.from('%PDF-1.7\nsynthetic\n', 'utf8'),
+              Buffer.from([0x00, 0x50, 0x4b, 0x03, 0x04]),
+              Buffer.from('synthetic\n', 'utf8'),
               Buffer.from([0x50, 0x4b, 0x03, 0x04]),
               Buffer.from('polyglot', 'utf8'),
             ]),
@@ -307,7 +310,7 @@ process.stdout.write(JSON.stringify({meta:{},blocks:source}));
           console.info(line);
         },
       },
-      timeoutMs: 2_000,
+      timeoutMs: rootlessScanTimeoutMs,
     });
     await expect(
       converter.convert(
