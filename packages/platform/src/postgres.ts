@@ -404,9 +404,16 @@ class PostgresOwnerIdentityRepository implements OwnerIdentityRepository {
   ): Promise<T> {
     this.assertLive();
     const client = await this.pool.connect();
+    let identityLockAcquired = false;
+    let transactionStarted = false;
+    let discardClient = false;
     try {
+      // Acquire the writer lock before PostgreSQL establishes a serializable
+      // snapshot so a waiter reads the state committed by its predecessor.
+      await client.query('SELECT pg_advisory_lock($1)', [0x4944454e]);
+      identityLockAcquired = true;
       await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
-      await client.query('SELECT pg_advisory_xact_lock($1)', [0x4944454e]);
+      transactionStarted = true;
       const rows = await client.query<{
         owner_id: string;
         state_json: unknown;
@@ -454,12 +461,26 @@ class PostgresOwnerIdentityRepository implements OwnerIdentityRepository {
         );
       }
       await client.query('COMMIT');
+      transactionStarted = false;
       return result;
     } catch (error) {
-      await client.query('ROLLBACK');
+      if (transactionStarted) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          discardClient = true;
+        }
+      }
       throw error;
     } finally {
-      client.release();
+      if (identityLockAcquired && !discardClient) {
+        try {
+          await client.query('SELECT pg_advisory_unlock($1)', [0x4944454e]);
+        } catch {
+          discardClient = true;
+        }
+      }
+      client.release(discardClient);
     }
   }
 
