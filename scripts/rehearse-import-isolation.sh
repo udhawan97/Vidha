@@ -31,9 +31,15 @@ mkdir -p \
   "$XDG_RUNTIME_DIR" \
   "$XDG_DATA_HOME" \
   "$XDG_CONFIG_HOME" \
+  "$XDG_CONFIG_HOME/containers" \
   "$fixture_root/containers-runroot" \
   "$fixture_root/containers-graphroot"
 chmod 700 "$XDG_RUNTIME_DIR" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
+
+cat >"$XDG_CONFIG_HOME/containers/containers.conf" <<'EOF'
+[engine]
+cgroup_manager = "cgroupfs"
+EOF
 
 cleanup() {
   podman rm --force --ignore "$clamd_name" >/dev/null 2>&1 || true
