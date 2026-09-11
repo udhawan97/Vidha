@@ -282,11 +282,13 @@ describe('executable import pipeline', () => {
     const runtime = join(directory, 'podman-fixture');
     const log = join(directory, 'runtime.log');
     const sourcePath = join(directory, 'source.txt');
+    // Podman may emit bounded cgroup fallback diagnostics before the proof.
     await writeFile(
       runtime,
       `#!/bin/sh
 printf '%s\\n' "$*" >> ${JSON.stringify(log)}
 if [ "$1" = "info" ]; then
+  printf '%0500d' 0 >&2
   printf 'true'
 elif [ "$1" = "run" ]; then
   printf '{"meta":{},"blocks":[]}'

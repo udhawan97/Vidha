@@ -288,7 +288,7 @@ export function createRootlessOciProcessExecutor(
         args: ['info', '--format={{.Host.Security.Rootless}}'],
         environment,
         executable: input.runtimeExecutable,
-        maxOutputBytes: 256,
+        maxOutputBytes: 4_096,
         timeoutMs: 10_000,
       });
       if (
