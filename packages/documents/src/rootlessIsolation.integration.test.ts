@@ -83,8 +83,8 @@ const resolvedFixtureTemp = fixtureTemp ?? tmpdir();
 const eicar = new TextEncoder().encode(
   'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*',
 );
-const rootlessScanTimeoutMs = 20_000;
-const rootlessScanWindowMs = 30_000;
+const rootlessToolTimeoutMs = 20_000;
+const rootlessInspectionWindowMs = 30_000;
 const scratchDirectories: string[] = [];
 
 suite('rootless adversarial import isolation', () => {
@@ -116,7 +116,7 @@ suite('rootless adversarial import isolation', () => {
     maxBytes: 1_048_576,
     signatureSetIdentity: resolvedSignatureSetIdentity,
     socketPath: resolvedClamdSocket,
-    timeoutMs: rootlessScanTimeoutMs,
+    timeoutMs: rootlessToolTimeoutMs,
   });
 
   afterAll(async () => {
@@ -134,18 +134,18 @@ suite('rootless adversarial import isolation', () => {
         executable: pandocExecutable ?? '/usr/bin/false',
         executor: converterExecutor,
         maxOutputBytes: 65_536,
-        timeoutMs: 10_000,
+        timeoutMs: rootlessToolTimeoutMs,
       }),
       inspectionPolicy: {
         acceptedIsolationProfiles: ['isolated_process_no_network'],
-        maxScanDurationMs: rootlessScanWindowMs,
+        maxScanDurationMs: rootlessInspectionWindowMs,
       },
       limits: { maxBytes: 1_048_576, maxLines: 10_000 },
       scanner: createExecutableImportScanner({
         classifierExecutable: fileExecutable ?? '/usr/bin/false',
         clock: { now: () => Date.now() },
         executor: classifier,
-        maxDurationMs: rootlessScanTimeoutMs,
+        maxDurationMs: rootlessToolTimeoutMs,
         scanner: clam,
       }),
     });
@@ -188,7 +188,7 @@ suite('rootless adversarial import isolation', () => {
       classifierExecutable: fileExecutable ?? '/usr/bin/false',
       clock: { now: () => START },
       executor: classifier,
-      maxDurationMs: rootlessScanTimeoutMs,
+      maxDurationMs: rootlessToolTimeoutMs,
       scanner: {
         signatureSetIdentity: resolvedSignatureSetIdentity,
         async scan() {
@@ -238,7 +238,7 @@ suite('rootless adversarial import isolation', () => {
       executable: pandocExecutable ?? '/usr/bin/false',
       executor: converterExecutor,
       maxOutputBytes: 65_536,
-      timeoutMs: 10_000,
+      timeoutMs: rootlessToolTimeoutMs,
     });
     await expect(converter.convert(inspected(source))).rejects.toMatchObject({
       code: 'SCAN_BLOCKED',
@@ -310,7 +310,7 @@ process.stdout.write(JSON.stringify({meta:{},blocks:source}));
           console.info(line);
         },
       },
-      timeoutMs: rootlessScanTimeoutMs,
+      timeoutMs: rootlessToolTimeoutMs,
     });
     await expect(
       converter.convert(
