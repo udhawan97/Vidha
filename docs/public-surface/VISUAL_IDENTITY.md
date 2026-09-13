@@ -43,7 +43,7 @@ The larger offline cache comes mainly from the richer PNG icon fallbacks and new
 - Existing responsive checks cover 320, 375, 414, 768, and 1440 px; primary actions, editor navigation, file decisions, and timeline stages remain reachable.
 - Icon checks cover square display, passive SVG hygiene, maskable insetting, bounded entrance motion, and reduced-motion stability.
 - README image is an actual local production-build screenshot with disposable synthetic data.
-- On 10 September, the integrated tree passed formatting, lint, type checking, all 328 non-PostgreSQL workspace tests with 30 environment-gated skips, production build, and documentation validation through `pnpm check`. No test timeout or assertion was loosened. The 12 September project-page change passes every targeted gate; the aggregate command currently stops on an unchanged formatting mismatch in `packages/documents/src/executablePipeline.ts`.
+- On 10 September, the integrated tree passed formatting, lint, type checking, all 328 non-PostgreSQL workspace tests with 30 environment-gated skips, production build, and documentation validation through `pnpm check`. No test timeout or assertion was loosened. The 12 September project-page change separately passed its targeted format, lint, build, documentation, responsive, accessibility, asset, console, keyboard, and reduced-motion checks.
 
 Obscura refused private loopback access. Actual Safari was later visually inspected for the integrated prototype and project page in dark appearance; this is not supported-browser qualification. Deployment and live-byte parity for the square-icon asset set remain separate work.
 

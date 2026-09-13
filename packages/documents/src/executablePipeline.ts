@@ -513,10 +513,9 @@ function parseClamdVersion(response?: string):
     }
   | undefined {
   const normalized = (response ?? '').replace(/\0/g, '').trim();
-  const match =
-    /^ClamAV\s+([0-9]+(?:\.[0-9]+){1,3})\/([0-9]+)\/?/u.exec(
-      normalized,
-    );
+  const match = /^ClamAV\s+([0-9]+(?:\.[0-9]+){1,3})\/([0-9]+)\/?/u.exec(
+    normalized,
+  );
   if (match === null) return undefined;
   return {
     engineVersion: match[1] ?? 'unavailable',
