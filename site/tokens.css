@@ -1,46 +1,64 @@
-/* Hallmark · pre-emit critique: P5 H5 E4 S5 R4 V5
- * contrast: pass (40–41) · nav: N10 · footer: Ft8 · slop: pass (42–49) · mobile: pass (34, 49–57)
- * macrostructure: Narrative Workflow · tone: warm playful editorial · anchor hue: marigold
- * genre: playful · theme: Vidha editorial preserved · enrichment: Tier B hand-built SVG
- * nav: N10 floating-on-scroll morph · footer: Ft8 marquee scroll
- */
+/* Vidha public surface · courier atelier tokens aligned with apps/web. */
+
+@font-face {
+  font-family: 'Manrope Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('./fonts/manrope-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Newsreader Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('./fonts/newsreader-latin-opsz-normal.woff2')
+    format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Newsreader Variable';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('./fonts/newsreader-latin-opsz-italic.woff2')
+    format('woff2-variations');
+}
 
 :root {
   color-scheme: light dark;
 
-  --color-ink: oklch(25% 0.065 267);
-  --color-ink-soft: oklch(38% 0.052 267);
-  --color-muted: oklch(43% 0.018 52);
-  --color-paper: oklch(95.6% 0.028 84);
-  --color-paper-strong: oklch(98.2% 0.015 84);
-  --color-paper-soft: oklch(91.8% 0.036 84);
-  --color-paper-deep: oklch(87.5% 0.045 82);
-  --color-rule: oklch(80.5% 0.036 82);
-  --color-rule-strong: oklch(67% 0.04 82);
-  --color-thread: oklch(74% 0.158 76);
-  --color-thread-deep: oklch(59% 0.145 64);
-  --color-thread-soft: oklch(91% 0.078 82);
-  --color-peacock: oklch(50% 0.105 184);
-  --color-peacock-deep: oklch(39% 0.09 184);
-  --color-peacock-soft: oklch(88% 0.052 184);
-  --color-concern: oklch(46% 0.17 27);
-  --color-concern-soft: oklch(89% 0.052 30);
-  --color-focus: oklch(44% 0.12 184);
-  --color-shadow: oklch(20% 0.035 267 / 0.14);
-  --color-shadow-soft: oklch(20% 0.035 267 / 0.08);
-  --color-glass: oklch(98.2% 0.015 84 / 0.9);
-  --color-panel: oklch(25% 0.065 267);
-  --color-panel-soft: oklch(31% 0.065 267);
-  --color-panel-ink: oklch(96% 0.024 84);
-  --color-panel-muted: oklch(82% 0.028 84);
-  --color-panel-rule: oklch(45% 0.052 267);
-  --color-accent-ink: oklch(24% 0.06 267);
+  --color-ink: #141f45;
+  --color-ink-soft: #525b78;
+  --color-muted: #5f5a58;
+  --color-paper: #f3f1eb;
+  --color-paper-strong: #fffefb;
+  --color-paper-soft: #eeece4;
+  --color-paper-deep: #dedbd0;
+  --color-rule: #dedbd0;
+  --color-rule-strong: #bdb6a5;
+  --color-thread: #e9a427;
+  --color-thread-deep: #8b5b05;
+  --color-thread-soft: #f7e8bd;
+  --color-peacock: #096c65;
+  --color-peacock-deep: #096c65;
+  --color-peacock-soft: #dceae7;
+  --color-concern: #b73527;
+  --color-concern-soft: #f5ddd4;
+  --color-focus: #e9a427;
+  --color-shadow: rgb(20 31 69 / 14%);
+  --color-shadow-soft: rgb(20 31 69 / 8%);
+  --color-glass: rgb(250 248 242 / 92%);
+  --color-panel: #141f45;
+  --color-panel-soft: #1b284e;
+  --color-panel-ink: #f7f0e2;
+  --color-panel-muted: #d5ccb9;
+  --color-panel-rule: #394564;
+  --color-accent-ink: #141f45;
 
-  --font-display:
-    'Iowan Old Style', 'Hiragino Mincho ProN', 'Yu Mincho', Baskerville,
-    'Times New Roman', serif;
-  --font-body:
-    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Newsreader Variable', 'Iowan Old Style', Georgia, serif;
+  --font-body: 'Manrope Variable', system-ui, sans-serif;
   --font-label: var(--font-body);
 
   --text-xs: 0.68rem;
@@ -65,9 +83,9 @@
   --space-3xl: 6rem;
   --space-4xl: 9rem;
 
-  --radius-sm: 0.35rem;
+  --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
-  --radius-lg: 1.35rem;
+  --radius-lg: 1.5rem;
   --radius-pill: 999px;
   --rule-hairline: 1px;
   --rule-strong: 2px;
@@ -95,27 +113,32 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-ink: oklch(94% 0.024 84);
-    --color-ink-soft: oklch(84% 0.03 84);
-    --color-muted: oklch(73% 0.026 82);
-    --color-paper: oklch(16% 0.04 267);
-    --color-paper-strong: oklch(20% 0.05 267);
-    --color-paper-soft: oklch(23.5% 0.055 267);
-    --color-paper-deep: oklch(28% 0.058 267);
-    --color-rule: oklch(36% 0.055 267);
-    --color-rule-strong: oklch(48% 0.05 267);
-    --color-thread: oklch(79% 0.145 78);
-    --color-thread-deep: oklch(69% 0.14 72);
-    --color-thread-soft: oklch(30% 0.075 76);
-    --color-peacock: oklch(72% 0.105 184);
-    --color-peacock-deep: oklch(63% 0.1 184);
-    --color-peacock-soft: oklch(30% 0.065 184);
-    --color-concern: oklch(72% 0.16 28);
-    --color-concern-soft: oklch(31% 0.09 28);
-    --color-focus: oklch(79% 0.145 78);
-    --color-shadow: oklch(7% 0.025 267 / 0.34);
-    --color-shadow-soft: oklch(7% 0.025 267 / 0.2);
-    --color-glass: oklch(20% 0.05 267 / 0.92);
-    --color-accent-ink: oklch(20% 0.05 267);
+    --color-ink: #f7f0e2;
+    --color-ink-soft: #d5ccb9;
+    --color-muted: #aaa38f;
+    --color-paper: #0c1430;
+    --color-paper-strong: #141f45;
+    --color-paper-soft: #101a39;
+    --color-paper-deep: #1b284e;
+    --color-rule: #394564;
+    --color-rule-strong: #53607d;
+    --color-thread: #e9a427;
+    --color-thread-deep: #f2bb4e;
+    --color-thread-soft: #443716;
+    --color-peacock: #50b7ad;
+    --color-peacock-deep: #50b7ad;
+    --color-peacock-soft: #173c44;
+    --color-concern: #ef806c;
+    --color-concern-soft: #492a30;
+    --color-focus: #e9a427;
+    --color-shadow: rgb(2 6 18 / 34%);
+    --color-shadow-soft: rgb(2 6 18 / 24%);
+    --color-glass: rgb(16 26 57 / 92%);
+    --color-panel: #141f45;
+    --color-panel-soft: #1b284e;
+    --color-panel-ink: #f7f0e2;
+    --color-panel-muted: #d5ccb9;
+    --color-panel-rule: #394564;
+    --color-accent-ink: #141f45;
   }
 }

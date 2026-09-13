@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vidha pre-alpha — a careful contingency relay</title>
+    <title>Vidha pre-alpha — brief the handoff, rehearse the relay</title>
     <meta
       name="description"
       content="Vidha is a pre-alpha open-source contingency-relay project for deliberate, recipient-specific handoffs. This public page describes the design; there is no hosted service or release."
@@ -13,7 +13,7 @@
     <meta property="og:site_name" content="Vidha" />
     <meta
       property="og:title"
-      content="Vidha — a careful way for messages to find their way home"
+      content="Vidha — brief the handoff, rehearse the relay"
     />
     <meta
       property="og:description"
@@ -58,22 +58,6 @@
         </nav>
 
         <div class="nav-actions">
-          <button
-            class="motion-toggle"
-            type="button"
-            aria-label="Pause ambient motion"
-            aria-pressed="false"
-            title="Pause ambient motion"
-            data-motion-toggle
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path class="icon-pause" d="M7 5h3v14H7zm7 0h3v14h-3z" />
-              <path class="icon-play" d="m8 5 11 7-11 7z" />
-            </svg>
-            <span class="visually-hidden" data-motion-label
-              >Pause ambient motion</span
-            >
-          </button>
           <a
             class="source-link"
             href="https://github.com/udhawan97/Vidha"
@@ -90,8 +74,8 @@
         <div class="hero-copy">
           <p class="label">Open source · pre-alpha · local evidence</p>
           <h1>
-            Some messages need a careful
-            <span class="threaded-word">way home.</span>
+            Brief the handoff.
+            <span class="threaded-word">Rehearse the relay.</span>
           </h1>
           <p class="lede">
             Vidha is a contingency relay for one adult Owner to prepare
@@ -116,8 +100,47 @@
         </div>
 
         <div class="hero-art scene-reveal">
+          <div
+            class="interface-preview"
+            role="img"
+            aria-label="A visual preview of Vidha's current synthetic Draft overview, with the courier app icon, an inactive timeline, and rehearsal controls"
+          >
+            <div class="preview-topbar">
+              <span>Pre-alpha prototype · synthetic data</span>
+              <span class="preview-owner"><i>DO</i> Demo Owner</span>
+            </div>
+            <div class="preview-status">
+              <div class="preview-copy">
+                <span class="preview-eyebrow">Plan is a Draft</span>
+                <strong>Rehearse before the timeline begins.</strong>
+                <p>
+                  No Check-in timeline or Concern transition is active while
+                  this synthetic Plan is a Draft.
+                </p>
+                <span class="preview-timeline"><i>Timeline</i> Inactive</span>
+              </div>
+              <div class="preview-courier" aria-hidden="true">
+                <span class="preview-orbit preview-orbit--outer"></span>
+                <span class="preview-orbit preview-orbit--inner"></span>
+                <span class="preview-letter preview-letter--back"></span>
+                <img src="vidha-mark.svg" width="512" height="512" alt="" />
+                <span class="preview-letter preview-letter--front"
+                  ><i>V</i></span
+                >
+                <span class="preview-star preview-star--one">✦</span>
+                <span class="preview-star preview-star--two">✦</span>
+                <em>A little care, carried forward.</em>
+              </div>
+            </div>
+            <div class="preview-controls" aria-hidden="true">
+              <span>Plan controls</span>
+              <b>Review rehearsal</b>
+              <i>Disable rehearsal</i>
+            </div>
+          </div>
           <svg
             class="hero-scene ambient-motion"
+            hidden
             viewBox="0 0 640 560"
             role="img"
             aria-labelledby="hero-art-title hero-art-desc"
@@ -269,7 +292,7 @@
             <path class="scene-rule" d="M548 281v70m39-70v70" opacity=".45" />
           </svg>
           <p class="hero-note">
-            A working concept, not a service. The courier knows when to stop.
+            Current interface direction · local synthetic prototype only.
           </p>
         </div>
       </section>
@@ -422,7 +445,7 @@
             <li class="relay-step" data-proof="target">
               <span class="stage-token">05</span>
               <div class="stage-body">
-                <h3>Veto &amp; release</h3>
+                <h3>Veto &amp; Release</h3>
                 <p>
                   A full Veto Window would follow accepted final notice.
                   All-channel failure means Delivery Hold, not Release.

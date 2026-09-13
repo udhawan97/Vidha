@@ -23,7 +23,7 @@
 
 “Vidha” and the courier mark are provisional working concepts. Name and logo clearance are incomplete, and this project makes no exclusivity, cultural-origin, or ownership claim.
 
-The informational project page now tells the intended relay as a warm, sectioned visual story with hand-built courier SVG scenes, a visible local-evidence/target boundary, optional motion, and reduced-motion support. This remains presentation of the pre-alpha design—not a hosted Vidha service or product release.
+The informational project-page source now mirrors the current courier-atelier interface: the same dimensional app icon, midnight-blue and warm-paper surfaces, warm action accents, Newsreader and Manrope typography, rounded status panels, and clear local-evidence versus unimplemented-target labels. Ambient illustrations are static; the one-time interface entrance and section reveals are removed under reduced motion. This remains presentation of the pre-alpha design—not a hosted Vidha service or product release.
 
 ## What is Vidha?
 

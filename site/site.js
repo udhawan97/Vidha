@@ -1,55 +1,13 @@
 /* global document, window, IntersectionObserver */
-/* Vidha public page · motion is optional, navigation is progressively enhanced. */
+/* Vidha public page · static ambient art, progressively enhanced navigation. */
 
 const root = document.documentElement;
-const motionToggle = document.querySelector('[data-motion-toggle]');
-const motionLabel = document.querySelector('[data-motion-label]');
 const siteNav = document.querySelector('[data-site-nav]');
 const revealScenes = [...document.querySelectorAll('.scene-reveal')];
 const navSections = [...document.querySelectorAll('[data-nav-section]')];
 const navLinks = [...document.querySelectorAll('.nav-link')];
-const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-root.dataset.motionControls = 'available';
 root.dataset.sceneReveal = 'available';
-
-let motionPaused = reducedMotion.matches;
-let hasMotionOverride = false;
-
-function renderMotionPreference() {
-  const nextLabel = motionPaused
-    ? 'Play ambient motion'
-    : 'Pause ambient motion';
-
-  root.dataset.motion = motionPaused ? 'paused' : 'running';
-  motionToggle?.setAttribute('aria-pressed', String(motionPaused));
-  motionToggle?.setAttribute('aria-label', nextLabel);
-  motionToggle?.setAttribute('title', nextLabel);
-
-  if (motionLabel) {
-    motionLabel.textContent = nextLabel;
-  }
-}
-
-motionToggle?.addEventListener('click', () => {
-  hasMotionOverride = true;
-  motionPaused = !motionPaused;
-  renderMotionPreference();
-});
-
-function followSystemMotionPreference(event) {
-  if (hasMotionOverride) return;
-  motionPaused = event.matches;
-  renderMotionPreference();
-}
-
-if ('addEventListener' in reducedMotion) {
-  reducedMotion.addEventListener('change', followSystemMotionPreference);
-} else {
-  reducedMotion.addListener(followSystemMotionPreference);
-}
-
-renderMotionPreference();
 
 let scrollFramePending = false;
 
