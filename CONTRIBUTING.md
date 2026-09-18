@@ -21,13 +21,13 @@ A focused pull request should include:
 - screenshots only from disposable demo data after a runnable app exists;
 - no unrelated formatting, dependency, or generated-file churn.
 
-Until implementation exists, documentation changes can run:
+For documentation-only changes, run the repository documentation gate:
 
 ```sh
 ./scripts/check-docs.sh
 ```
 
-Fable will replace this with the full clean-checkout gate during implementation. Do not weaken a failing check to make a release pass.
+For implementation changes, run `pnpm check` plus the relevant focused test or rehearsal for the affected area. Do not weaken a failing check to make a release pass.
 
 ## Commit and release boundaries
 
